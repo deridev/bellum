@@ -14,6 +14,7 @@ import { LedgerScreen } from './Ledger';
 import { fmt1, fmtBig, fmtInt, fmtMoney, fmtMoney2, pct, pct1, cssPct } from './format';
 import { listSaves, loadGame, saveGame, deleteSave } from '../game/save';
 import { EndScreen } from './Goals';
+import { Guide } from './Guide';
 import { AgendaCards, DeclareDialog, POSTURES, ToolHint, WarPanel } from './War';
 import { ChroniclePanel, TimelapsePanel } from './Chronicle';
 import { Settings } from './Settings';
@@ -47,6 +48,7 @@ export function Hud({ g }: { g: Game }) {
     {st.declare >= 0 && <DeclareDialog g={g} target={st.declare} />}
     {st.menu && <Menu g={g} />}
     <EndScreen g={g} />
+    {st.guide && !st.menu && <Guide g={g} />}
   </>;
 }
 
@@ -447,6 +449,7 @@ function Menu({ g }: { g: Game }) {
           {saves.length > 0 && <Block title={t('title.load')}><ul class="saves">{saves.map(sv => <li key={sv.slot}>
             <button onClick={() => { const w = loadGame(sv.slot); if (w) g.loadWorld(w); else setNote(t('menu.loadFailed')); }}><b>{sv.country}</b><span>{sv.date}</span></button>
             <button class="x" aria-label={t('menu.delete', { s: `${sv.country} ${sv.date}` })} onClick={() => { deleteSave(sv.slot); force(x => x + 1); }}><Icon name="x" size={12} /></button></li>)}</ul></Block>}
+          <button onClick={() => g.st.set({ menu: false, guide: true })}><Icon name="chronicle" size={16} />{t('guide.again')}</button>
           <button onClick={() => setView('settings')}><Icon name="settings" size={16} />{t('title.settings')}</button>
           <button onClick={() => location.reload()}>{t('menu.exit')}</button>
           <button onClick={close}><Icon name="play" size={14} />{t('menu.resume')}</button>

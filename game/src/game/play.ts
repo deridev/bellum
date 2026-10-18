@@ -14,6 +14,7 @@ import { strikeOdds } from '../sim/war/ai';
 import { armyWhere, mergeArmies, orderArmy, releaseArmy, reserveArmy, splitArmy } from '../sim/war/armies';
 import { queueUnit } from '../sim/economy';
 import { landingPlan } from '../sim/war/landing';
+import { guideSeen } from '../ui/Guide';
 import { cellOf, provAtLonLat, work, type Theater } from '../sim/war/theater';
 import { diploOdds, doDiplo, type DiploAction } from '../sim/diplomacy';
 import { loadScenario, staticFor } from './scenarios';
@@ -22,7 +23,7 @@ import { audio, type Cue } from './audio';
 export type Panel = { kind: 'economy' | 'politics' | 'military' | 'diplomacy' | 'ledger' | 'chronicle' | 'timelapse' } | { kind: 'province'; id: number } | { kind: 'country'; id: number } | { kind: 'war'; id: number } | null;
 /** What an order at the pointer would do, while an army is picked up (for an attack, see strikeOdds). */
 export interface Aim { kind?: 'attack' | 'hold' | 'wait' | 'station' | 'landing'; days?: number; err: string | null; odds: number; n: number; reserves: number; foes: number; def: number; from: [number, number] | null; to: [number, number] | null; ids: number[] }
-export interface GameState { day: number; speed: number; paused: boolean; tick: number; panel: Panel; turnMode: World['settings']['turnMode']; menu: boolean; toast: string; declare: number; aim: Aim | null; army: number | null }
+export interface GameState { day: number; speed: number; paused: boolean; tick: number; panel: Panel; turnMode: World['settings']['turnMode']; menu: boolean; toast: string; declare: number; aim: Aim | null; army: number | null; guide: boolean }
 /** a cell of ours within 80 km of the front: an army sent there holds it (further back, it waits in reserve) */
 const nearFront = (th: Theater, k: number) => { const d = work(th).distF[k]; return d >= 0 && d * th.cellKm <= 80; };
 export const SPEEDS = [0.5, 1.5, 4, 10, 25]; // days per second
@@ -34,7 +35,7 @@ export type NationStat = typeof NATION_STATS[number];
 
 export class Game {
   w: World; S: MapStatic; player: number;
-  st = createStore<GameState>({ day: 0, speed: 1, paused: true, tick: 0, panel: null, turnMode: 'continuous', menu: false, toast: '', declare: -1, aim: null, army: null });
+  st = createStore<GameState>({ day: 0, speed: 1, paused: true, tick: 0, panel: null, turnMode: 'continuous', menu: false, toast: '', declare: -1, aim: null, army: null, guide: !guideSeen() });
   acc = 0; private lastUi = 0; private mapSeen = ''; private now = 0; private dt = 0; private lastAssign = 0;
   layer: TheaterLayer; fx: WarFx;
   /** monthly snapshots of who holds each province, for the timelapse */

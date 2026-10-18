@@ -540,6 +540,22 @@ A new balance test plays the reported case: Mexico builds for six months with it
 - Equipment is fixed when the world is made; raising the military budget buys more divisions, not better ones.
 - Even wars now tend to tip: once a side starts losing whole divisions, it rarely recovers.
 
+## 20. A finished game: ends, world wars, the sea, crises, a guide (October 2026)
+
+Feedback: *"Fix everything is weak and incomplete. Finish the game."*
+
+| Missing | Change |
+|---|---|
+| A game never ended: no way to win or lose | **Victory and defeat** (§11 made real). Win by *domination* (a quarter of the world's output), by winning your era's *great war* (1914, 1939), or by being the *first power* at the end date (20 years for 2026, 12 for the historical scenarios). Lose by being annexed. An end screen gives the reason, your record and the top five powers, with *play on*, *watch*, *read the chronicle* and *new game*. Power = 0.5 share of world output + 0.3 army + 0.2 population. The Ledger overview opens with the goals: the domination bar, your rank, the great war |
+| The world wars ended when one country fell: 1939 stopped with Poland, and a treaty at war score 93 ended the war for the whole alliance | **Total war.** The two world wars are fought to the end. A nation whose capital falls makes a **separate peace** while its allies fight on: it loses what the enemy holds, and becomes a puppet of whoever holds its capital. A side with more than one member accepts no treaty until it is exhausted (85%) |
+| Wars across the sea could not be fought: the USA could not reach Cuba, Britain could not reach France | **Landings.** Order an army onto an enemy coast (or anywhere an attack cannot reach). The odds come from the sea power of each side (GDP × military share × equipment, coastal nations only), the enemy divisions within 150 km and marines; the voyage takes 4 days plus a day per 500 km. The odds are shown before the order. A landing that succeeds holds a beachhead, which supplies the army like a port. One that fails comes home at 60% strength. The AI lands too, when it rules the sea and has no front to fight on |
+| Peace was quiet: nothing happened to the world that the player had to answer | **World crises**: a recession, an oil shock, a pandemic, a revolutionary wave (only in non-democracies with low stability). In 2026 one comes about every four years at random; 1914 gets the 1918 pandemic. Each crisis cuts growth for a year or more and asks the player to choose between two answers: a stimulus that adds debt or austerity that costs stability, for example. Each answer changes how hard the crisis bites. The AI chooses too |
+| A new player was shown the map and nothing else | **A first-game guide**: six short steps, each pointing at the part of the screen it explains (the clock, the nation's resources, the dock, the map, the armies, how to win). It can be skipped and replayed from the menu |
+
+### 20.1 Known issues
+- There is no navy to build or command: sea power comes from the economy, the military budget and equipment.
+- Multiplayer (§12) is not built. It needs a server, and the game ships as a single page.
+
 ---
 
 ## Decision log
@@ -580,3 +596,7 @@ A new balance test plays the reported case: Mexico builds for six months with it
 | 33 | 2026-10-18 | **One way to attack: with an army.** Orders by click, right-click or drag; the army stays picked up; Tab cycles armies; each action on the army card has a key (§18) |
 | 34 | 2026-10-18 | **Generals have effects in battle**, small and stated on the card (skill ±6%, traits up to ±25%), the same for the AI |
 | 35 | 2026-10-18 | **Money buys quality as well as numbers**: equipment from the money behind each division (×0.7–×1.6); attacked nations mobilise; the AI spends what it has (§19) |
+| 36 | 2026-10-18 | **Every game ends**: domination, the era's great war, or the first power at the end date; defeat when annexed. The player may play on (§20) |
+| 37 | 2026-10-18 | **The world wars are total**: fallen nations make separate peace; alliances accept no treaty until exhausted |
+| 38 | 2026-10-18 | **The sea is crossed by landings, not fleets**: odds from sea power, defenders and marines, shown before the order; beachheads supply like ports |
+| 39 | 2026-10-18 | **Crises ask for a choice**: four kinds, two answers each, the same rules for the AI |

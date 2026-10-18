@@ -276,6 +276,8 @@ export class WarFx {
     for (let i = this.armyHits.length - 1; i >= 0; i--) { const h = this.armyHits[i]; if (Math.abs(x - h.x) <= h.w / 2 + 4 && Math.abs(y - h.y) <= h.h / 2 + 4) return h.id; }
     return null;
   }
+  /** where the first of the player's army markers was drawn, for the guide to point at */
+  firstArmy() { const h = this.armyHits[0]; return h ? new DOMRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h) : null; }
   /** Army markers: one per army of the player's (flag, divisions, strength, what it is doing), and the enemy's divisions gathered where they mass. */
   drawArmies(ctx: CanvasRenderingContext2D, cam: Camera, w: World, S: MapStatic, me: number, sel: number | null, now: number) {
     this.armyHits = [];
