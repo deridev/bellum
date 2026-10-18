@@ -5,6 +5,10 @@ NE=https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson
 for f in ne_10m_admin_0_countries ne_10m_admin_1_states_provinces ne_10m_populated_places ne_10m_lakes ne_10m_rivers_lake_centerlines; do
   [ -s $f.geojson ] || curl -sS --retry 4 -o $f.geojson $NE/$f.geojson
 done
+# historical borders for the 1914/1939 scenarios (aourednik/historical-basemaps, GPL-3.0)
+for y in 1914 1938; do
+  [ -s world_$y.geojson ] || curl -sS --retry 4 -o world_$y.geojson https://raw.githubusercontent.com/aourednik/historical-basemaps/master/geojson/world_$y.geojson
+done
 [ -s NE1_50M_SR_W.zip ] || curl -sS --retry 4 -o NE1_50M_SR_W.zip https://naciscdn.org/naturalearth/50m/raster/NE1_50M_SR_W.zip
 mkdir -p terrarium
 for x in $(seq 0 15); do for y in $(seq 0 15); do
