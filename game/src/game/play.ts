@@ -135,14 +135,15 @@ export class Game {
     const g = this.st.get();
     if (!g.paused && this.snapshot === null) {
       this.acc += dt * SPEEDS[g.speed];
-      let n = 0;
-      while (this.acc >= 1 && n < 6) {
+      // simulate as many days as fit in a frame's time budget, so the map stays smooth at top speed
+      let n = 0; const t0 = performance.now();
+      while (this.acc >= 1 && performance.now() - t0 < 12) {
         this.acc -= 1; n++; stepDay(this.w, this.S); this.afterDay();
         const monthStart = new Date(this.w.startDate + this.w.day * 864e5).getUTCDate() === 1;
         if (monthStart) this.record();
         if (this.w.settings.turnMode === 'monthly' && monthStart) { this.st.set({ paused: true }); this.acc = 0; break; }
       }
-      if (n === 6) this.acc = Math.min(this.acc, 1);
+      if (this.acc >= 1) this.acc = Math.min(this.acc, 1); // fell behind: drop the backlog rather than stutter
       if (n) this.syncMap(false);
     }
     this.layer.mix = Math.min(1, this.acc);

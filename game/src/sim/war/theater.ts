@@ -21,12 +21,12 @@ export interface Theater {
   aggr?: [number, number]; // how hard each AI side pushes on this front (from the local balance)
 }
 /** scratch buffers (not saved) */
-interface Work { c2: Float32Array; P0: Float32Array; P1: Float32Array; tmp: Float32Array; F: Float32Array; eff0: Float32Array; eff1: Float32Array; distF: Int16Array; q: Int32Array; dtmp: Int16Array; air: [number, number]; atk: [number, number]; aggr: [number, number] }
+interface Work { c2: Float32Array; P0: Float32Array; P1: Float32Array; tmp: Float32Array; F: Float32Array; eff0: Float32Array; eff1: Float32Array; distF: Int16Array; q: Int32Array; dtmp: Int16Array; air: [number, number]; atk: [number, number]; aggr: [number, number]; act: Int32Array; nAct: number }
 const WORK = new WeakMap<Theater, Work>();
 export function work(t: Theater): Work {
   let wk = WORK.get(t); const N = t.W * t.H;
   if (!wk || wk.c2.length !== N) {
-    wk = { c2: new Float32Array(N), P0: new Float32Array(N), P1: new Float32Array(N), tmp: new Float32Array(N), F: new Float32Array(N), eff0: new Float32Array(N), eff1: new Float32Array(N), distF: new Int16Array(N), q: new Int32Array(N), dtmp: new Int16Array(N), air: [1, 1], atk: [1, 1], aggr: [1, 1] };
+    wk = { c2: new Float32Array(N), P0: new Float32Array(N), P1: new Float32Array(N), tmp: new Float32Array(N), F: new Float32Array(N), eff0: new Float32Array(N), eff1: new Float32Array(N), distF: new Int16Array(N), q: new Int32Array(N), dtmp: new Int16Array(N), air: [1, 1], atk: [1, 1], aggr: [1, 1], act: new Int32Array(N), nAct: 0 };
     WORK.set(t, wk);
   }
   return wk;
@@ -119,9 +119,11 @@ export function buildMasks(t: Theater, w: World, S: MapStatic, seed: boolean) {
 }
 
 // ---------------------------------------------------------------------------- field
-function fieldStep(t: Theater, wk: Work) {
-  const c = t.c, o = wk.c2, land = t.land, F = wk.F, W = t.W, N = t.W * t.H, D = T.D, K = T.K, dt = T.dt;
-  for (let k = 0; k < N; k++) {
+/** One explicit step of the field. With `active`, only the band near the front is updated (elsewhere the field is settled at ±1). */
+function fieldStep(t: Theater, wk: Work, active = false) {
+  const c = t.c, o = wk.c2, land = t.land, F = wk.F, W = t.W, N = t.W * t.H, D = T.D, K = T.K, dt = T.dt, act = wk.act, n = active ? wk.nAct : N;
+  for (let i0 = 0; i0 < n; i0++) {
+    const k = active ? act[i0] : i0;
     if (!land[k]) { o[k] = c[k]; continue; }
     const v = c[k], i = k % W; let lap = 0;
     if (i > 0 && land[k - 1]) lap += c[k - 1] - v;
@@ -132,7 +134,7 @@ function fieldStep(t: Theater, wk: Work) {
     if (nv > 1.05) nv = 1.05; else if (nv < -1.05) nv = -1.05;
     o[k] = nv;
   }
-  c.set(o);
+  if (active) { for (let i0 = 0; i0 < n; i0++) c[act[i0]] = o[act[i0]]; } else c.set(o);
 }
 function boxBlur(a: Float32Array, tmp: Float32Array, W: number, H: number, r: number) {
   for (let j = 0; j < H; j++) { const o = j * W; let s = 0;
@@ -191,9 +193,11 @@ export function stepTheater(w: World, S: MapStatic, t: Theater, units: Division[
   for (const d of units) { const k = cellOf(t, d.x, d.y); if (k < 0) continue; const s = sideOfUnit(t, d); (s > 0 ? wk.P0 : wk.P1)[k] += unitPower(w, t, d, k, wk); }
   const norm = 729 / ((2 * r + 1) * (2 * r + 1)) / ((2 * r + 1) * (2 * r + 1));
   for (const P of [wk.P0, wk.P1]) { boxBlur(P, wk.tmp, W, H, r); boxBlur(P, wk.tmp, W, H, r); for (let k = 0; k < N; k++) P[k] *= norm; }
+  // the band where the field can move today: near yesterday's front (it moves a few cells a day at most) and in pockets
+  { const d = wk.distF, act = wk.act; let n = 0; for (let k = 0; k < N; k++) if (land[k] && ((d[k] >= 0 && d[k] <= 10) || t.pocket[k])) act[n++] = k; wk.nAct = n; }
   computeForcing(w, t, wk);
   const sub = Math.max(6, Math.min(36, Math.round(30 * T.frontSpeedRef / t.cellKm)));
-  for (let s = 0; s < sub; s++) fieldStep(t, wk);
+  for (let s = 0; s < sub; s++) fieldStep(t, wk, true);
   // entrenchment, flips, heat
   for (let k = 0; k < N; k++) {
     if (!land[k]) continue; const s = c[k] >= 0 ? 1 : 0, prevS = t.flip[k] & 128 ? 1 : 0; let age = t.flip[k] & 127;
@@ -281,9 +285,10 @@ function pushAt(t: Theater, k: number, side: number): number {
   return best;
 }
 function computeForcing(w: World, t: Theater, wk: Work) {
-  const F = wk.F, N = t.W * t.H, mo = new Date(w.startDate + w.day * 864e5).getUTCMonth();
+  const F = wk.F, mo = new Date(w.startDate + w.day * 864e5).getUTCMonth();
   const winter = (mo === 11 || mo <= 1) ? 0.75 : 1;
-  for (let k = 0; k < N; k++) {
+  for (let i0 = 0; i0 < wk.nAct; i0++) {
+    const k = wk.act[i0];
     if (!t.land[k]) { F[k] = 0; continue; }
     const [ea, eb] = balanceAt(t, wk, k);
     const bal = (ea - eb) / (ea + eb + T.P0);

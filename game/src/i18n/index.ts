@@ -70,7 +70,7 @@ export function armyName(n: number) { return t('army.name', { ord: lang === 'en'
 
 // ---- numbers and dates ----
 export const fmtNum = (v: number, digits = 0) => v.toLocaleString(LOCALE[lang], { maximumFractionDigits: digits });
-export function fmtDate(w: World, day = w.day, style: 'long' | 'month' = 'long') {
+export function fmtDate(w: World, day = w.day, style: 'long' | 'month' | 'short' = 'long') {
   const d = new Date(w.startDate + day * 864e5);
-  return d.toLocaleDateString(lang === 'en' ? 'en-GB' : LOCALE[lang], style === 'month' ? { month: 'short', year: 'numeric', timeZone: 'UTC' } : { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return d.toLocaleDateString(lang === 'en' ? 'en-GB' : LOCALE[lang], style === 'month' ? { month: 'short', year: 'numeric', timeZone: 'UTC' } : style === 'short' ? { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' } : { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }

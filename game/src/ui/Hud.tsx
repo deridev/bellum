@@ -96,11 +96,12 @@ function Clock({ g }: { g: Game }) {
 function Feed({ g }: { g: Game }) {
   const w = g.w, me = g.player;
   const [open, setOpen] = useState(true);
-  const items = w.log.filter(l => l.who?.includes(me) || l.big || l.kind === 'war' || l.kind === 'peace' || l.kind === 'city').slice(-6).reverse();
+  // your own news, plus the world's wars beginning and ending (not every far-away city)
+  const items = w.log.filter(l => l.who?.includes(me) || l.big || l.kind === 'war' || l.kind === 'peace').slice(-6).reverse();
   if (!items.length) return null;
   return <aside class={`ui feed panel ${open ? '' : 'closed'}`}>
     <button class="feed-head" onClick={() => setOpen(!open)} aria-expanded={open}><span class="eyebrow">{t('feed.title')}</span><span class="muted">{open ? '–' : '+'}</span></button>
-    {open && <ol>{items.map((l, i) => <li key={i} class={`k-${l.kind}`}><time class="mono">{fmtDate(w, l.day)}</time>
+    {open && <ol>{items.map((l, i) => <li key={i} class={`k-${l.kind}`}><time class="mono">{fmtDate(w, l.day, 'short')}</time>
       <button class="feed-line" disabled={!l.at && l.prov === undefined} onClick={() => g.focusLog(l)}>{say(w, l.msg)}</button></li>)}</ol>}
   </aside>;
 }
