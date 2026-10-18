@@ -1,5 +1,5 @@
 # Bellum
 
-A simple, fun grand strategy game: wars that read like stories, fronts you can understand at a glance, and politics that push back.
+A simple, fun 20th-century grand strategy game on a real world map: living front lines, encirclements, landings, and politics that push back.
 
 Status: **design phase**. See [`docs/DESIGN.md`](docs/DESIGN.md).
