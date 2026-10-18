@@ -9,7 +9,7 @@ export const hooks: { daily: ((w: World, S: MapStatic) => void)[]; monthly: ((w:
 /** Advance the world by one day. */
 export function stepDay(w: World, S: MapStatic) {
   w.day++;
-  dailyProduction(w);
+  dailyProduction(w, S);
   for (const f of hooks.daily) f(w, S);
   if (isMonthStart(w)) {
     monthlyEconomy(w, S);

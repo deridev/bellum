@@ -1,6 +1,7 @@
 import { CONSCRIPTION_GROWTH, CONSCRIPTION_RATE, clamp01, newDivision, say } from './world';
 import type { Army, Country, MapStatic, ProdItem, UnitType, World } from './types';
 import { makeGeneral } from './names';
+import { joinArmy } from './war/armies';
 import { msg } from './types';
 import { tradeBonus } from './diplomacy';
 import { researchNeed } from './policies';
@@ -72,7 +73,7 @@ export function cashFlow(c: Country) {
   return { collect, revenue, interest, spending, free, fromSavings, net: revenue - spending - interest - fromSavings };
 }
 /** Daily production: military funds left after upkeep build the queue in order. */
-export function dailyProduction(w: World) {
+export function dailyProduction(w: World, S: MapStatic) {
   for (const c of w.countries) {
     if (!c.alive || !c.production.length) continue;
     const milFunds = c.spending * c.budget.military; // monthly
@@ -90,8 +91,10 @@ export function dailyProduction(w: World) {
     for (const item of done) {
       const n = w.divisions.filter(d => d.country === c.id && d.type === item.type).length + 1;
       const prov = w.provinces[item.prov]?.controller === c.id ? item.prov : c.capital;
-      const d = newDivision(w, c.id, item.type, n, prov, recruitArmy(w, c, prov).id);
+      const own = item.army !== undefined && w.armies.some(a => a.id === item.army) ? item.army : undefined;
+      const d = newDivision(w, c.id, item.type, n, prov, own ?? recruitArmy(w, c, prov).id);
       d.exp = 0; w.divisions.push(d);
+      if (own !== undefined) joinArmy(w, S, d); // raised for an army: it goes to join it
       if (c.player) say(w, msg('log.unitReady', { unit: { u: [d.type, d.num] } }), 'player', { who: [c.id], prov });
     }
   }
@@ -103,11 +106,11 @@ function recruitArmy(w: World, c: Country, prov: number): Army {
   const a: Army = { id: w.nextId++, country: c.id, num: mine.reduce((m, x) => Math.max(m, x.num), 0) + 1, general: makeGeneral(w, c.code), theater: -1, posture: 'hold' };
   w.armies.push(a); return a;
 }
-export function queueUnit(w: World, c: Country, type: UnitType, prov = c.capital): string | null {
+export function queueUnit(w: World, c: Country, type: UnitType, prov = c.capital, army?: number): string | null {
   const spec = UNIT_SPEC[type];
   if (c.manpower < spec.men) return 'Not enough manpower';
   c.manpower -= spec.men;
-  const item: ProdItem = { id: w.nextId++, type, progress: 0, cost: c.unitCost * spec.costMul, days: spec.days, prov };
+  const item: ProdItem = { id: w.nextId++, type, progress: 0, cost: c.unitCost * spec.costMul, days: spec.days, prov, army };
   c.production.push(item); return null;
 }
 /** Stand down one reserve division of a type (never one at the front): its upkeep stops and most of its men return to the pool. */

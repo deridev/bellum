@@ -5,7 +5,7 @@
 //   dc/dt = D·∇²c + K·(c - c³) + F      (forced Allen–Cahn)
 // F is the local balance of military pressure (plus offensive pushes and pocket collapse).
 // All tunables are in km so behaviour does not depend on the grid's cell size.
-import type { Division, MapStatic, World } from '../types';
+import type { Division, General, MapStatic, World } from '../types';
 import { km } from '../../geo';
 
 export interface Offensive {
@@ -156,12 +156,39 @@ function boxBlur(a: Float32Array, tmp: Float32Array, W: number, H: number, r: nu
 const POWER: Record<Division['type'], number> = { infantry: 1, mechanized: 1.5, armor: 2.2, marines: 1.25, airborne: 1.2 };
 const SPEED: Record<Division['type'], number> = { infantry: 1, mechanized: 1.6, armor: 1.7, marines: 1, airborne: 1.1 };
 export const sideOfUnit = (t: Theater, d: Division) => t.sideOf[d.country] || 0;
+// ---------------------------------------------------------------------------- generals
+/** Each army's general, looked up once a day. */
+const GENERALS = new WeakMap<World, { day: number; n: number; m: Map<number, General> }>();
+export function generalOf(w: World, army: number): General | undefined {
+  let g = GENERALS.get(w);
+  if (!g || g.day !== w.day || g.n !== w.armies.length) { g = { day: w.day, n: w.armies.length, m: new Map(w.armies.map(a => [a.id, a.general])) }; GENERALS.set(w, g); }
+  return g.m.get(army);
+}
+/** What a general does in battle. Skill (1–4) moves strength by up to ±6%; some traits add to it. Others are only character. */
+export const GENERAL = {
+  skill: (s: number) => 1 + 0.04 * (s - 2.5),
+  Bold: { attack: 1.12 }, Cautious: { attack: 0.9, loss: 0.8 }, Reckless: { power: 1.08, loss: 1.25 },
+  'Defensive Genius': { defend: 1.12 }, 'Armor Pioneer': { armor: 1.15 }, 'Mountain Expert': { rough: 1.15 },
+  Logistician: { supply: 0.15 }, 'Beloved by the Troops': { org: 1.5 },
+} as const;
+const has = (g: General | undefined, tr: string) => !!g && g.traits.includes(tr);
+/** the general's multiplier on a division's strength at a cell (k < 0: off the map) */
+function generalPower(g: General | undefined, d: Division, k: number, t: Theater) {
+  if (!g) return 1;
+  let m = GENERAL.skill(g.skill);
+  if (d.op) { if (has(g, 'Bold')) m *= GENERAL.Bold.attack; if (has(g, 'Cautious')) m *= GENERAL.Cautious.attack; } else if (has(g, 'Defensive Genius')) m *= GENERAL['Defensive Genius'].defend;
+  if (has(g, 'Reckless')) m *= GENERAL.Reckless.power;
+  if (has(g, 'Armor Pioneer') && (d.type === 'armor' || d.type === 'mechanized')) m *= GENERAL['Armor Pioneer'].armor;
+  if (has(g, 'Mountain Expert') && k >= 0 && t.mtn[k] > 0.45) m *= GENERAL['Mountain Expert'].rough;
+  return m;
+}
+const generalLoss = (g: General | undefined) => (has(g, 'Cautious') ? GENERAL.Cautious.loss : 1) * (has(g, 'Reckless') ? GENERAL.Reckless.loss : 1);
 export function unitPower(w: World, t: Theater, d: Division, k: number, wk: Work) {
   const c = w.countries[d.country];
   let p = POWER[d.type] * (1 + 0.05 * c.tech) * (0.8 + 0.4 * d.exp) * (0.5 + 0.5 * d.org);
   if (k >= 0 && (d.type === 'armor' || d.type === 'mechanized')) p *= 1 - 0.45 * t.mtn[k];
   const s = sideOfUnit(t, d) > 0 ? 0 : 1;
-  return d.str * p * wk.air[s] * (0.35 + 0.65 * Math.min(1, d.sup));
+  return d.str * p * wk.air[s] * (0.35 + 0.65 * Math.min(1, d.sup)) * generalPower(generalOf(w, d.army), d, k, t);
 }
 
 // ---------------------------------------------------------------------------- daily step
@@ -334,12 +361,13 @@ function computeDist(t: Theater, wk: Work) {
 function combat(w: World, t: Theater, units: Division[], wk: Work) {
   const inten = 0.55 + 0.45 * Math.max(wk.aggr[0], wk.aggr[1]);
   for (const d of units) {
-    const k = cellOf(t, d.x, d.y), side = sideOfUnit(t, d);
+    const k = cellOf(t, d.x, d.y), side = sideOfUnit(t, d), gen = generalOf(w, d.army);
     d.sup = k >= 0 ? supplyAt(t, k, side) : 0;
+    if (d.sup > 0 && has(gen, 'Logistician')) d.sup = Math.min(1, d.sup + GENERAL.Logistician.supply);
     let loss = 0;
     if (k >= 0) {
       const [ea, eb] = balanceAt(t, wk, k), eo = side > 0 ? ea : eb, ee = side > 0 ? eb : ea;
-      if (ee > 300) loss += (d.retreat ? 0.6 : 1) * (d.op ? 1.2 : 1) * T.lossRate * inten * stanceLoss(side > 0 ? wk.aggr[0] : wk.aggr[1]) * d.str * ee / (eo + ee + T.P0);
+      if (ee > 300) loss += (d.retreat ? 0.6 : 1) * (d.op ? 1.2 : 1) * generalLoss(gen) * T.lossRate * inten * stanceLoss(side > 0 ? wk.aggr[0] : wk.aggr[1]) * d.str * ee / (eo + ee + T.P0);
       if (ee > 300) d.exp = Math.min(1, d.exp + 0.002);
     }
     if (d.sup === 0) loss += T.outOfSupplyLoss * d.str;
@@ -348,7 +376,7 @@ function combat(w: World, t: Theater, units: Division[], wk: Work) {
     const war = w.wars.find(x => x.id === t.war); if (war) war.casualties[side > 0 ? 0 : 1] += loss;
     const country = w.countries[d.country];
     if (d.sup > 0 && d.str < d.max && country.manpower > 0) { const add = Math.min(d.max - d.str, d.max * 0.006 * d.sup, country.manpower); d.str += add; country.manpower -= add; }
-    d.org = Math.max(0, Math.min(0.6 + 0.4 * (country.readiness ?? 1), d.org + (d.sup > 0.3 ? 0.02 : -0.02)));
+    d.org = Math.max(0, Math.min(0.6 + 0.4 * (country.readiness ?? 1), d.org + (d.sup > 0.3 ? 0.02 * (has(gen, 'Beloved by the Troops') ? GENERAL['Beloved by the Troops'].org : 1) : -0.02)));
   }
 }
 

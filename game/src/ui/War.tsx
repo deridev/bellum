@@ -4,11 +4,13 @@ import { resolveAgenda } from '../sim/agenda';
 import { commitShare, warReserve } from '../sim/war/ai';
 import { aimVerdict } from '../game/warfx';
 import { armyWhere } from '../sim/war/armies';
+import { GENERAL } from '../sim/war/theater';
+import { UNIT_SPEC } from '../sim/economy';
 import { acceptsPeace, heldDemand, sideOf, theatersOf, truceKey, warCost, warsOf, type PeaceTerms } from '../sim/war/war';
 import type { War } from '../sim/types';
 import { armyName, countryName, fmtDate, say, t } from '../i18n';
-import { Block, Flag, Icon, Sheet, Tug } from './common';
-import { fmt1, fmtBig, fmtInt, pct, cssPct } from './format';
+import { Block, Flag, Icon, Sheet, Tug, UnitSymbol } from './common';
+import { fmt1, fmtBig, fmtInt, fmtMoney, pct, cssPct } from './format';
 
 /** Postures map onto the same push strengths the AI uses. */
 export const POSTURES = [{ id: 'hold', aggr: 0.9 }, { id: 'advance', aggr: 1.08 }, { id: 'offensive', aggr: 1.22 }] as const;
@@ -50,7 +52,7 @@ export function WarPanel({ g, id }: { g: Game; id: number }) {
     <ArmyList g={g} />
     <Block title={t('war.offensives')} icon="offensive" aside={<b class="num">{offs.length}/3</b>}>
       {offs.length > 0 && <ul class="offs">{offs.map(o => { const us = w.divisions.filter(d => d.op === o.id), coming = us.some(d => d.arrive > w.day); return <li key={o.id}><Icon name="advance" size={14} /><span>{t('off.divs', { n: us.length })}</span><small class="num">{coming ? t('off.gathering') : t('war.day', { n: w.day - o.created })}</small><div class="meter" data-tip={t('war.momentum')}><div class="fill amber" style={{ width: cssPct(o.org) }} /></div></li>; })}</ul>}
-      <button class="primary wide" disabled={offs.length >= 3} data-tip={t(offs.length >= 3 ? 'war.planMax' : 'war.planHint')} onClick={() => g.setTool({ kind: 'offensive', war: war.id })}><Icon name="target" size={16} />{t('war.plan')}</button>
+      <small class="muted">{t('war.planArmy')}</small>
     </Block>
     <Block title={t('war.peace')} icon="peace"><PeaceOptions g={g} war={war} side={side} /></Block>
   </Sheet>;
@@ -150,21 +152,39 @@ export function ArmyList({ g, title = true }: { g: Game; title?: boolean }) {
   return title ? <Block title={t('war.armies')} icon="military" aside={<span class="num muted">{rows.length}</span>}>{list}</Block> : list;
 }
 
+/** The army picked up: its general and what they do, what it is made of, its condition, what an order at the pointer would do, and what else it can do. */
+function ArmyCard({ g, id }: { g: Game; id: number }) {
+  const w = g.w, a = w.armies.find(x => x.id === id), at = a && armyWhere(w, g.S, a), m = g.st.get().aim;
+  if (!a || !at) return null;
+  const ds = w.divisions.filter(d => d.army === id), by: Record<string, number> = {}; ds.forEach(d => (by[d.type] = (by[d.type] || 0) + 1));
+  const avg = (f: (d: typeof ds[number]) => number) => ds.reduce((s, d) => s + f(d), 0) / Math.max(1, ds.length);
+  const org = avg(d => d.org), sup = avg(d => d.theater < 0 ? 1 : d.sup), atWar = at.theater >= 0, gen = a.general;
+  const v = m && !m.err && m.kind === 'attack' ? aimVerdict(m) : null;
+  const meter = (label: string, x: number, tip: string) => <span class="ac-m" data-tip={tip}><small>{label}</small><span class="army-str"><i class={x < 0.4 ? 'bad' : x < 0.7 ? 'amber' : ''} style={{ width: cssPct(Math.min(1, x)) }} /></span><b class="num">{pct(x)}</b></span>;
+  const act = (k: 'release' | 'reserve' | 'split' | 'raise', icon: string, key: string, ok: boolean, tip: string) => <button disabled={!ok} data-tip={tip} onClick={() => g.armyAction(k)}><Icon name={icon} size={14} />{t('army.do.' + k)}<kbd>{key}</kbd></button>;
+  return <div class="ui army-card plate" role="dialog" aria-label={armyName(a.num)}>
+    <div class="ac-head"><Icon name="military" size={18} /><b class="army-n">{armyName(a.num)}</b><small class={`army-st s-${at.state}`}>{t('army.st.' + at.state)}</small>
+      <span class="ac-gen" data-tip={t('army.skill', { n: gen.skill, p: pct(GENERAL.skill(gen.skill) - 1) })}>{t('army.general', { g: gen.name })} <span class="stars">{'★'.repeat(gen.skill)}{'☆'.repeat(4 - gen.skill)}</span></span>
+      {gen.traits.map(tr => <span key={tr} class={`chip ${tr in GENERAL ? '' : 'muted'}`} data-tip={t(tr in GENERAL ? 'gfx.' + tr : 'gfx.none')}>{t('gtrait.' + tr)}</span>)}
+      <button class="x" aria-label={t('ui.close')} onClick={() => g.selectArmy(null)}><Icon name="x" size={14} /></button></div>
+    <div class="ac-body"><span class="ac-units">{Object.entries(by).map(([k, n]) => <span key={k} data-tip={t('unitShort.' + k)}><UnitSymbol type={k} size={18} /><b class="num">{n}</b></span>)}</span>
+      {meter(t('army.strength'), at.str, t('army.strengthHint'))}{meter(t('army.org'), org, t('army.orgHint'))}{meter(t('army.supply'), sup, t('army.supplyHint'))}</div>
+    <div class="ac-order">{!m ? <span class="muted">{t('army.hint')}</span> : m.err ? <span class="muted">{t(m.err)}</span>
+      : m.kind === 'attack' ? <span class="aim"><b class={`verdict v-${v}`}>{t('aim.' + v)}</b><span>{t('aim.force', { n: m.n, m: m.foes })}<small> · {t('aim.def', { x: fmt1(m.def) })}</small></span>{m.foes > 0 && <b class="num">{m.odds >= 10 ? '10+' : fmt1(m.odds)} : 1</b>}</span>
+      : <span class="aim"><b class="verdict v-move">{t('army.go.' + m.kind)}</b></span>}</div>
+    <div class="ac-acts">
+      {act('release', 'advance', 'L', atWar && at.state !== 'front', t('army.tip.release'))}
+      {act('reserve', 'hold', 'R', atWar && at.state !== 'wait', t('army.tip.reserve'))}
+      {act('split', 'diplomacy', 'S', ds.length >= 2, t('army.tip.split'))}
+      {act('raise', 'improve', 'N', g.me.manpower >= UNIT_SPEC.infantry.men, t('army.tip.raise', { v: fmtMoney(g.me.unitCost * UNIT_SPEC.infantry.costMul), d: UNIT_SPEC.infantry.days }))}
+      <small class="muted ac-keys">{t('army.keys')}</small></div>
+  </div>;
+}
+
 export function ToolHint({ g }: { g: Game }) {
   const st = g.st.get();
-  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { g.setTool(null); g.selectArmy(null); } }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
-  if (st.army !== null) { const a = g.w.armies.find(x => x.id === st.army), at = a && armyWhere(g.w, g.S, a), m = st.aim, v = m && !m.err && m.kind === 'attack' ? aimVerdict(m) : null;
-    if (!a || !at) return null;
-    return <div class="ui toolhint plate" role="status"><Icon name="military" size={16} /><b class="army-n">{armyName(a.num)}</b><small class="muted">{t('army.size', { n: at.total })} · {t('army.st.' + at.state)}</small>
-      {!m ? <span class="muted">{t('army.hint')}</span> : m.err ? <span class="muted">{t(m.err)}</span>
-        : m.kind === 'attack' ? <span class="aim"><b class={`verdict v-${v}`}>{t('aim.' + v)}</b><span>{t('aim.force', { n: m.n, m: m.foes })}<small> · {t('aim.def', { x: fmt1(m.def) })}</small></span>{m.foes > 0 && <b class="num">{m.odds >= 10 ? '10+' : fmt1(m.odds)} : 1</b>}</span>
-        : <span class="aim"><b class="verdict v-move">{t('army.go.' + m.kind)}</b></span>}
-      <button onClick={() => g.selectArmy(null)}>{t('ui.cancel')}</button></div>; }
-  if (st.tool) { const a = st.aim, v = a && !a.err ? aimVerdict(a) : null;
-    return <div class="ui toolhint plate" role="status"><Icon name="target" size={16} />
-      {!a ? <span>{t('war.aim')}</span> : a.err ? <span class="muted">{t(a.err)}</span>
-        : <span class="aim"><b class={`verdict v-${v}`}>{t('aim.' + v)}</b><span>{t('aim.force', { n: a.n, m: a.foes })}{a.reserves > 0 && <small> · {t('aim.fromReserve', { n: a.reserves })}</small>}<small> · {t('aim.def', { x: fmt1(a.def) })}</small></span>{a.foes > 0 && <b class="num">{a.odds >= 10 ? '10+' : fmt1(a.odds)} : 1</b>}</span>}
-      <button onClick={() => g.setTool(null)}>{t('ui.cancel')}</button></div>; }
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') g.selectArmy(null); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
+  if (st.army !== null) return <>{st.toast && <div class="ui toolhint plate over-card" role="status">{st.toast}</div>}<ArmyCard g={g} id={st.army} /></>;
   if (st.toast) return <div class="ui toolhint plate" role="status">{st.toast}</div>;
   return null;
 }

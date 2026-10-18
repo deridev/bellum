@@ -6,6 +6,7 @@ import type { Army, Division, MapStatic, World } from '../types';
 import { cellLonLat, cellOf, provAtLonLat, T, work, type Theater } from './theater';
 import { activeWars, placeUnit, sideOf, theatersOf, withdraw } from './war';
 import { startOffensive } from './ai';
+import { makeGeneral } from '../names';
 
 export const armyDivs = (w: World, id: number) => w.divisions.filter(d => d.army === id);
 export type ArmyState = 'attack' | 'hold' | 'wait' | 'front' | 'home' | 'moving';
@@ -104,4 +105,57 @@ export function orderArmy(w: World, S: MapStatic, id: number, lon: number, lat: 
   cancelAttack(w, id);
   for (const d of divs) { if (d.theater >= 0) withdraw(d); d.prov = p; }
   return { kind: 'station', err: null };
+}
+
+// ---------------------------------------------------------------------------- what else a player can do with an army
+/** Back under its general: the army rejoins the line its generals share out. */
+export function releaseArmy(w: World, id: number): string | null {
+  const divs = armyDivs(w, id); if (!divs.length) return 'army.empty';
+  cancelAttack(w, id);
+  const ts = new Set<number>(); for (const d of divs) if (d.theater >= 0) { d.goal = [d.x, d.y, 2]; ts.add(d.theater); }
+  if (!ts.size) return 'army.notAtWar';
+  for (const tid of ts) { const t = w.theaters.find(x => x.id === tid); if (t) deployLine(w, t, divs[0].country, false); }
+  return null;
+}
+/** Pull back into reserve: out of the line to our ground 100–160 km behind it, where it waits (and rushes to meet an enemy offensive). */
+export function reserveArmy(w: World, S: MapStatic, id: number): string | null {
+  const a = w.armies.find(x => x.id === id), at = a && armyWhere(w, S, a); if (!a || !at) return 'army.empty';
+  const t = w.theaters.find(x => x.id === at.theater); if (!t) return 'army.notAtWar';
+  const side = t.sideOf[a.country], wk = work(t); let best: [number, number] | null = null, bd = Infinity;
+  for (let k = 0; k < t.W * t.H; k++) { if (!t.land[k] || !t.main[k] || t.c[k] * side < 0.6) continue; const f = wk.distF[k] * t.cellKm; if (f < 100 || f > 160) continue; const [x, y] = cellLonLat(t, k), d = km(x, y, at.x, at.y); if (d < bd) { bd = d; best = [x, y]; } }
+  if (!best) return 'army.noRoom';
+  cancelAttack(w, id); sendArmy(w, S, t, at.divs, best[0], best[1], 0); deployLine(w, t, a.country, false);
+  return null;
+}
+/** Split an army in two: the second half (along the front, or the later divisions at home) forms a new army under a new general. */
+export function splitArmy(w: World, id: number): Army | string {
+  const a = w.armies.find(x => x.id === id), divs = armyDivs(w, id); if (!a || divs.length < 2) return 'army.tooSmall';
+  const code = w.countries[a.country].code;
+  const b: Army = { id: w.nextId++, country: a.country, num: w.armies.filter(x => x.country === a.country).reduce((m, x) => Math.max(m, x.num), 0) + 1, general: makeGeneral(w, code), theater: a.theater, posture: a.posture };
+  w.armies.push(b);
+  const key = (d: Division) => d.goal ? d.goal[0] + d.goal[1] : d.theater >= 0 ? d.x + d.y : d.id;
+  for (const d of [...divs].sort((p, q) => key(p) - key(q)).slice(Math.ceil(divs.length / 2))) d.army = b.id;
+  return b;
+}
+/** Merge one army into another: its divisions join the other army where it stands (by rail or on foot), and its general retires. */
+export function mergeArmies(w: World, S: MapStatic, from: number, into: number): string | null {
+  const A = w.armies.find(x => x.id === from), B = w.armies.find(x => x.id === into);
+  if (!A || !B || A.id === B.id || A.country !== B.country) return 'army.empty';
+  const at = armyWhere(w, S, B); if (!at) return 'army.empty';
+  cancelAttack(w, from);
+  const divs = armyDivs(w, from); for (const d of divs) d.army = into;
+  const t = w.theaters.find(x => x.id === at.theater);
+  if (t) { const mode = at.divs.find(d => d.goal)?.goal?.[2] ?? 2; sendArmy(w, S, t, divs.filter(d => d.theater === t.id || d.theater < 0), at.x, at.y, mode === 0 ? 0 : 80, mode || 1); deployLine(w, t, B.country, false); }
+  else for (const d of divs) { if (d.theater >= 0) withdraw(d); d.prov = at.prov!; }
+  w.armies = w.armies.filter(x => x.id !== from);
+  return null;
+}
+/** A new division raised for an army joins it: by rail to where the army stands at the front, or to its station at home. */
+export function joinArmy(w: World, S: MapStatic, d: Division) {
+  const a = w.armies.find(x => x.id === d.army); if (!a) return;
+  const others = armyDivs(w, a.id).filter(x => x !== d); if (!others.length) return;
+  const at = armyWhere(w, S, a); if (!at) return;
+  const t = w.theaters.find(x => x.id === at.theater);
+  if (t) { const mode = others.find(x => x.theater === t.id && x.goal)?.goal?.[2] ?? 2; sendArmy(w, S, t, [d], at.x, at.y, mode === 0 ? 0 : 80, mode || 1); }
+  else if (at.prov !== undefined) d.prov = at.prov;
 }

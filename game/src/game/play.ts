@@ -10,18 +10,18 @@ import { TheaterLayer } from '../render/theaters';
 import { WarFx } from './warfx';
 import { armyName, countryName, say, t } from '../i18n';
 import { acceptsPeace, activeWars, allied, declareWar, makePeace, sideOf, theatersOf, type PeaceTerms } from '../sim/war/war';
-import { startOffensive, strikeOdds } from '../sim/war/ai';
-import { armyWhere, orderArmy } from '../sim/war/armies';
+import { strikeOdds } from '../sim/war/ai';
+import { armyWhere, mergeArmies, orderArmy, releaseArmy, reserveArmy, splitArmy } from '../sim/war/armies';
+import { queueUnit } from '../sim/economy';
 import { cellOf, provAtLonLat, work, type Theater } from '../sim/war/theater';
 import { diploOdds, doDiplo, type DiploAction } from '../sim/diplomacy';
 import { loadScenario, staticFor } from './scenarios';
 import { audio, type Cue } from './audio';
 
 export type Panel = { kind: 'economy' | 'politics' | 'military' | 'diplomacy' | 'ledger' | 'chronicle' | 'timelapse' } | { kind: 'province'; id: number } | { kind: 'country'; id: number } | { kind: 'war'; id: number } | null;
-export type Tool = { kind: 'offensive'; war: number } | null;
-/** What a strike at the pointer would be, while aiming (see strikeOdds). */
+/** What an order at the pointer would do, while an army is picked up (for an attack, see strikeOdds). */
 export interface Aim { kind?: 'attack' | 'hold' | 'wait' | 'station'; err: string | null; odds: number; n: number; reserves: number; foes: number; def: number; from: [number, number] | null; to: [number, number] | null; ids: number[] }
-export interface GameState { day: number; speed: number; paused: boolean; tick: number; panel: Panel; turnMode: World['settings']['turnMode']; menu: boolean; tool: Tool; toast: string; declare: number; aim: Aim | null; army: number | null }
+export interface GameState { day: number; speed: number; paused: boolean; tick: number; panel: Panel; turnMode: World['settings']['turnMode']; menu: boolean; toast: string; declare: number; aim: Aim | null; army: number | null }
 /** a cell of ours within 80 km of the front: an army sent there holds it (further back, it waits in reserve) */
 const nearFront = (th: Theater, k: number) => { const d = work(th).distF[k]; return d >= 0 && d * th.cellKm <= 80; };
 export const SPEEDS = [0.5, 1.5, 4, 10, 25]; // days per second
@@ -33,7 +33,7 @@ export type NationStat = typeof NATION_STATS[number];
 
 export class Game {
   w: World; S: MapStatic; player: number;
-  st = createStore<GameState>({ day: 0, speed: 1, paused: true, tick: 0, panel: null, turnMode: 'continuous', menu: false, tool: null, toast: '', declare: -1, aim: null, army: null });
+  st = createStore<GameState>({ day: 0, speed: 1, paused: true, tick: 0, panel: null, turnMode: 'continuous', menu: false, toast: '', declare: -1, aim: null, army: null });
   acc = 0; private lastUi = 0; private mapSeen = ''; private now = 0; private dt = 0; private lastAssign = 0;
   layer: TheaterLayer; fx: WarFx;
   /** monthly snapshots of who holds each province, for the timelapse */
@@ -50,7 +50,7 @@ export class Game {
     s.ren.extension = this.layer.ext; s.ren.buildComposite();
     this.fx = new WarFx(s, this.layer);
     s.onFrame = (dt, tt) => this.frame(dt, tt);
-    s.onClick = p => this.click(p);
+    s.onClick = p => this.click(p); s.onPress = p => this.press(p); s.onDragStart = () => this.dragStart(); s.onDrop = p => this.drop(p); s.onRightClick = p => this.rightClick(p);
     s.onOverlay = ctx => this.overlay(ctx);
     s.occupier = p => { const pr = this.w.provinces[p]; return pr.controller !== pr.owner ? countryName(this.w, pr.controller) : null; };
     s.modeValues = () => this.relationValues();
@@ -81,9 +81,25 @@ export class Game {
   toast(text: string) { this.st.set({ toast: text }); clearTimeout(this.toastT); this.toastT = setTimeout(() => this.st.set({ toast: '' }), 3500); }
   private toastT: any = 0;
   sound(c: Cue) { audio.cue(c); }
-  setTool(tool: Tool) { this.st.set({ tool, aim: null, army: null }); this.aimAt = ''; this.s.stage.style.cursor = tool ? 'crosshair' : ''; }
-  /** pick up one of the player's armies (null puts it down); the next click on the map gives it an order */
-  selectArmy(id: number | null) { this.st.set({ army: id, tool: null, aim: null }); this.aimAt = ''; this.s.stage.style.cursor = id !== null ? 'crosshair' : ''; if (id !== null) this.sound('click'); }
+  /** pick up one of the player's armies (null puts it down); while it is picked up, clicks on the map are its orders */
+  selectArmy(id: number | null) { this.st.set({ army: id, aim: null }); this.aimAt = ''; this.s.stage.style.cursor = id !== null ? 'crosshair' : ''; if (id !== null) this.sound('click'); }
+  /** the next (or previous) of the player's armies, picked up and in view */
+  cycleArmy(dir: 1 | -1) {
+    const list = this.w.armies.filter(a => a.country === this.player && armyWhere(this.w, this.S, a)).sort((a, b) => a.num - b.num); if (!list.length) return;
+    const i = list.findIndex(a => a.id === this.st.get().army), n = list[i < 0 ? (dir > 0 ? 0 : list.length - 1) : (i + dir + list.length) % list.length];
+    this.selectArmy(n.id); this.focusArmy(n.id);
+  }
+  /** an action from the army card: back to the general's line, pull back into reserve, split in two, raise a division for it */
+  armyAction(kind: 'release' | 'reserve' | 'split' | 'raise') {
+    const id = this.st.get().army, a = id !== null ? this.w.armies.find(x => x.id === id) : undefined; if (!a) return;
+    let err: string | null = null, done = '';
+    if (kind === 'release') { err = releaseArmy(this.w, a.id); done = t('army.did.release', { a: armyName(a.num) }); }
+    else if (kind === 'reserve') { err = reserveArmy(this.w, this.S, a.id); done = t('army.did.reserve', { a: armyName(a.num) }); }
+    else if (kind === 'split') { const b = splitArmy(this.w, a.id); if (typeof b === 'string') err = b; else done = t('army.did.split', { a: armyName(a.num), b: armyName(b.num) }); }
+    else { const me = this.me; err = queueUnit(this.w, me, 'infantry', me.capital, a.id) ? 'mil.noManpower' : null; done = t('army.did.raise', { a: armyName(a.num) }); }
+    if (err) { this.toast(t(err)); return; }
+    this.toast(done); this.aimAt = ''; this.afterDay(); this.bump(); this.sound('order');
+  }
   /** pan the map to an army */
   focusArmy(id: number) { const a = this.w.armies.find(x => x.id === id), at = a && armyWhere(this.w, this.S, a); if (at) this.focusLog({ day: 0, msg: { k: '' }, kind: 'war', at: [at.x, at.y] }); }
   private orderSelected(lon: number, lat: number) {
@@ -91,8 +107,25 @@ export class Game {
     if (r.err) { this.toast(t(r.err)); return; }
     const p = provAtLonLat(this.S, lon, lat);
     this.toast(t('army.done.' + (r.kind === 'station' ? 'station' : r.kind === 'attack' ? 'attack' : 'move'), { a: armyName(a.num), p: p >= 0 ? this.S.provinces[p].name : '' }));
-    this.selectArmy(null); this.afterDay(); this.bump(); this.sound('order');
+    this.aimAt = ''; this.afterDay(); this.bump(); this.sound('order'); // the army stays picked up, for the next order
   }
+  /** an order given at a screen point (a click, a right-click or a drop): onto another of our armies = merge into it, else an order there */
+  private orderAt(sx: number, sy: number) {
+    const sel = this.st.get().army; if (sel === null) return;
+    const hit = this.fx.armyAt(sx, sy);
+    if (hit !== null && hit !== sel) {
+      const a = this.w.armies.find(x => x.id === sel)!, b = this.w.armies.find(x => x.id === hit)!, err = mergeArmies(this.w, this.S, sel, hit);
+      if (err) { this.toast(t(err)); return; }
+      this.toast(t('army.did.merge', { a: armyName(a.num), b: armyName(b.num) })); this.selectArmy(hit); this.afterDay(); this.bump(); this.sound('order'); return;
+    }
+    const [lon, lat] = unproject(...this.s.cam.toWorld(sx, sy)); this.orderSelected(lon, lat);
+  }
+  /** pointer pressed on the map: on one of our armies, a drag will carry it to its order */
+  private pressHit: number | null = null;
+  private press(p: [number, number]) { this.pressHit = this.fx.armyAt(p[0], p[1]); return this.pressHit !== null; }
+  private dragStart() { if (this.pressHit !== null && this.st.get().army !== this.pressHit) this.selectArmy(this.pressHit); }
+  private drop(p: [number, number]) { this.orderAt(p[0], p[1]); }
+  private rightClick(p: [number, number]) { const hit = this.fx.armyAt(p[0], p[1]); if (this.st.get().army !== null) this.orderAt(p[0], p[1]); else if (hit !== null) this.selectArmy(hit); }
   private aimAt = '';
   /** with an army picked up: what clicking at the pointer would do (hold the front, wait in reserve, station, or attack with the odds) */
   private updateArmyAim() {
@@ -110,16 +143,9 @@ export class Game {
     const p = provAtLonLat(this.S, lon, lat), pr = p >= 0 ? this.w.provinces[p] : null;
     this.st.set({ aim: pr && pr.owner === this.player && pr.controller === this.player ? { ...base, kind: 'station', err: null, to: this.S.provinces[p].label } : { ...base, err: 'army.notOurs', from: null, to: null } });
   }
-  /** while aiming: what a strike at the pointer would be (recomputed when the pointer moves or a day passes) */
+  /** while an army is picked up: what an order at the pointer would be (recomputed when the pointer moves or a day passes) */
   private updateAim() {
     if (this.st.get().army !== null) { this.updateArmyAim(); return; }
-    const tool = this.st.get().tool, war = tool && this.w.wars.find(x => x.id === tool.war); if (!war || war.ended || this.s.overUi) return;
-    const m = this.s.ui.get().mouse, key = `${Math.round(m[0] / 4)},${Math.round(m[1] / 4)},${this.w.day},${this.s.cam.upp}`; if (key === this.aimAt) return; this.aimAt = key;
-    const [lon, lat] = unproject(...this.s.cam.toWorld(m[0], m[1]));
-    const th = theatersOf(this.w, war).find(x => { const k = cellOf(x, lon, lat); return k >= 0 && x.land[k]; });
-    const r = th ? strikeOdds(this.w, war, th, this.player, [lon, lat]) : null;
-    this.st.set({ aim: r ? { err: r.err, odds: r.odds, n: r.units.length, reserves: r.reserves, foes: r.foes, def: r.def, from: r.from, to: r.to ?? null, ids: r.units.filter(d => d.theater === th!.id).map(d => d.id) }
-      : { err: 'off.outside', odds: 0, n: 0, reserves: 0, foes: 0, def: 1, from: null, to: null, ids: [] } });
   }
   /** after an order that can change the map (war, peace, agenda) */
   afterOrder() { this.syncMap(false); this.afterDay(); this.bump(); }
@@ -144,21 +170,11 @@ export class Game {
     const at = e.at || (e.prov !== undefined ? this.s.assets.provinces[e.prov].label : null); if (!at) return;
     const [x, y] = project(at[0], at[1]); this.s.cam.x = x; this.s.cam.y = y; this.s.cam.upp = Math.min(this.s.cam.upp, 0.02); this.s.cam.clamp();
   }
-  private aimOffensive() {
-    const tool = this.st.get().tool!, war = this.w.wars.find(x => x.id === tool.war); this.setTool(null);
-    if (!war || war.ended) return;
-    const [lon, lat] = unproject(...this.s.clickWorld);
-    const th = theatersOf(this.w, war).find(x => { const k = cellOf(x, lon, lat); return k >= 0 && x.land[k]; });
-    if (!th) { this.toast(t('off.outside')); return; }
-    const err = startOffensive(this.w, this.S, th, this.player, [lon, lat]);
-    this.toast(t(err || 'off.launched')); if (!err) { this.afterDay(); this.bump(); this.sound('order'); }
-  }
   click(p: number) {
-    if (this.st.get().tool) { this.aimOffensive(); return; }
-    // an army marker under the pointer: pick it up (or put it down); with an army picked up, the click is its order
+    // an army marker under the pointer: pick it up (or put it down); with an army picked up, a click elsewhere is its order (the sea puts it down)
     const [sx, sy] = this.s.cam.toScreen(...this.s.clickWorld), hit = this.fx.armyAt(sx, sy), sel = this.st.get().army;
-    if (hit !== null) { this.selectArmy(hit === sel ? null : hit); return; }
-    if (sel !== null) { const [lon, lat] = unproject(...this.s.clickWorld); this.orderSelected(lon, lat); return; }
+    if (hit !== null && (sel === null || hit === sel)) { this.selectArmy(hit === sel ? null : hit); return; }
+    if (sel !== null) { if (p < 0 && hit === null) { this.selectArmy(null); return; } this.orderAt(sx, sy); return; }
     if (p < 0) { this.openPanel(null); this.s.ui.set({ selected: -1 }); return; }
     const owner = this.w.provinces[p].owner;
     this.s.ui.set({ selected: owner });
@@ -210,7 +226,7 @@ export class Game {
       if (n) this.syncMap(false);
     }
     this.layer.mix = Math.min(1, this.acc);
-    if (g.tool || g.army !== null) this.updateAim();
+    if (g.army !== null) this.updateAim();
     if (tt - this.lastAssign > 1) this.assignTheaters();
     audio.ambience(this.fx.heatOnScreen, !g.paused);
     const now = performance.now();
@@ -230,7 +246,7 @@ export class Game {
     const g = this.st.get();
     if (this.snapshot !== null) return;
     this.fx.draw(ctx, this.s.cam, this.w, this.layer.mix, this.now, this.dt, !g.paused, SPEEDS[g.speed]);
-    if ((g.tool || g.army !== null) && g.aim) this.fx.drawAim(ctx, this.s.cam, this.w, g.aim, this.now);
+    if (g.army !== null && g.aim) this.fx.drawAim(ctx, this.s.cam, this.w, g.aim, this.now);
     this.fx.drawArmies(ctx, this.s.cam, this.w, this.S, this.player, g.army, this.now);
     const cam = this.s.cam, zoom = 0.12 / cam.upp; if (zoom < 1.6) return;
     const stacks = new Map<number, { c: number; n: number }>();

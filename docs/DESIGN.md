@@ -497,6 +497,29 @@ Wars are now more decisive and swing more, and how a war is commanded changes ho
 - Thailand's idle player (+80) still does better than the AI playing it (+43): the AI's offensives use its line badly.
 - There is no splitting or merging of armies yet, and no naval transport of armies.
 
+## 18. Army options and easier orders (October 2026)
+
+Feedback on §17: *"a better combat flow; with easier UX and more options per unit this could be perfected."*
+
+**Easier orders**
+- **Drag an army's marker** to where it should go; the preview follows the pointer, and letting go gives the order.
+- **Right-click** gives an order too. After any order **the army stays picked up**, so orders can be chained; Esc, the card's ×, or a click on the sea puts it down.
+- **Tab / Shift+Tab** picks up the next or previous army and brings it into view.
+- **Drop an army on another** of yours to merge them.
+- The War panel's separate "Plan an offensive" tool is gone: one way to attack (an army), not two.
+
+**The army card** (shown while an army is picked up, above the dock)
+- The army, what it is doing, its general with skill stars and traits (each trait says what it does in battle).
+- What it is made of (divisions by type) and three meters: **strength**, **organisation**, **supply**.
+- The order at the pointer: hold, wait, station, or attack with verdict and odds.
+- Actions, each with a key: **To the line** (L, back under its general), **Reserve** (R, pull back 100–160 km behind the front to wait; it then answers enemy offensives), **Split** (S, the second half forms a new army under a new general), **Division** (N, raise an infantry division for this army; it joins the army at the front by rail when ready).
+
+**Generals matter** (for every side): skill 1–4 moves an army's strength by up to ±6%. Traits: Bold +12% attacking; Cautious −10% attacking and −20% losses; Reckless +8% strength and +25% losses; Defensive genius +12% holding; Armor pioneer +15% for armour and mechanised; Mountain expert +15% in rough ground; Logistician +15% supply; Beloved by the troops: organisation recovers 50% faster. The other traits are character only. So which army attacks and which holds is a choice.
+
+### 18.1 Known issues
+- Merging has no size limit, and a split always halves.
+- A division raised for an army is always infantry.
+
 ---
 
 ## Decision log
@@ -534,3 +557,5 @@ Wars are now more decisive and swing more, and how a war is commanded changes ho
 | 30 | 2026-10-18 | **The player commands armies directly**: pick up a marker, click to hold, wait, station or attack, with a live preview and odds. The front stays continuous; armies are what the player moves on it (§17) |
 | 31 | 2026-10-18 | **Generals follow the same rules on every side**: armies stay whole, share out the front, re-balance it weekly and when an army leaves or rejoins it. The player's edge comes only from the orders they give |
 | 32 | 2026-10-18 | **Peacetime positioning matters**: armies are stationed in a province, and an army at the border goes to that front when war comes |
+| 33 | 2026-10-18 | **One way to attack: with an army.** Orders by click, right-click or drag; the army stays picked up; Tab cycles armies; each action on the army card has a key (§18) |
+| 34 | 2026-10-18 | **Generals have effects in battle**, small and stated on the card (skill ±6%, traits up to ±25%), the same for the AI |

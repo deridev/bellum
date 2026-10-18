@@ -58,6 +58,8 @@ function useShortcuts(g: Game) {
       else if (e.key === ' ') { g.togglePause(); e.preventDefault(); }
       else if (e.key === '+' || e.key === '=') g.setSpeed(Math.min(SPEEDS.length - 1, g.st.get().speed + 1));
       else if (e.key === '-') g.setSpeed(Math.max(0, g.st.get().speed - 1));
+      else if (e.key === 'Tab') { g.cycleArmy(e.shiftKey ? -1 : 1); e.preventDefault(); } // armies: Tab picks up the next one
+      else if (g.st.get().army !== null) { const act = ({ l: 'release', r: 'reserve', s: 'split', n: 'raise' } as const)[e.key.toLowerCase() as 'l']; if (act) { g.armyAction(act); e.preventDefault(); } }
     };
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
   }, []);

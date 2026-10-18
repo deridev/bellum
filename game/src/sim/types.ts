@@ -40,7 +40,7 @@ export interface Province {
   infra: number; unrest: number; devastation: number; core: number[]; // countries that claim it as core
 }
 
-export interface ProdItem { id: number; type: UnitType; progress: number; cost: number; days: number; prov: number }
+export interface ProdItem { id: number; type: UnitType; progress: number; cost: number; days: number; prov: number; army?: number } // army: raised for that army (joins it when ready)
 
 export interface Division {
   id: number; country: number; type: UnitType; num: number; // shown as e.g. 1st Infantry Division

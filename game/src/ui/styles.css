@@ -385,6 +385,17 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 .army-st.s-attack { color: var(--brass-hi); } .army-st.s-moving { font-style: italic; }
 .army-str { grid-area: b; width: 64px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); overflow: hidden; } .army-str i { display: block; height: 100%; background: var(--green); }
 .v-move { background: rgba(207, 227, 242, 0.14); color: #cfe3f2; }
+/* the army picked up: a card above the dock */
+.army-card { bottom: var(--above-dock); left: 50%; transform: translateX(-50%); width: min(760px, calc(100vw - 24px)); padding: 10px 12px; display: grid; gap: 8px; z-index: 4; }
+.toolhint.over-card { bottom: calc(var(--above-dock) + 168px); }
+.ac-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; } .ac-head .icon { color: var(--brass-hi); } .ac-head .army-n { color: var(--brass-hi); font-size: 16px; }
+.ac-head .x { margin-left: auto; } .ac-gen { font-size: 13px; color: var(--paper); } .stars { color: var(--brass-hi); letter-spacing: 1px; }
+.chip { font-size: 12px; padding: 2px 7px; border-radius: 9px; background: rgba(232, 192, 99, 0.14); color: var(--brass-hi); } .chip.muted { background: rgba(255, 255, 255, 0.06); color: var(--mute); }
+.ac-body { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; } .ac-units { display: flex; gap: 8px; } .ac-units > span { display: inline-flex; align-items: center; gap: 3px; }
+.ac-m { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; } .ac-m small { color: var(--mute); } .ac-m .army-str i.amber { background: var(--brass-hi); } .ac-m .army-str i.bad { background: var(--red); }
+.ac-order { min-height: 24px; display: flex; align-items: center; }
+.ac-acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; } .ac-acts button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; }
+.ac-acts kbd { font: 600 11px/1 var(--body); padding: 2px 5px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); color: var(--mute); } .ac-keys { margin-left: auto; }
 .toolhint { width: max-content; } .toolhint > b, .toolhint > small { white-space: nowrap; } /* centred with left: 50%, it would otherwise wrap at half the screen */
 .aim { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--paper); } .aim small { color: var(--mute); }
 .aim .verdict { font: 700 12px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 8px; border-radius: 10px; }

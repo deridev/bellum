@@ -68,7 +68,8 @@ export class Session {
     st.addEventListener('pointerdown', e => {
       if ((e.target as HTMLElement).closest('.ui')) return;
       st.setPointerCapture(e.pointerId); const p = pos(e); ptrs.set(e.pointerId, p);
-      if (ptrs.size === 1) drag = { p, x: this.cam.x, y: this.cam.y, moved: 0 };
+      // pressed on an army marker: a drag carries the army to its order instead of panning the map
+      if (ptrs.size === 1) drag = { p, x: this.cam.x, y: this.cam.y, moved: 0, army: e.button === 0 && !!this.onPress?.(p), right: e.button === 2 };
       if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), upp: this.cam.upp }; drag = null; }
     });
     st.addEventListener('pointermove', e => {
@@ -81,17 +82,21 @@ export class Session {
       if (pinch && ptrs.size === 2) {
         const [a, b] = [...ptrs.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]), m: [number, number] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
         const [wx, wy] = this.cam.toWorld(...m); this.cam.upp = pinch.upp * pinch.d / Math.max(1, d); this.cam.clamp(); const [nx, ny] = this.cam.toWorld(...m); this.cam.x += wx - nx; this.cam.y += wy - ny; this.cam.clamp();
+      } else if (drag?.army) {
+        const was = drag.moved; drag.moved = Math.max(drag.moved, Math.hypot(p[0] - drag.p[0], p[1] - drag.p[1])); if (was <= 6 && drag.moved > 6) this.onDragStart?.();
       } else if (drag) {
         const dx = p[0] - drag.p[0], dy = p[1] - drag.p[1]; drag.moved = Math.max(drag.moved, Math.hypot(dx, dy));
         this.cam.x = drag.x - dx * this.cam.upp; this.cam.y = drag.y + dy * this.cam.upp; this.cam.clamp();
       }
     });
     const up = (e: PointerEvent) => {
-      if (drag && drag.moved < 5 && ptrs.size === 1) this.click(pos(e));
+      if (drag?.army && drag.moved > 6 && ptrs.size === 1) this.onDrop?.(pos(e));
+      else if (drag && drag.moved < 5 && ptrs.size === 1) { if (drag.right) this.onRightClick?.(pos(e)); else this.click(pos(e)); }
       ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; if (!ptrs.size) drag = null;
     };
     st.addEventListener('pointerup', up); st.addEventListener('pointercancel', up);
     st.addEventListener('wheel', e => { if ((e.target as HTMLElement).closest('.ui-scroll')) return; e.preventDefault(); const p = pos(e); this.cam.zoomAt(p[0], p[1], Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
+    st.addEventListener('contextmenu', e => e.preventDefault()); // right-click gives orders
     st.addEventListener('pointerleave', () => { this.pickPending = null; this.ui.set({ hover: -1 }); });
   }
   clickWorld: [number, number] = [0, 0];
@@ -103,6 +108,11 @@ export class Session {
     this.onClick?.(pid);
   }
   onClick: ((province: number) => void) | null = null;
+  /** pointer down on the map: true if it landed on something to drag (an army) */
+  onPress: ((p: [number, number]) => boolean) | null = null;
+  onDragStart: (() => void) | null = null;
+  onDrop: ((p: [number, number]) => void) | null = null;
+  onRightClick: ((p: [number, number]) => void) | null = null;
   /** who holds a province, if not its owner (set once a game runs) */
   occupier: ((province: number) => string | null) | null = null;
   onFrame: ((dt: number, t: number) => void) | null = null;

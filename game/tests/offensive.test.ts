@@ -4,7 +4,7 @@ import { stepDay } from '../src/sim/step';
 import { initSim } from '../src/sim';
 import { setupScenario, tablesFor } from '../src/sim/scenario';
 import { declareWar, theatersOf } from '../src/sim/war/war';
-import { bestStrike, endOffensive, startOffensive, strikeForce, warReserve, commitShare } from '../src/sim/war/ai';
+import { bestStrike, endOffensive, startOffensive, strikeForce, strikeOdds, warReserve, commitShare } from '../src/sim/war/ai';
 import { armyDivs, armyWhere, orderArmy } from '../src/sim/war/armies';
 import { cellLonLat, T } from '../src/sim/war/theater';
 import { serialize, deserialize } from '../src/game/save';
@@ -56,13 +56,14 @@ describe('offensives', () => {
     us.forEach((d, i) => expect(d.org).toBeCloseTo(org[i] * 0.55));
   }, 120000);
 
-  it('a well-aimed strike takes more ground than doing nothing, from the same moment', () => {
+  it('a well-aimed army attack takes more ground than doing nothing, from the same moment', () => {
     const { w, war, tha } = start(3, 100, true);
     const myr = ci(w, 'MMR'), snap = serialize(w);
     const ground = (v: World) => { let n = 0; for (const t of v.theaters.filter(t => t.war === war.id)) { const a = t.cellKm ** 2; for (let k = 0; k < t.W * t.H; k++) if (t.land[k]) { const o = v.provinces[t.prov[k]].owner, ours = t.c[k] * t.sideOf[tha] > 0; if (ours && o === myr) n += a; else if (!ours && o === tha) n -= a; } } return n; };
     const play = (strike: boolean) => {
       const v = deserialize(snap); const vw = v.wars.find(x => x.id === war.id)!; stepDay(v, S); const g0 = ground(v);
-      if (strike) for (const t of theatersOf(v, vw)) { const b = bestStrike(v, vw, t, tha); if (b) startOffensive(v, S, t, tha, b.target); }
+      // the player's way to strike: pick up the army with the best odds for the best target and send it there
+      if (strike) for (const t of theatersOf(v, vw)) { const b = bestStrike(v, vw, t, tha); if (!b) continue; let best = -1, bo = 0; for (const a of v.armies.filter(a => a.country === tha)) { const r = strikeOdds(v, vw, t, tha, b.target, a.id); if (!r.err && r.odds > bo) { bo = r.odds; best = a.id; } } if (best >= 0) orderArmy(v, S, best, ...b.target); }
       for (let d = 0; d < 45; d++) stepDay(v, S);
       return ground(v) - g0;
     };
