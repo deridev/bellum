@@ -95,7 +95,8 @@ function peaceFx(a: { data?: any }, i: number): [string, string][] {
   return i === 0 ? [[t('fx.endsWar'), 'good'], n ? [t('fx.provinces', { n }), 'bad'] : [t('fx.noLand'), '']] : [[t('fx.warGoesOn'), 'bad']];
 }
 const AGENDA_ICON: Record<string, string> = { peace: 'peace', diplo: 'diplomacy', event: 'chronicle' };
-export function AgendaCards({ g, slim }: { g: Game; slim?: boolean }) {
+/** The rail shows the single most urgent decision; the strip's Decisions button opens the drawer with all of them. */
+export function AgendaCards({ g, slim, drawer, onDrawer }: { g: Game; slim?: boolean; drawer?: boolean; onDrawer: (open: boolean) => void }) {
   // highest stakes first: peace, then proposals, then reports
   const RANK: Record<string, number> = { peace: 0, diplo: 1, event: 2 };
   const items = g.w.agenda.filter(a => a.country === g.player).sort((a, b) => (RANK[a.kind] ?? 3) - (RANK[b.kind] ?? 3));
@@ -109,10 +110,11 @@ export function AgendaCards({ g, slim }: { g: Game; slim?: boolean }) {
   if (!items.length) return null;
   const decide = (id: number, i: number) => { resolveAgenda(g.w, g.S, id, i); g.afterOrder(); g.sound('click'); };
   // while a panel is open the left rail stays slim: a card opens only when asked for
-  const showOpen = slim ? asked : open;
-  const shown = items.slice(0, slim ? 1 : 2), cur = items.find(a => a.id === showOpen);
-  if (cur && !shown.includes(cur)) shown[0] = cur;
-  return <div class="ui agenda">{shown.map(a => a.id === showOpen
+  const showOpen = slim && !drawer ? asked : open;
+  const shown = drawer ? items : [items.find(a => a.id === showOpen) || items[0]];
+  return <div class={`ui agenda ${drawer ? 'drawer plate' : ''}`}>
+    {drawer && <header class="drawer-head"><Icon name="ballot" size={18} /><b>{t('hud.decisions', { n: items.length })}</b><button class="x" aria-label={t('ui.close')} onClick={() => onDrawer(false)}><Icon name="x" size={16} /></button></header>}
+    {shown.map(a => a.id === showOpen
     ? <section class={`agenda-card plate k-${a.kind}`} key={a.id} role="dialog" aria-label={say(g.w, a.title)}>
       <div class="cable-head"><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={18} /></span><span class="eyebrow">{t('agenda.' + a.kind)}</span><time class="mono">{fmtDate(g.w, a.day, 'short')}</time><button class="x" aria-label={t('agenda.fold')} onClick={() => { setOpen(null); setAsked(null); }}><Icon name="down" size={12} /></button></div>
       <div class="h3 plain">{say(g.w, a.title)}</div><p>{say(g.w, a.text)}</p>
@@ -120,7 +122,7 @@ export function AgendaCards({ g, slim }: { g: Game; slim?: boolean }) {
     </section>
     : <div class={`agenda-slip plate k-${a.kind}`} key={a.id}><button class="slip-open" onClick={() => { setOpen(a.id); setAsked(a.id); }}><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={16} /></span><span class="slip-t">{say(g.w, a.title)}</span></button>
       {a.kind === 'peace' ? <button class="slip-review" onClick={() => { setOpen(a.id); setAsked(a.id); }}>{t('agenda.review')}</button> : a.options.length === 2 && <><button class="slip-yes" aria-label={say(g.w, a.options[0].label)} data-tip={say(g.w, a.options[0].label)} onClick={() => decide(a.id, 0)}><Icon name="check" size={16} /></button><button class="slip-no" aria-label={say(g.w, a.options[1].label)} data-tip={say(g.w, a.options[1].label)} onClick={() => decide(a.id, 1)}><Icon name="cross" size={16} /></button></>}</div>)}
-    {items.length > shown.length && <small class="slip-more">{t('agenda.more', { n: items.length - shown.length })}</small>}
+    {!drawer && items.length > 1 && <button class="slip-more" onClick={() => onDrawer(true)}><Icon name="ballot" size={14} />{t('agenda.all', { n: items.length })}</button>}
   </div>;
 }
 

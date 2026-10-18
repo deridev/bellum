@@ -22,10 +22,10 @@ const LENSES = [{ id: 'political', icon: 'political' }, { id: 'terrain', icon: '
 
 export function Hud({ g }: { g: Game }) {
   const st = useTick(g.st), p = st.panel;
-  const [agenda, setAgenda] = useState(() => !matchMedia('(max-width: 760px)').matches); // phones start with decisions folded into the strip
+  const [drawer, setDrawer] = useState(false), phone = matchMedia('(max-width: 760px)').matches; // phones show decisions only from the strip button
   useShortcuts(g);
   return <>
-    <CommandStrip g={g} onDecisions={() => setAgenda(!agenda)} />
+    <CommandStrip g={g} onDecisions={() => setDrawer(!drawer)} />
     <Toasts g={g} />
     <HoverTip s={g.s} />
     <Banner g={g} />
@@ -40,7 +40,7 @@ export function Hud({ g }: { g: Game }) {
     {p?.kind === 'timelapse' && <TimelapsePanel g={g} />}
     {p?.kind === 'ledger' && <LedgerScreen g={g} />}
     <Dock g={g} />
-    {p?.kind !== 'ledger' && agenda && <AgendaCards g={g} slim={!!p} />}
+    {p?.kind !== 'ledger' && (drawer || !phone) && <AgendaCards g={g} slim={!!p} drawer={drawer} onDrawer={setDrawer} />}
     <ToolHint g={g} />
     {st.declare >= 0 && <DeclareDialog g={g} target={st.declare} />}
     {st.menu && <Menu g={g} />}
@@ -93,7 +93,7 @@ function CommandStrip({ g, onDecisions }: { g: Game; onDecisions: () => void }) 
     <div class="alerts">
       {war && <button class={`alert war phone-only ${score < -20 ? 'bad' : score > 20 ? 'good' : ''}`} onClick={() => togglePanel(g, 'war')}>
         <Icon name="war" size={20} /><span class="al-txt"><b class="num">{score > 0 ? '+' : ''}{Math.round(score)}</b><small>{t('war.score')}</small></span>{wars.length > 1 && <i class="badge">{wars.length}</i>}</button>}
-      {waiting > 0 && <button class="alert wait" data-tip={t('hud.decisions', { n: waiting })} onClick={onDecisions}><Icon name="ballot" size={20} /><span class="al-txt"><b class="num">{waiting}</b><small>{t('hud.decisionsShort')}</small></span></button>}
+      {waiting > 0 && <button class="alert wait" data-tip={t('hud.decisions', { n: waiting })} onClick={onDecisions}><Icon name="ballot" size={20} /><span class="al-txt"><b class="num">{waiting}</b><small>{t('hud.decisionsN', { n: waiting })}</small></span></button>}
     </div>
     <div class="time">
       <div class="date-box"><div class="date num">{fmtDate(g.w)}</div><div class={`speed-l ${st.paused ? 'paused' : ''}`}>{st.paused ? t('clock.paused') : t('clock.speedN', { n: st.speed + 1 })}</div></div>
@@ -200,8 +200,8 @@ function EconomyPanel({ g }: { g: Game }) {
   return <NationSheet g={g} kind="economy" fig={<RibbonFig label={t('eco.gdpRank')} v={`#${g.w.countries.filter(x => x.alive && x.gdp > c.gdp).length + 1}`} />}>
     <div class="figures three">
       <Figure icon="gdp" label={t('led.col.gdp')} value={fmtMoney(c.gdp)} spark={g.series('gdp')} sub={<span class={c.growth < 0 ? 'bad' : 'good'}><Icon name={c.growth < 0 ? 'trendDown' : 'trend'} size={13} /> {t('eco.perYear', { v: pct(c.growth) })}</span>} />
-      <Figure icon="treasury" label={t('ledger.treasury')} value={fmtMoney(c.treasury)} tone={c.treasury <= 0 ? 'bad' : ''} spark={g.series('treasury')} sub={<span class="muted">{t('eco.revenueIs', { v: t('eco.perMonth', { v: fmtMoney(c.income) }) })}</span>} />
-      <Figure icon="trendDown" label={t('eco.debt')} value={pct(debt)} tone={debt > 0.8 ? 'bad' : ''} sub={<span class="muted">{fmtMoney(c.debt)}</span>} />
+      <Figure icon="treasury" label={t('ledger.treasury')} value={fmtMoney(c.treasury)} spark={g.series('treasury')} sub={<span class="muted">{t('eco.revenueIs', { v: t('eco.perMonth', { v: fmtMoney(c.income) }) })}</span>} />
+      <Figure icon="trendDown" label={t('eco.debt')} value={pct(debt)} tone={debt > 1.5 ? 'bad' : ''} sub={<span class="muted">{fmtMoney(c.debt)}</span>} />
     </div>
     {(debt > 0.8 || (bal < 0 && c.treasury <= 0)) && <div class={`debt-row ${debt > 0.8 ? 'danger' : 'warn'}`} data-tip={t('eco.borrowHint')}><Icon name="coup" size={20} /><small>{t(debt > 1.2 ? 'eco.debtHigh' : bal < 0 && c.treasury <= 0 ? 'eco.debtBorrowing' : 'eco.debtMid', { v: fmtMoney(-bal) })}</small>
       {c.taxRate < 0.55 && <button class="fix" onClick={() => { c.taxRate = Math.min(0.55, +(c.taxRate + 0.02).toFixed(2)); upd(); g.sound('click'); }}>{t('eco.fixTax')}</button>}</div>}
@@ -211,7 +211,7 @@ function EconomyPanel({ g }: { g: Game }) {
     </Block>
     <Block title={t('eco.taxes')} icon="treasury">
       <Slider id="tax" label={t('eco.taxRate')} value={c.taxRate} min={0.08} max={0.55} step={0.01} fmt={pct} onInput={v => { c.taxRate = v; upd(); }} hint={t('eco.taxHint')} sub={t('eco.revenueIs', { v: t('eco.perMonth', { v: fmtMoney(c.income) }) })} />
-      <Slider id="deficit" label={t('eco.borrowing')} value={c.deficit} min={0} max={0.8} step={0.01} fmt={v => t('eco.ofRevenue', { p: pct(v) })} onInput={v => { c.deficit = v; upd(); }} hint={t('eco.borrowHint')} danger={c.deficit > 0.4} sub={c.deficit > 0.4 ? t('eco.borrowWarn') : undefined} />
+      <Slider id="deficit" label={t('eco.borrowing')} value={c.deficit} min={0} max={0.8} step={0.01} fmt={v => t('eco.ofRevenue', { p: pct(v) })} onInput={v => { c.deficit = v; upd(); }} hint={t('eco.borrowHint')} danger={c.deficit > 0.6} sub={c.deficit > 0.4 ? t('eco.borrowWarn') : undefined} />
     </Block>
   </NationSheet>;
 }
@@ -261,7 +261,7 @@ function MilitaryPanel({ g }: { g: Game }) {
     <Block title={t('mil.forces')} icon="military" aside={<span class="muted">{t('mil.atFront')} <b class="num">{fmtInt(front)}/{fmtInt(divs.length)}</b> · <span class={free <= 0 ? 'bad' : ''}>{t('mil.fundsShort')} {t('eco.perMonth', { v: fmtMoney(free) })}</span></span>}>
       <div class="forces">{(Object.keys(UNIT_SPEC) as UnitType[]).map(k => { const s = UNIT_SPEC[k], queued = c.production.filter(p => p.type === k).length;
         return <div key={k} class={`force u-${k}`}><UnitSymbol type={k} size={36} /><span class="f-t"><b class="num">{byType[k] || 0}{queued > 0 && <small class="f-q">+{queued}</small>}</b><span>{t('unitShort.' + k)}</span><small class="num">{fmtMoney(c.unitCost * s.costMul)} · {s.days}d</small></span>
-          <button class={`f-build ${free <= 0 ? 'warn' : ''}`} aria-label={t('mil.buildOne', { u: t('unitShort.' + k) })} data-tip={t('mil.cost', { v: fmtMoney(c.unitCost * s.costMul), d: s.days, m: fmtBig(s.men) })} disabled={c.manpower < s.men} onClick={() => { const e = queueUnit(g.w, c, k); setNote(e ? t('mil.noManpower') : t('mil.queued', { u: t('unitShort.' + k) })); upd(); g.sound('click'); }}><Icon name="improve" size={14} />{t('mil.build')}</button></div>; })}</div>
+          <button class={`f-build ${free <= 0 ? 'warn' : ''}`} aria-label={t('mil.buildOne', { u: t('unitShort.' + k) })} data-tip={free <= 0 ? t('mil.noFundsWait') : t('mil.cost', { v: fmtMoney(c.unitCost * s.costMul), d: s.days, m: fmtBig(s.men) })} disabled={c.manpower < s.men} onClick={() => { const e = queueUnit(g.w, c, k); setNote(e ? t('mil.noManpower') : t('mil.queued', { u: t('unitShort.' + k) })); upd(); g.sound('click'); }}><Icon name="improve" size={14} />{t('mil.build')}</button></div>; })}</div>
       {note && <small class="muted" role="status">{note}</small>}
       {c.production.length > 0 && <ol class="queue">{c.production.map(p => <li key={p.id}><UnitSymbol type={p.type} size={22} /><Bar v={p.progress / p.cost} tone="amber" /><button class="x" aria-label={t('ui.cancel')} onClick={() => { cancelUnit(g.w, c, p.id); upd(); }}><Icon name="x" size={12} /></button></li>)}</ol>}
       {c.production.length > 0 && free <= 0 && <small class="bad">{t('mil.noFunds')}</small>}

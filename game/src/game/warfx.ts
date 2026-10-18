@@ -195,7 +195,7 @@ export class WarFx {
       ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.strokeRect(x - ww / 2 - 0.5, y - hh / 2 - 0.5, ww + 1, hh + 1);
       if (d.type === 'armor' || d.type === 'mechanized') { ctx.fillStyle = '#000'; ctx.fillRect(x - ww / 2, y + hh / 2 - 1.6 * s, ww, 1.6 * s); }
       ctx.globalAlpha = 1;
-      if (ww > 9) { const q = Math.max(0, Math.min(1, d.str / d.max)), bh = Math.max(2, 1.4 * s); // strength bar under the flag
+      if (ww > 9) { const q = Math.max(0, Math.min(1, d.sup)), bh = Math.max(2, 1.4 * s); // supply bar under the flag (strength is refilled from manpower)
         ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(x - ww / 2 - 0.5, y + hh / 2 + 1, ww + 1, bh + 1);
         ctx.fillStyle = q > 0.66 ? '#82c474' : q > 0.33 ? '#e8c063' : '#e0645a'; ctx.fillRect(x - ww / 2, y + hh / 2 + 1.5, ww * q, bh); }
       if (d.sup === 0) { ctx.strokeStyle = `rgba(242,193,78,${blink})`; ctx.lineWidth = 2; ctx.strokeRect(x - ww / 2 - 2, y - hh / 2 - 2, ww + 4, hh + 4); }

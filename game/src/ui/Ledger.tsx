@@ -55,9 +55,18 @@ function Overview({ g }: { g: Game }) {
     return { x: es[0].day, label: [...lines].map(([l, n]) => n > 1 ? `${l} ×${n}` : l).join(' · ') }; });
   // wars already under way when the record starts get a pin at the start
   for (const war of g.w.wars) if ((war.attackers.includes(c.id) || war.defenders.includes(c.id)) && war.start <= (xs[0] ?? 0) && !war.ended) groups.unshift({ x: xs[0] ?? 0, label: say(g.w, war.name) });
-  // at most four pins, at least ~6% of the timeline apart
+  // turning points: the two months with the largest swing in provinces held, named by the cities that changed hands
+  const held = g.nationSeries(c.id, 'provinces');
+  const swings = held.map((v, i) => ({ i, d: i ? v - held[i - 1] : 0 })).filter(x => Math.abs(x.d) >= 1).sort((a, b) => Math.abs(b.d) - Math.abs(a.d)).slice(0, 2);
+  for (const sw of swings) {
+    const from = g.history[sw.i - 1].day, to = g.history[sw.i].day;
+    const names = [...new Set(g.w.log.filter(e => e.kind === 'city' && e.who?.includes(c.id) && e.day > from && e.day <= to).map(e => String(e.msg.a?.city ?? '')).filter(Boolean))].slice(0, 2);
+    groups.push({ x: to, label: t(sw.d < 0 ? 'led.lost' : 'led.gained', { n: Math.abs(sw.d) }) + (names.length ? ': ' + names.join(', ') : '') });
+  }
+  groups.sort((a, b) => a.x - b.x);
+  // at most four pins, at least a tenth of the timeline apart
   const span = Math.max(1, (xs[xs.length - 1] ?? 1) - (xs[0] ?? 0)), spaced: typeof groups = [];
-  for (const m of groups) { const last = spaced[spaced.length - 1]; if (last && (m.x - last.x) / span < 0.06) last.label += ' · ' + m.label; else spaced.push({ ...m }); }
+  for (const m of groups) { const last = spaced[spaced.length - 1]; if (last && (m.x - last.x) / span < 0.1) last.label += ' · ' + m.label; else spaced.push({ ...m }); }
   const marks = spaced.slice(0, 1).concat(spaced.slice(1).slice(-3)).map((m, i) => ({ ...m, n: i + 1 }));
   const chart = (k: 'gdp' | 'debt' | 'manpower' | 'casualties' | 'stability' | 'warSupport', label: string) => {
     const v = g.series(k), last = v[v.length - 1] ?? 0, d = last - (v[0] ?? last), share = k === 'stability' || k === 'warSupport', worse = k === 'casualties' || k === 'debt', bad = worse ? d > 0 : d < 0;
@@ -116,7 +125,9 @@ const METRICS: NationStat[] = ['gdp', 'divisions', 'provinces', 'pop'];
 function Compare({ g }: { g: Game }) {
   const w = g.w, me = g.player;
   const [picked, setPicked] = useState<number[]>(() => defaultRivals(g));
-  const [metric, setMetric] = useState<NationStat>(() => g.w.wars.some(x => !x.ended && (x.attackers.includes(me) || x.defenders.includes(me))) ? 'provinces' : 'gdp'); // at war, land held tells the story
+  // open on the measure that moved the most among the nations compared
+  const [metric, setMetric] = useState<NationStat>(() => { const ids0 = [me, ...defaultRivals(g)]; let best: NationStat = 'gdp', most = -1;
+    for (const m of METRICS) { const sw = ids0.reduce((a, id) => { const v = g.nationSeries(id, m); return a + (v[0] ? Math.abs(v[v.length - 1] / v[0] - 1) : 0); }, 0); if (sw > most) { most = sw; best = m; } } return best; });
   const [growth, setGrowth] = useState(true), [picking, setPicking] = useState(false);
   const ids = [me, ...picked], xs = g.history.map(h => h.day), rows = table(g);
   const row = (id: number) => rows.find(r => r.id === id);
