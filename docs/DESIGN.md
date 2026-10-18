@@ -406,3 +406,6 @@ The vertical slice is **one war, fought well**: if the flagship is 1950, the Kor
 | 9 | 2026-10-18 | **Post-war borders adapt realistically**: most provinces survive intact, only those cut by the final line split; armistice freezes the front as a DMZ (§5.3) |
 | 10 | 2026-10-18 | **Present day defaults to fictional leaders**; real leaders as an updatable opt-in pack (§6) |
 | 11 | 2026-10-18 | **Motion and feedback rules** (§4.6), proven in the front prototype |
+| 12 | 2026-10-18 | **Localization: English, Brazilian Portuguese, Spanish.** The simulation emits message keys, never text; country names come from the browser's region names, historical ones from our dictionaries |
+| 13 | 2026-10-18 | **Historical scenarios reuse the modern provinces**: each is assigned to its 1914 or 1939 owner from historical-basemaps (GPL-3.0, licence to confirm before shipping); population and output come from regional period tables |
+| 14 | 2026-10-18 | **The simulation stays on the main thread** with a per-frame time budget (fronts only update near the line). A web worker would mean every panel talking to the world by message; revisit if late-game wars get slow |

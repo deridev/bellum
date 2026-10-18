@@ -171,7 +171,7 @@ export class Game {
     for (const d of this.w.divisions) { if (d.theater >= 0) continue; const k = d.prov * 1000 + d.country; const s = stacks.get(k); if (s) s.n++; else stacks.set(k, { c: d.country, n: 1 }); }
     const A = this.s.assets, fw = 18, fh = 12;
     for (const [k, s] of stacks) {
-      if (s.c !== this.player && zoom < 4) continue;
+      if (s.c !== this.player && zoom < 8) continue; // other nations' garrisons only up close
       const prov = Math.floor(k / 1000), [lon, lat] = A.provinces[prov].label, [x, y] = cam.toScreen(...project(lon, lat - 0.25));
       if (x < -30 || y < -30 || x > cam.w + 30 || y > cam.h + 30) continue;
       const code = this.w.countries[s.c].code, fi = A.flagIndex[this.s.flagOf[code] || code];
