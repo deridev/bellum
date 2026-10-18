@@ -520,6 +520,26 @@ Feedback on §17: *"a better combat flow; with easier UX and more options per un
 - Merging has no size limit, and a split always halves.
 - A division raised for an army is always infantry.
 
+## 19. Great powers are strong (October 2026)
+
+Feedback: *"Countries are too weak. I can destroy the USA investing just a little bit in an army."*
+
+| Found | Why | Change |
+|---|---|---|
+| A US infantry division costs the USA $3.6B; a Mexican one costs Mexico $0.41B. They fought alike (technology adds only 5% a level) | A dollar of Mexican army bought nine times the fighting power of an American one | **Equipment**: each country's divisions fight at +12% for each doubling of the money behind a division, against the world's median division (×0.7 to ×1.6). USA ×1.48, Germany ×1.43, China ×1.18, Mexico ×1.11, Iran ×0.82, North Korea ×0.7. Shown on the army card and the Military desk; it counts in ultimatums and AI war decisions too |
+| The AI kept at most two divisions in training, so the USA, with $43B a month to spare, grew by about ten divisions a year | A rich AI could not spend its budget | The AI trains as many at once as its spare funds sustain, up to 12 |
+| At war the AI's military budget rose only to about 1.6× its peacetime share (the 1939 USA: 7% to 17%) | The world's largest economy never became an army | A nation that is attacked, or losing, **mobilises**: at least 45% of spending goes to the military |
+| A division whose spot in the line fell to the enemy kept marching to it, into the enemy | Defenders walked into encirclements | It holds where it stands |
+| When an offensive struck, the defending line re-balanced only at the week's end | | The defending generals re-balance toward the blow at once |
+
+Ukraine's divisions fight with Western-supplied equipment: the 2026 scenario gives Ukraine Russia's equipment level, which keeps that war's calibration.
+
+A new balance test plays the reported case: Mexico builds for six months with its spare funds, then attacks the USA, and must be losing four months later. In the war lab Mexico loses to the USA every time (2026 and 1939), whether it holds or attacks.
+
+### 19.1 Known issues
+- Equipment is fixed when the world is made; raising the military budget buys more divisions, not better ones.
+- Even wars now tend to tip: once a side starts losing whole divisions, it rarely recovers.
+
 ---
 
 ## Decision log
@@ -559,3 +579,4 @@ Feedback on §17: *"a better combat flow; with easier UX and more options per un
 | 32 | 2026-10-18 | **Peacetime positioning matters**: armies are stationed in a province, and an army at the border goes to that front when war comes |
 | 33 | 2026-10-18 | **One way to attack: with an army.** Orders by click, right-click or drag; the army stays picked up; Tab cycles armies; each action on the army card has a key (§18) |
 | 34 | 2026-10-18 | **Generals have effects in battle**, small and stated on the card (skill ±6%, traits up to ±25%), the same for the AI |
+| 35 | 2026-10-18 | **Money buys quality as well as numbers**: equipment from the money behind each division (×0.7–×1.6); attacked nations mobilise; the AI spends what it has (§19) |

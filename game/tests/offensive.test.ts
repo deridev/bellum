@@ -18,11 +18,11 @@ describe('offensives', () => {
   initSim();
   const S = loadStatic();
   const ci = (w: World, c: string) => w.countries.find(x => x.code === c)!.id;
-  const start = (seed: number, days: number, player = false) => {
+  const start = (seed: number, days: number, player = false, a = 'THA', b = 'MMR') => {
     const w = createWorld(S, { seed, scenario: '2026', tables: tablesFor('2026') }); setupScenario(w, S);
-    const tha = ci(w, 'THA'); w.countries[tha].player = player;
+    const tha = ci(w, a); w.countries[tha].player = player;
     for (let d = 0; d < 20; d++) stepDay(w, S);
-    const war = declareWar(w, S, tha, ci(w, 'MMR'));
+    const war = declareWar(w, S, tha, ci(w, b));
     for (let d = 0; d < days; d++) stepDay(w, S);
     return { w, war, tha, t: theatersOf(w, war)[0] };
   };
@@ -56,20 +56,28 @@ describe('offensives', () => {
     us.forEach((d, i) => expect(d.org).toBeCloseTo(org[i] * 0.55));
   }, 120000);
 
-  it('a well-aimed army attack takes more ground than doing nothing, from the same moment', () => {
-    const { w, war, tha } = start(3, 100, true);
-    const myr = ci(w, 'MMR'), snap = serialize(w);
-    const ground = (v: World) => { let n = 0; for (const t of v.theaters.filter(t => t.war === war.id)) { const a = t.cellKm ** 2; for (let k = 0; k < t.W * t.H; k++) if (t.land[k]) { const o = v.provinces[t.prov[k]].owner, ours = t.c[k] * t.sideOf[tha] > 0; if (ours && o === myr) n += a; else if (!ours && o === tha) n -= a; } } return n; };
-    const play = (strike: boolean) => {
-      const v = deserialize(snap); const vw = v.wars.find(x => x.id === war.id)!; stepDay(v, S); const g0 = ground(v);
-      // the player's way to strike: pick up the army with the best odds for the best target and send it there
-      if (strike) for (const t of theatersOf(v, vw)) { const b = bestStrike(v, vw, t, tha); if (!b) continue; let best = -1, bo = 0; for (const a of v.armies.filter(a => a.country === tha)) { const r = strikeOdds(v, vw, t, tha, b.target, a.id); if (!r.err && r.odds > bo) { bo = r.odds; best = a.id; } } if (best >= 0) orderArmy(v, S, best, ...b.target); }
-      for (let d = 0; d < 45; d++) stepDay(v, S);
-      return ground(v) - g0;
-    };
-    const idle = play(false), strike = play(true);
-    console.log('ground (km²) idle', Math.round(idle), 'strike', Math.round(strike));
-    expect(strike).toBeGreaterThan(idle);
+  // one moment can go either way (the enemy may strike first elsewhere), so the claim is checked on three moments of the same war,
+  // an even one (Iran and Pakistan: a lopsided war is won either way)
+  it('a well-aimed army attack does better than doing nothing, on average, from the same moments', () => {
+    const { w, war, tha } = start(3, 30, true, 'IRN', 'PAK');
+    const gains: number[] = [];
+    for (const day of [30, 50, 70]) {
+      for (let d = w.day - war.start; d < day && !war.ended; d++) stepDay(w, S);
+      if (war.ended) break;
+      const snap = serialize(w);
+      const play = (strike: boolean) => {
+        const v = deserialize(snap); const vw = v.wars.find(x => x.id === war.id)!; stepDay(v, S); const d0 = v.day;
+        // the player's way to strike: pick up the army with the best odds for the best target and send it there
+        if (strike) for (const t of theatersOf(v, vw)) { const b = bestStrike(v, vw, t, tha); if (!b) continue; let best = -1, bo = 0; for (const a of v.armies.filter(a => a.country === tha)) { const r = strikeOdds(v, vw, t, tha, b.target, a.id); if (!r.err && r.odds > bo) { bo = r.odds; best = a.id; } } if (best >= 0) orderArmy(v, S, best, ...b.target); }
+        for (let d = 0; d < 45 && !vw.ended; d++) stepDay(v, S);
+        // how it went: the war score, and a war that ended counts its outcome plus a point for every day sooner it ended
+        return vw.ended ? Math.sign(vw.score) * (100 + (d0 + 45 - vw.ended)) : vw.score;
+      };
+      gains.push(play(true) - play(false));
+    }
+    console.log('attack minus idle (war score; a won war counts 100 + days sooner)', gains.map(Math.round).join(' '));
+    expect(gains.length).toBeGreaterThanOrEqual(2);
+    expect(gains.reduce((a, b) => a + b, 0) / gains.length).toBeGreaterThan(0);
   }, 300000);
 
   it('the player commands whole armies: station them in peace, move them to the front, send them to attack', () => {

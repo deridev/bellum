@@ -3,7 +3,7 @@
 // The player is the attacker (DEF=1: the defender; scores stay from the attacker's view). Peace offers are refused, so the war runs its course (or until a capitulation).
 // Strategies (STRATS=a,b picks some): ai (the AI plays), idle, hold, push (All-out), reckless (All-out, total commitment, offensives at cities),
 // smart (strike where the odds are best, one at a time), smart3 (up to three at once), sharp (only at 1.5 : 1 or better), pro (All-out plus sharp strikes), allin (Total commitment plus sharp strikes), commander (sends whole armies to attack, like a player using army orders), careful (the same, only at cities or 2 : 1, resting troops between attacks), digin (Hold, plus smart strikes).
-// Prints the war score after `days`, enemy provinces held, and casualties, one column per seed.
+// BUILD=n months of building infantry before the war. Prints the war score after `days`, enemy provinces held, and casualties, one column per seed.
 import { createWorld } from '../src/sim/world';
 import { stepDay } from '../src/sim/step';
 import { initSim } from '../src/sim';
@@ -14,6 +14,7 @@ import { declareWar, sideOf, theatersOf } from '../src/sim/war/war';
 import { startOffensive, bestStrike, strikeOdds } from '../src/sim/war/ai';
 import { orderArmy, armyWhere } from '../src/sim/war/armies';
 import { resolveAgenda } from '../src/sim/agenda';
+import { queueUnit } from '../src/sim/economy';
 import type { MapStatic, War, World } from '../src/sim/types';
 import { cellLonLat } from '../src/sim/war/theater';
 import fs from 'node:fs';
@@ -78,6 +79,9 @@ for (const [name, strat] of Object.entries(STRATS).filter(([n]) => !only || only
   for (let s = 1; s <= +seeds; s++) {
     const w = createWorld(S, { seed: s, player: pi, scenario: scen, startDate: sd, tables: tablesFor(scen as any) }); setupScenario(w, S);
     w.countries[pi].player = strat !== null;
+    // BUILD=n: the player first spends n months building infantry with its spare funds ("investing a little in an army")
+    const P = w.countries[pi];
+    for (let d = 0; d < 30 * +(process.env.BUILD || 0); d++) { if (d % 15 === 0) for (let q = 0; q < 4 && P.spending * P.budget.military - P.upkeep > P.unitCost * 4 * (P.production.length + 1); q++) if (queueUnit(w, P, 'infantry')) break; for (const a of w.agenda.filter(a => a.country === pi)) resolveAgenda(w, S, a.id, 0); stepDay(w, S); }
     for (let d = 0; d < 20; d++) stepDay(w, S);
     const war = declareWar(w, S, ai, bi);
     let end = '';

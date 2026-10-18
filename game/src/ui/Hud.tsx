@@ -11,7 +11,7 @@ import { armyName, countryName, fmtDate, has, say, t, unitName, onLang } from '.
 import { HoverTip } from './App';
 import { Bar, Block, Delta, Flag, Icon, IconBtn, MoreFooter, Ring, Sheet, SignedBar, Slider, Spark, StackBar, UnitSymbol, useMore } from './common';
 import { LedgerScreen } from './Ledger';
-import { fmtBig, fmtInt, fmtMoney, fmtMoney2, pct, pct1, cssPct } from './format';
+import { fmt1, fmtBig, fmtInt, fmtMoney, fmtMoney2, pct, pct1, cssPct } from './format';
 import { listSaves, loadGame, saveGame, deleteSave } from '../game/save';
 import { AgendaCards, DeclareDialog, POSTURES, ToolHint, WarPanel } from './War';
 import { ChroniclePanel, TimelapsePanel } from './Chronicle';
@@ -325,7 +325,7 @@ function MilitaryPanel({ g }: { g: Game }) {
   const laws: Conscription[] = ['volunteer', 'limited', 'extensive', 'total'];
   return <NationSheet g={g} kind="military" fig={(() => { const sup = g.w.armies.filter(a => a.country === c.id).map(a => { const ds = divs.filter(d => d.army === a.id); return ds.length ? ds.reduce((x, d) => x + supOf(d), 0) / ds.length : 1; }), lo = sup.length ? Math.min(...sup) : 1;
       return <RibbonFig label={t('mil.weakestSupply')} v={pct(lo)} tone={lo < 0.5 ? 'bad' : ''} />; })()} cols={[<>
-    <Block title={t('mil.forces')} icon="military" aside={<span class="muted">{t('mil.atFront')} <b class="num">{fmtInt(front)}/{fmtInt(divs.length)}</b> · <span class={free <= 0 ? 'bad' : ''}>{t('mil.fundsShort')} {t('eco.perMonth', { v: fmtMoney(free) })}</span></span>}>
+    <Block title={t('mil.forces')} icon="military" aside={<span class="muted"><span data-tip={t('army.equipHint')}>{t('army.equip', { x: fmt1(c.quality ?? 1) })}</span> · {t('mil.atFront')} <b class="num">{fmtInt(front)}/{fmtInt(divs.length)}</b> · <span class={free <= 0 ? 'bad' : ''}>{t('mil.fundsShort')} {t('eco.perMonth', { v: fmtMoney(free) })}</span></span>}>
       <div class="forces">{(Object.keys(UNIT_SPEC) as UnitType[]).map(k => { const s = UNIT_SPEC[k], queued = c.production.filter(p => p.type === k).length;
         return <div key={k} class={`force u-${k}`}><UnitSymbol type={k} size={36} /><span class="f-t"><b class="num">{byType[k] || 0}{queued > 0 && <small class="f-q">+{queued}</small>}</b><span>{t('unitShort.' + k)}</span><small class="num">{fmtMoney(c.unitCost * s.costMul)} · {s.days}d</small></span>
           <button class="f-dis" aria-label={t('mil.demobilize')} data-tip={t('mil.demobilize')} disabled={!reservesOf(g.w, c, k).length} onClick={() => { if (demobilize(g.w, c, k)) { upd(); g.sound('click'); } }}>−</button>

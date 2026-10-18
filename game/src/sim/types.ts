@@ -21,6 +21,7 @@ export interface Country {
   gdp: number; gdpStart: number; growth: number; // growth: last yearly rate
   income: number; spending: number; upkeep: number; // last month
   unitCost: number; // monthly upkeep of one division (calibrated per economy)
+  quality?: number; // equipment behind each division: how much money stands behind it, against the world's median (×0.7–×1.6)
   manpower: number; conscription: Conscription;
   polCap: number; research: number; tech: number; readiness?: number; // 0..1, military funds over upkeep
   // politics

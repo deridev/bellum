@@ -35,7 +35,9 @@ function setShare(c: Country, k: keyof Country['budget'], v: number) {
 }
 function aiEconomy(w: World, c: Country, threatened: boolean) {
   const war = atWar(w, c.id), debt = c.debt / Math.max(1, c.gdp);
-  const target = war ? Math.min(0.6, Math.max(c.milBase * 1.6, c.milBase + 0.1)) : threatened ? Math.min(0.5, c.milBase * 1.25) : c.milBase;
+  // a nation that is attacked, or losing, mobilises: its economy goes to war (the arsenal that a small peacetime army hides)
+  const mobilise = war && activeWars(w).some(x => { const s = sideOf(x, c.id); return s < 0 || (s > 0 && x.score * s < -15); });
+  const target = war ? Math.min(0.6, Math.max(c.milBase * 1.6, c.milBase + 0.1, mobilise ? 0.45 : 0)) : threatened ? Math.min(0.5, c.milBase * 1.25) : c.milBase;
   setShare(c, 'military', c.budget.military + (target - c.budget.military) * 0.25);
   if (war && c.treasury < c.income && c.deficit < 0.5) c.deficit += 0.02; // borrow for the war
   else if (!war && debt > 1.4) c.deficit = Math.max(0, c.deficit - 0.02);
@@ -45,7 +47,9 @@ function aiEconomy(w: World, c: Country, threatened: boolean) {
   // build up to what the budget sustains: a cushion in peace, everything in war
   const funds = c.spending * c.budget.military, divs = w.divisions.filter(d => d.country === c.id).length + c.production.length;
   const want = Math.floor(funds * (war ? 0.95 : threatened ? 0.85 : 0.72) / c.unitCost);
-  if (divs < want && c.production.length < 2 && funds - c.upkeep > c.unitCost * 3) {
+  // queue as many as the spare funds keep in training at once (a division in training costs its price spread over its days), up to 12
+  const training = c.production.reduce((a, i) => a + i.cost / Math.max(1, i.days) * 30, 0), slots = c.production.length < 12 && training < funds - c.upkeep;
+  if (divs < want && slots && funds - c.upkeep > c.unitCost * 3) {
     const rich = Math.min(1, c.gdp * 1e6 / Math.max(1, w.provinces.reduce((a, p) => a + (p.owner === c.id ? p.pop : 0), 0)) / 45000);
     const r = nextRand(w), type: UnitType = r < 0.1 + 0.15 * rich ? 'armor' : r < 0.25 + 0.3 * rich ? 'mechanized' : 'infantry';
     queueUnit(w, c, type);

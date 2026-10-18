@@ -165,6 +165,7 @@ function ArmyCard({ g, id }: { g: Game; id: number }) {
   return <div class="ui army-card plate" role="dialog" aria-label={armyName(a.num)}>
     <div class="ac-head"><Icon name="military" size={18} /><b class="army-n">{armyName(a.num)}</b><small class={`army-st s-${at.state}`}>{t('army.st.' + at.state)}</small>
       <span class="ac-gen" data-tip={t('army.skill', { n: gen.skill, p: pct(GENERAL.skill(gen.skill) - 1) })}>{t('army.general', { g: gen.name })} <span class="stars">{'★'.repeat(gen.skill)}{'☆'.repeat(4 - gen.skill)}</span></span>
+      <span class="chip" data-tip={t('army.equipHint')}>{t('army.equip', { x: fmt1(w.countries[a.country].quality ?? 1) })}</span>
       {gen.traits.map(tr => <span key={tr} class={`chip ${tr in GENERAL ? '' : 'muted'}`} data-tip={t(tr in GENERAL ? 'gfx.' + tr : 'gfx.none')}>{t('gtrait.' + tr)}</span>)}
       <button class="x" aria-label={t('ui.close')} onClick={() => g.selectArmy(null)}><Icon name="x" size={14} /></button></div>
     <div class="ac-body"><span class="ac-units">{Object.entries(by).map(([k, n]) => <span key={k} data-tip={t('unitShort.' + k)}><UnitSymbol type={k} size={18} /><b class="num">{n}</b></span>)}</span>

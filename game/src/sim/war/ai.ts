@@ -83,6 +83,7 @@ function parry(w: World, S: MapStatic, t: Theater, o: Offensive) {
   const attackers = w.divisions.filter(d => d.op === o.id).length, wk = work(t);
   for (const c of Object.keys(t.sideOf).map(Number)) {
     if (t.sideOf[c] !== -o.side) continue;
+    deployLine(w, t, c, false); // its generals close up toward the blow at once
     const war = w.wars.find(x => x.id === t.war)!, need = Math.ceil(attackers * 0.6);
     // the player's armies go whole: those at home and those waiting in reserve behind this front, nearest first
     const res = w.countries[c].player ? playerReserves(w, t, c, o.from, need) : warReserve(w, war, c).slice(0, need); if (!res.length) continue;

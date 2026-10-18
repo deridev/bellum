@@ -185,7 +185,7 @@ function generalPower(g: General | undefined, d: Division, k: number, t: Theater
 const generalLoss = (g: General | undefined) => (has(g, 'Cautious') ? GENERAL.Cautious.loss : 1) * (has(g, 'Reckless') ? GENERAL.Reckless.loss : 1);
 export function unitPower(w: World, t: Theater, d: Division, k: number, wk: Work) {
   const c = w.countries[d.country];
-  let p = POWER[d.type] * (1 + 0.05 * c.tech) * (0.8 + 0.4 * d.exp) * (0.5 + 0.5 * d.org);
+  let p = POWER[d.type] * (1 + 0.05 * c.tech) * (c.quality ?? 1) * (0.8 + 0.4 * d.exp) * (0.5 + 0.5 * d.org);
   if (k >= 0 && (d.type === 'armor' || d.type === 'mechanized')) p *= 1 - 0.45 * t.mtn[k];
   const s = sideOfUnit(t, d) > 0 ? 0 : 1;
   return d.str * p * wk.air[s] * (0.35 + 0.65 * Math.min(1, d.sup)) * generalPower(generalOf(w, d.army), d, k, t);
@@ -397,7 +397,9 @@ function moveUnits(w: World, t: Theater, units: Division[], wk: Work) {
     const off = u.op ? t.offensives.find(o => o.id === u.op && !o.ended) : undefined;
     // an army's order: hold the front near a spot (it follows the front forward), or wait there in reserve
     let gl = !off && u.goal ? u.goal : null, gd = 0;
-    if (gl && gl[2]) { const gk = cellOf(t, gl[0], gl[1]); if (gk >= 0 && t.land[gk] && c[gk] * sg > 0 && d[gk] * t.cellKm > 70) { u.goal = gl = [u.x, u.y, gl[2]]; } }
+    if (gl) { const gk = cellOf(t, gl[0], gl[1]);
+      // its spot fell to the enemy: hold where it stands rather than march into them; its spot is far behind an advancing front: follow the front
+      if (gk < 0 || !t.land[gk] || c[gk] * sg <= 0 || (gl[2] && d[gk] * t.cellKm > 70)) { u.goal = gl = [u.x, u.y, gl[2]]; } }
     if (gl) gd = Math.hypot((gl[0] - u.x) * cosL, gl[1] - u.y) * 111.2;
     if (own < -0.15) { const g = Math.hypot(gx, gy) || 1; vx += gx / g * spd; vy += gy / g * spd; }
     else if (off && d[k] > 1) {

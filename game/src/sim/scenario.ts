@@ -27,6 +27,7 @@ export function setupScenario(w: World, S: MapStatic) {
   const war = declareWar(w, S, rus, ukr, { silent: true, name: msg('war.name.rusukr') });
   war.aggr = [1.04, 0.98]; (war as any).lastChange = 0;
   war.commit = { [rus]: 0.6, [ukr]: 0.95 }; // Russia keeps much of its army on its other borders; Ukraine is fully mobilised
+  w.countries[ukr].quality = Math.max(w.countries[ukr].quality ?? 1, w.countries[rus].quality ?? 1); // and fights with Western-supplied equipment
   for (const t of theatersOf(w, war)) {
     for (let k = 0; k < t.W * t.H; k++) {
       if (!t.land[k]) continue; const p = t.prov[k]; if (w.provinces[p].owner !== ukr) continue;

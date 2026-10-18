@@ -15,7 +15,7 @@ const cdKey = (a: number, b: number, act: DiploAction) => `${a}:${b}:${act}`;
 
 /** Military weight of a country: strength of its divisions, armor and technology counted. */
 export function power(w: World, c: number) {
-  const tech = 1 + 0.05 * w.countries[c].tech; let p = 0;
+  const tech = (1 + 0.05 * w.countries[c].tech) * (w.countries[c].quality ?? 1); let p = 0; // technology and equipment, as in battle
   for (const d of w.divisions) if (d.country === c) p += d.str / 12000 * (d.type === 'armor' ? 1.6 : d.type === 'mechanized' ? 1.3 : 1);
   return p * tech;
 }

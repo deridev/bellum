@@ -85,6 +85,9 @@ export function createWorld(S: MapStatic, opts: { seed?: number; player?: number
     }
     c.upkeep = nDiv * c.unitCost; c.spending = revenue * (1 + deficit) + c.debt * 0.04 / 12;
   }
+  // ---- equipment: the money behind each division, against the world's median division, sets how well it fights ----
+  const costs = w.countries.flatMap(c => w.divisions.filter(d => d.country === c.id).map(() => c.unitCost)).sort((a, b) => a - b), median = costs[Math.floor(costs.length / 2)] || 1;
+  for (const c of w.countries) c.quality = qualityOf(c.unitCost, median);
   // ---- blocs, treaties, relations ----
   for (const [key, b] of Object.entries(TB.blocs)) {
     const members = b.members.map(m => ci[m]).filter(x => x !== undefined);
@@ -104,6 +107,8 @@ export function createWorld(S: MapStatic, opts: { seed?: number; player?: number
   return w;
 }
 
+/** +12% for each doubling of the money behind a division, between ×0.7 and ×1.6: a cheap mass army is a weaker army. */
+export const qualityOf = (unitCost: number, median: number) => Math.max(0.7, Math.min(1.6, 1 + 0.12 * Math.log2(Math.max(1e-6, unitCost) / Math.max(1e-6, median))));
 export function newDivision(w: World, country: number, type: UnitType, num: number, prov: number, army: number): Division {
   const max = type === 'armor' ? 10000 : type === 'airborne' || type === 'marines' ? 9000 : 12000;
   return { id: w.nextId++, country, type, num, str: max, max, org: 1, exp: 0.1, army, prov, theater: -1, x: 0, y: 0, sup: 1, retreat: 0, arrive: 0 };

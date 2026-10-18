@@ -4,6 +4,7 @@ import { stepDay } from '../src/sim/step';
 import { initSim } from '../src/sim';
 import { setupScenario } from '../src/sim/scenario';
 import { declareWar } from '../src/sim/war/war';
+import { queueUnit } from '../src/sim/economy';
 import { loadStatic } from './helpers';
 import { say as logText } from '../src/i18n';
 
@@ -28,6 +29,14 @@ describe('balance', () => {
     expect(held.length).toBe(3);
     expect(held.reduce((a, b) => a + b, 0) / held.length).toBeGreaterThanOrEqual(0.65);
   });
+  it('a great power is not beaten cheaply: Mexico builds for six months, then attacks the USA, and is losing four months later', () => {
+    const w = createWorld(S, { seed: 2 }); setupScenario(w, S);
+    const mex = w.countries.find(c => c.code === 'MEX')!, usa = w.countries.find(c => c.code === 'USA')!; mex.player = true;
+    for (let d = 0; d < 180; d++) { if (d % 15 === 0) for (let q = 0; q < 4 && mex.spending * mex.budget.military - mex.upkeep > mex.unitCost * 4 * (mex.production.length + 1); q++) if (queueUnit(w, mex, 'infantry')) break; stepDay(w, S); }
+    const war = declareWar(w, S, mex.id, usa.id);
+    for (let d = 0; d < 120 && !war.ended; d++) stepDay(w, S);
+    expect(war.score).toBeLessThan(0);
+  }, 600000);
   it('Korean war: Seoul is not overrun within 120 days', () => {
     const w = createWorld(S, { seed: 5 }); setupScenario(w, S);
     const ci = (c: string) => w.countries.find(x => x.code === c)!.id;
