@@ -1,6 +1,6 @@
 # BELLUM — Game Design Document
 
-> Status: **v0.2 draft**. We're iterating on this together. Anything marked **[OPEN]** is undecided.
+> Status: **v0.3 draft**. We're iterating on this together. Anything marked **[OPEN]** is undecided.
 > Anything marked **[REC]** is a recommendation waiting for a yes or no. See the Decision log at the bottom.
 
 ---
@@ -66,7 +66,7 @@ The reference images are the target look: a satellite-style real-world map, a tr
 
 **The Agenda** is the backbone of "few decisions." Each turn the game lists what needs you (*"The 3rd Army is encircled at Taejon: break out or hold?"*, *"Parliament refuses the war budget"*, *"The Republic of X asks for volunteers"*). You can end the turn once the Agenda is cleared, or skip items and accept the defaults.
 
-### 3.1 Time model [OPEN]
+### 3.1 Time model (decided: prototype both)
 
 **Turn length [REC]: 1 turn = 1 month**, resolved inside in daily steps. Peace turns go fast (you auto-ready when the Agenda is empty); war turns are where you spend your time.
 
@@ -82,12 +82,12 @@ Two candidate turn structures:
 | Reference-video playback | Free: the resolution *is* the video | Has to be reconstructed |
 | Risk | Can feel like losing control | Can feel static and slow, with a first-mover advantage |
 
-**Recommendation: A (WEGO)**, plus three fixes for the "loss of control" risk:
+**Decision: prototype both in M3 and pick by playtesting.** Leaning A (WEGO), with three fixes for the "loss of control" risk:
 1. **Previews**: before ending the turn you see the expected outcome of each offensive (*"Likely gain 2–4 provinces, 60% breakthrough chance"*).
 2. **Stances and conditional orders**: *"If the front breaks, fall back to the river"*. Armies react sensibly during the month.
 3. **Pause-on-crisis** (single player only): playback stops when something dramatic happens (encirclement, landing, capital threatened), so you can respond right away.
 
-The sim core resolves "a set of orders → next state." Sequential mode is the same engine resolving after each player, so **we can build both in the M3 prototype and pick one by playtesting**.
+The sim core resolves "a set of orders → next state." Sequential mode is the same engine resolving after each player, so both modes cost little extra to build. The front prototype already runs in daily steps with smooth playback between them, which is the WEGO resolution view.
 
 ---
 
@@ -109,12 +109,11 @@ The sim core resolves "a set of orders → next state." Sequential mode is the s
 ### 4.3 Modular maps and scenarios
 - A **map** is a data package: base imagery, heightmap, province polygons, adjacency, rivers, sea zones and localisation.
 - A **scenario** is a separate layer: date, owners, governments, armies and starting situations. The same world map supports many scenarios.
-- **Starting scenarios** [OPEN, pick 1 flagship]:
-  - **1914**: The Great War (trenches, empires).
-  - **1936**: The Gathering Storm (ideologies, a world war on the horizon).
-  - **1950**: Divided Peninsula (the Korean War, the reference images, the early Cold War).
-  - **1962**: The Brink (Cold War, proxies, nuclear standoff).
-  - **2026**: Present Day.
+- **Starting scenarios** (decided: present day and the world wars lead):
+  - **2026: Present Day** (flagship).
+  - **1914: The Great War** (trenches, empires).
+  - **1939: The World War** (blitzkrieg, encirclements, global fronts).
+  - Later: **1950 Divided Peninsula** (already the front prototype's test case) and **1962 The Brink**.
 - Accurate *at the start*; history diverges from there.
 - Designed for modding from day one: a map editor and scenario editor come later.
 
@@ -156,30 +155,39 @@ The sim core resolves "a set of orders → next state." Sequential mode is the s
 
 Equipment improves by **era** (§8.4), so "Armor" in 1914 (barely exists) differs from Armor in 1962.
 
-### 5.3 Fronts and offensives (the reference-image moment)
-Each army on a front gets one of three orders:
-- **Hold**: defend, dig in (entrenchment builds over time).
-- **Advance**: push along the whole segment, slow and steady.
-- **Offensive**: draw **one arrow** to a target. The army concentrates force there to try a **breakthrough**.
+### 5.3 Continuous fronts (decided, prototyped)
+**Borders don't move province by province.** In the reference video the front flows like paint. We do the same: during a war, territory is a **continuous control field**, and the front is wherever control flips from one side to the other.
 
-Combat happens on front segments every day of the turn. Outcome depends on numbers, unit mix against terrain, general, supply, air superiority, entrenchment, morale, river crossings and weather.
+How it works (proven in `prototypes/front/`):
+- **Control field.** A fine grid (about 4–5 km per cell in a war theater) holds a value from −1 to +1 for "who controls this ground." The **front is the zero line** of that field.
+- **Armies push the field.** Each army projects **pressure** around itself. Where one side's pressure beats the other's (after terrain and defence bonuses), the front moves toward the weaker side, smoothly and at any angle. Thin lines bend, gaps become breakthroughs, and bulges form on their own.
+- **The front stays smooth and believable.** The field behaves like a forced Allen–Cahn equation: cells settle firmly on one side, the front keeps a smooth shape, and tiny slivers and pockets close up naturally.
+- **Pockets emerge.** Supply flows from depots and ports through your own territory. Ground (and armies) that gets cut off is hatched on the map, loses strength daily, and armies there surrender if not relieved.
+- **Fronts stabilise for real reasons.** Defenders get a base bonus, terrain bonuses and **entrenchment** that grows while a stretch of front stays still. Attackers have **offensive momentum** that drains while they attack and recovers when they pause, so offensives culminate on their own (as Chinese offensives did after a week or two).
+- **"Infinite resolution" rendering.** The simulation grid is coarse. The renderer samples it smoothly (bicubic) and adds a multi-scale warp, so the front is a crisp, organic line at every zoom level, and new detail appears as you zoom in. Turn on **Sim grid** in the prototype to see the 4.4 km squares underneath.
 
-**Breakthroughs and encirclements** are the big moments. Push through, and armor exploits behind the lines. If the line closes behind enemy armies, they become a **pocket**: out of supply, losing strength daily, and forced to surrender if not relieved. Pockets show on the map as a red ring with a countdown.
+**Provinces still matter** for the economy and names. A province's output is split by how much of it each side controls, and its city or capital decides who administers it. Peace treaties can draw **any line**: the current front (a ceasefire line, like the DMZ), a river, or snapped to province borders [OPEN].
 
-The map shows summed troop totals per side per front (*1,635,267 vs 961,920*), updating live during playback.
+### 5.4 Orders on a continuous front
+You don't push pixels. Each army gets:
+- **Posture**: Hold, Advance or Offensive. This sets how hard it pushes, and how fast it uses up momentum and men.
+- **Offensive arrow + halt line**: where to attack, and where to stop and consolidate. The prototype's history script uses exactly this to steer the war ("attack south until the 35th parallel").
+- **Fallback line** (conditional order): where to retreat if the front breaks. Units that are badly outnumbered already fall back fighting on their own.
 
-### 5.4 Naval and air (abstracted on purpose)
+The map shows summed troop totals per side on each side of the front (*1,635,267 vs 961,920*), updating live during playback. They're visible at strategic zoom and fade out as you zoom in to the armies.
+
+### 5.5 Naval and air (abstracted on purpose)
 - **Navies**: fleets operate in sea zones with missions: **Control**, **Convoy / Blockade**, **Support Invasion**. Battles resolve at sea-zone level.
 - **Amphibious invasions**: pick a coastal province behind the enemy's lines (Inchon-style). Success depends on naval control, defenders, and Special units. It's a huge gamble with a huge payoff.
 - **Air power**: air wings are assigned to a region with a mission: **Air Superiority**, **Close Air Support**, **Strategic Bombing** (industry, infrastructure) or **Interdiction** (supply). Air superiority per region shows as an icon and a bar.
 - **Nuclear weapons** (late eras): huge damage and deterrence, with massive political and diplomatic cost. Nuclear powers change how everyone else plays (§7.4).
 
-### 5.5 Supply and logistics
+### 5.6 Supply and logistics
 - Supply flows from your **capital and supply hubs** along **railways and roads**, and from **ports** by sea.
 - Distance, terrain, bad infrastructure, enemy interdiction and weather (winter, monsoon, mud) reduce supply.
 - Out-of-supply armies lose strength and can't attack. Overextended offensives stall naturally: the "Pusan perimeter" effect emerges from the rules.
 
-### 5.6 War goals and peace
+### 5.7 War goals and peace
 - Wars need a **casus belli**: claim, liberation, ideological intervention, defence of an ally, retaliation. It defines what you can demand.
 - **War score** comes from battles, provinces and states held, capitals taken, pockets and blockades.
 - **War support** (public opinion) falls with casualties and long wars, faster in democracies. At zero: protests, government crisis, forced peace.
@@ -188,9 +196,13 @@ The map shows summed troop totals per side per front (*1,635,267 vs 961,920*), u
 
 ---
 
-## 6. Politics (real nations, fictional politics) [REC]
+## 6. Politics (real nations, selectable leaders)
 
-**Real countries, flags and geography; fictional leaders, parties and ideology names.** History is the starting point and politics come from the game. This avoids glorifying real dictators and is safer for store rules in some countries. [OPEN: confirm]
+**Real countries, flags and geography. Leaders are selectable per game (decided):**
+- **Historical mode**: real leaders and parties at the start.
+- **Fictional mode**: generated leaders, parties and ideology names on the same real map.
+
+History is the starting point either way; politics come from the game. Fictional mode is the safe default where store rules restrict real-world extremist imagery. Living present-day leaders need care: default to fictional in 2026 and let players opt in. [OPEN]
 
 ### 6.1 Ideology (two axes)
 - **Economy**: Collective ↔ Market.
@@ -318,6 +330,9 @@ The late game is where grand strategy games die. Our countermeasures:
   - `tools/mapgen`: builds province polygons, adjacency and sea zones from Natural Earth and similar data.
 - It runs in the browser (instant to share and play), and we can wrap it as a desktop app (Tauri / Electron) for Steam later.
 - **Performance target**: 60 fps on a mid-range laptop with the full world map at strategic zoom.
+- **Continuous fronts at world scale**: a 4.4 km grid over all land is about 7–8 million cells, too many to update every day. Plan: split the field into tiles and only simulate tiles near active fronts. Peacetime borders come from province polygons. The prototype runs one theater (36k cells) at about 7 ms per simulated day in plain JS.
+- **Determinism for multiplayer**: the prototype uses floating point and is chaotic (tiny differences grow into different wars). Lockstep or replays across browsers need **fixed-point math** in the sim core. Plan for it in M2.
+- **Era packs (decided: keep systems modular)**: era-specific content (unit types, doctrines, government types, events) lives in data packs over a shared core (map, control field, supply, politics, diplomacy). A medieval pack (castles, levies, sieges) should be possible later without rewriting the core.
 
 ---
 
@@ -330,7 +345,7 @@ The vertical slice is **one war, fought well**: if the flagship is 1950, the Kor
 | **M0 Design** | This doc locked to v1 | Open questions answered |
 | **M1 Map** | Beautiful, readable world map | Satellite base + provinces + borders + labels + zoom tiers, 60 fps |
 | **M2 Sim core** | Nations, provinces, economy, turn loop | Save/load, deterministic replay test |
-| **M3 War** | Armies, fronts, offensives, pockets, supply, playback | **The reference images on screen, playable.** Prototype WEGO vs sequential and choose one |
+| **M3 War** | Armies, fronts, offensives, pockets, supply, playback | **The reference images on screen, playable.** Prototype WEGO vs sequential and choose one. *Started early: `prototypes/front/` proves continuous fronts on Korea 1950–53* |
 | **M4 Nation** | Government, interest groups, leaders, Agenda, events | A coup or lost election mid-war is dramatic |
 | **M5 Diplomacy + AI** | Treaties, blocs, volunteers, Assembly, AI personalities | AI is a believable rival |
 | **M6 Multiplayer** | Lobby, turns, async, drop-in | 4 friends finish a Quick game |
@@ -340,14 +355,13 @@ The vertical slice is **one war, fought well**: if the flagship is 1950, the Kor
 
 ## 14. Open questions (iterating)
 
-1. **Time model**: WEGO (recommended) or classic sequential? Or build both in M3 and decide by playtest? (§3.1)
-2. **Flagship scenario**: 1914, 1936, **1950** (matches your references), 1962 or present day? (§4.3)
-3. **Real vs fictional people**: real countries with fictional leaders, parties and ideology names (recommended)? Or real historical leaders? (§6)
+1. **Front feel**: does the prototype's front match what you meant by "infinite resolution painting"? More jagged, more fluid, faster or slower?
+2. **Post-war borders**: keep the exact ceasefire line (any shape, like the DMZ) or snap to province borders at peace?
+3. **Living leaders in 2026**: fictional by default with an opt-in for real ones?
 4. **Naval and air depth**: abstracted (recommended) or more hands-on?
 5. **Nukes**: in or out, and from which era?
 6. **Platform**: browser first, Steam (desktop) later, mobile ever?
-7. **Art direction**: satellite base (like the references) or a stylised / painted map?
-8. **Your original "medieval battles" idea**: dropped entirely, or a future scenario pack on the same engine?
+7. **Art direction**: the prototype's satellite-relief style, or a stylised / painted map?
 
 ---
 
@@ -357,4 +371,8 @@ The vertical slice is **one war, fought well**: if the flagship is 1950, the Kor
 | 1 | 2026-10-18 | **Setting: modern / 20th century** (replaces the medieval v0.1 draft) |
 | 2 | 2026-10-18 | **Map: real, accurate world map first**; procedural worlds later |
 | 3 | 2026-10-18 | **Tech: Web, TypeScript + PixiJS** |
-| 4 | 2026-10-18 | Time model: undecided between WEGO and sequential (§3.1) |
+| 4 | 2026-10-18 | **Time model: prototype both** WEGO and sequential, pick by playtest (§3.1) |
+| 5 | 2026-10-18 | **Scenarios: present day and the world wars lead** (§4.3) |
+| 6 | 2026-10-18 | **Leaders: real and fictional, selectable per game** (§6) |
+| 7 | 2026-10-18 | **Medieval: not now, but systems stay modular (era packs)** (§12) |
+| 8 | 2026-10-18 | **Fronts are continuous**, not province-based: control field + zero-line rendering (§5.3). Proven in `prototypes/front/` |

@@ -1,0 +1,147 @@
+<meta charset="utf-8">
+<title>Bellum Front Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,600;0,700;1,800&family=Barlow:wght@400;500;600&display=swap">
+<style>
+  /* Layout: full-bleed map; HUD floats in the four corners like a briefing table. Single dark look by design. */
+  :root {
+    --ink: #071019;
+    --panel: rgba(9, 15, 23, 0.82);
+    --line: rgba(196, 214, 232, 0.14);
+    --text: #e9eef3;
+    --muted: #93a3b3;
+    --north: #e3394d;
+    --south: #3e93ea;
+    --amber: #f2c14e;
+    --display: "Barlow Condensed", "Arial Narrow", sans-serif;
+    --body: Barlow, "Segoe UI", system-ui, sans-serif;
+    color-scheme: dark;
+  }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body { background: var(--ink); color: var(--text); font-family: var(--body); overflow: hidden; }
+  #stage { position: fixed; inset: 0; touch-action: none; cursor: grab; }
+  #stage:active { cursor: grabbing; }
+  #map, #overlay { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #overlay { pointer-events: none; }
+
+  .hud { position: fixed; z-index: 2; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+  .hud > * { pointer-events: auto; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .tl { top: calc(12px + env(safe-area-inset-top, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); width: min(330px, calc(100vw - 32px)); }
+  .tr { top: calc(12px + env(safe-area-inset-top, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); align-items: flex-end; }
+  .bl { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: max(16px, env(safe-area-inset-left, 0px)); }
+  .br { bottom: calc(14px + env(safe-area-inset-bottom, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); align-items: flex-end; }
+
+  .brief { padding: 12px 14px 12px; display: grid; gap: 4px; }
+  .eyebrow { font: 600 11px/1 var(--display); letter-spacing: 0.12em; white-space: nowrap; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; gap: 8px; }
+  #date { font: 700 34px/1 var(--display); letter-spacing: 0.02em; font-variant-numeric: tabular-nums; }
+  #caption { font: 600 15px/1.2 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--amber); min-height: 18px; }
+  #feed { list-style: none; margin: 6px 0 0; padding: 8px 0 0; border-top: 1px solid var(--line); display: grid; gap: 6px; font-size: 13px; line-height: 1.3; }
+  #feed li { display: grid; grid-template-columns: 74px 1fr; gap: 8px; }
+  #feed li:nth-child(n+2) { opacity: 0.72; } #feed li:nth-child(n+4) { opacity: 0.45; }
+  #feed time { color: var(--muted); font: 500 12px/1.3 var(--body); font-variant-numeric: tabular-nums; }
+  #feed .k-city span { color: #c9d3dd; } #feed .k-pocket span { color: var(--amber); } #feed .k-player span { color: #9fd0ff; }
+
+  .row { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  button { font: 600 13px/1 var(--body); color: var(--text); background: var(--panel); border: 1px solid var(--line); border-radius: 5px; padding: 8px 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
+  button:hover { border-color: rgba(196, 214, 232, 0.35); }
+  button:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+  button[aria-pressed="true"] { background: #e9eef3; color: #071019; border-color: #e9eef3; }
+  button svg { width: 14px; height: 14px; fill: currentColor; }
+  #play { width: 38px; justify-content: center; }
+  .seg { display: inline-flex; } .seg button { border-radius: 0; margin-left: -1px; } .seg button:first-child { border-radius: 5px 0 0 5px; margin: 0; } .seg button:last-child { border-radius: 0 5px 5px 0; }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  #armistice { background: var(--amber); color: #1a1205; border-color: var(--amber); }
+
+  .stats { padding: 10px 12px; display: grid; grid-template-columns: auto auto auto; column-gap: 16px; row-gap: 4px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .stats b { font: 700 15px/1.1 var(--display); letter-spacing: 0.02em; color: var(--text); }
+  .stats .h { font: 600 11px/1 var(--display); letter-spacing: 0.14em; text-transform: uppercase; }
+  .stats .side { display: flex; align-items: center; gap: 6px; color: var(--text); font-weight: 600; }
+  .num { text-align: right; }
+
+  .timeline { position: fixed; z-index: 2; left: 50%; transform: translateX(-50%); bottom: calc(14px + env(safe-area-inset-bottom, 0px)); width: min(360px, 32vw); pointer-events: none; }
+  .track { height: 4px; background: rgba(255,255,255,0.14); border-radius: 2px; overflow: hidden; }
+  #bar { height: 100%; width: 0; background: linear-gradient(90deg, var(--north), var(--amber), var(--south)); }
+  .years { display: flex; justify-content: space-between; font: 600 11px/1 var(--display); letter-spacing: 0.1em; color: var(--muted); margin-top: 5px; }
+
+  #hint { position: fixed; z-index: 3; left: 50%; top: 18px; transform: translateX(-50%); padding: 8px 12px; font-size: 13px; }
+  #fatal { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; z-index: 5; background: var(--ink); font-size: 15px; }
+  .help { font-size: 12px; color: var(--muted); padding: 0 2px; text-align: right; }
+
+  @media (max-width: 720px) {
+    .timeline { display: none; }
+    #date { font-size: 26px; }
+    #feed li:nth-child(n+3) { display: none; }
+    .br { left: max(16px, env(safe-area-inset-left, 0px)); align-items: stretch; }
+    .br .row { justify-content: flex-start; }
+    .tr { top: auto; bottom: calc(58px + env(safe-area-inset-bottom, 0px)); }
+    .bl { bottom: calc(148px + env(safe-area-inset-bottom, 0px)); }
+    .stats { padding: 8px 10px; }
+    .stats { grid-template-columns: auto auto; } .stats .cap { display: none; }
+    .help { display: none; }
+    button { padding: 7px 9px; font-size: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div id="stage" aria-label="Map of the Korean peninsula. Drag to pan, scroll or pinch to zoom.">
+  <canvas id="map"></canvas>
+  <canvas id="overlay"></canvas>
+</div>
+
+<section class="hud tl">
+  <div class="card brief">
+    <div class="eyebrow"><span>Bellum &middot; Front Lab</span><span id="seed">Historical replay</span></div>
+    <div id="date">25 JUN 1950</div>
+    <div id="caption">The invasion</div>
+    <ol id="feed" aria-live="polite"></ol>
+  </div>
+</section>
+
+<section class="hud tr">
+  <div class="row">
+    <button id="replay" title="Replay the war from June 1950">Replay 1950</button>
+    <button id="random" title="Same war, different dice: history can turn out otherwise">New war</button>
+  </div>
+  <div class="row">
+    <button id="play" aria-label="Pause"></button>
+    <span class="seg" role="group" aria-label="Speed">
+      <button data-speed="slow">Slow</button><button data-speed="normal">Normal</button><button data-speed="fast">Fast</button>
+    </span>
+  </div>
+  <button id="armistice" hidden>Break the armistice</button>
+</section>
+
+<section class="hud bl">
+  <div class="card stats" role="table" aria-label="Forces">
+    <span class="h" role="columnheader">Side</span><span class="h num" role="columnheader">In the field</span><span class="h num cap" role="columnheader">Lost &middot; captured</span>
+    <span class="side"><i class="swatch" style="background:var(--north)"></i>North</span><b class="num" id="nMen">0</b><span class="num cap"><span id="nCas">0</span> &middot; <span id="nCap">0</span></span>
+    <span class="side"><i class="swatch" style="background:var(--south)"></i>South</span><b class="num" id="sMen">0</b><span class="num cap"><span id="sCas">0</span> &middot; <span id="sCap">0</span></span>
+  </div>
+</section>
+
+<section class="hud br">
+  <div class="row" role="group" aria-label="Map tools">
+    <button data-tool="north" title="Click North-held land to add a division"><i class="swatch" style="background:var(--north)"></i>+ Division</button>
+    <button data-tool="south" title="Click South-held land to add a division"><i class="swatch" style="background:var(--south)"></i>+ Division</button>
+    <button data-tool="landing" title="Click a coast to land three South divisions">Landing</button>
+    <button id="grid" aria-pressed="false" title="Show the 4.4 km grid the simulation runs on (G)">Sim grid</button>
+  </div>
+  <div class="help">Drag to pan &middot; scroll or pinch to zoom &middot; space to pause</div>
+</section>
+
+<div class="timeline" aria-hidden="true">
+  <div class="track"><div id="bar"></div></div>
+  <div class="years"><span>1950</span><span>1951</span><span>1952</span><span>1953</span></div>
+</div>
+
+<div id="hint" class="card" hidden></div>
+<div id="fatal" hidden></div>
+
+<script src="region.js"></script>
+<script src="sim.js"></script>
+<script src="render.js"></script>
+<script src="app.js"></script>
