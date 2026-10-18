@@ -351,7 +351,7 @@ function CountryPanel({ g, id }: { g: Game; id: number }) {
     </Block>}
     {c.alive && id !== me && (war
       ? <button class="primary" onClick={() => { const x = warsOf(w, me).find(x => sideOf(x, id)); if (x) g.openPanel({ kind: 'war', id: x.id }); }}><Icon name="war" size={16} />{t('war.open')}</button>
-      : <button class="primary danger wide" onClick={() => g.st.set({ declare: id, paused: true })}><Icon name="war" size={16} />{t('war.declare')}</button>)}
+      : <button class="danger outline wide" onClick={() => g.st.set({ declare: id, paused: true })}><Icon name="war" size={16} />{t('war.declare')}</button>)}
   </Sheet>;
 }
 

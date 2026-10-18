@@ -179,4 +179,5 @@ export const pt: Record<string, Entry> = {
   'mil.supplyHint': 'Suprimento das divisões do exército: pouco suprimento as enfraquece no front', 'mil.weakestSupply': 'Pior suprimento', 'eco.fixTax': 'Subir imposto +2 pt',
   'agenda.all': 'Todas as {n} decisões', 'hud.decisionsN': { one: 'Decisão', other: 'Decisões' }, 'mil.noFundsWait': 'Sem verba de produção: entra na fila e espera até o orçamento militar cobrir a manutenção',
   'led.lost': { one: '{n} província perdida', other: '{n} províncias perdidas' }, 'led.gained': { one: '{n} província tomada', other: '{n} províncias tomadas' },
+  'agenda.daysLeft': { one: 'resta {n} dia', other: 'restam {n} dias' }, 'led.gdpFell': 'A economia cai {p}',
 };

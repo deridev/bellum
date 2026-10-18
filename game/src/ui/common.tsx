@@ -200,7 +200,8 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
   const tk = tk0.filter((v, i) => i === 0 || fmtY(v) !== fmtY(tk0[i - 1])); // no repeated labels after rounding
   const y0 = tk0[0], y1 = tk0[tk0.length - 1], X = (i: number) => L + i / (n - 1) * w, Y = (v: number) => T + h - (v - y0) / (y1 - y0 || 1) * h;
   // direct labels, nudged apart so they never collide
-  const ends = series.map(s => ({ s, y: Y(s.values[n - 1]) })).sort((a, b) => a.y - b.y);
+  const ends0 = series.map(s => ({ s, y: Y(s.values[n - 1]), label: s.label })).sort((a, b) => a.y - b.y), ends: typeof ends0 = [];
+  for (const e of ends0) { const last = ends[ends.length - 1]; if (last && e.y - last.y < 6) last.label += ', ' + e.label; else ends.push({ ...e }); }
   for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 20) ends[i].y = ends[i - 1].y + 20;
   const path = (v: number[]) => smooth(v.map((y, i) => [X(i), Y(y)]));
   // event pins: the month each event fell in
@@ -216,7 +217,7 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
       {!labels && <path d={`${path(series[0].values)}L${X(n - 1)},${T + h}L${X(0)},${T + h}Z`} fill={series[0].color} opacity="0.16" />}
       {series.map((s, i) => <path key={s.id} d={path(s.values)} fill="none" stroke={s.color} stroke-width={i === 0 ? 3 : 2} stroke-dasharray={DASH[i % DASH.length]} stroke-linejoin="round" stroke-linecap="round" />)}
       {series.map(s => <circle key={s.id} cx={X(n - 1)} cy={Y(s.values[n - 1])} r="4" fill={s.color} class="end-dot" />)}
-      {labels && ends.map(({ s, y }) => <g key={s.id}>{Math.abs(y - Y(s.values[n - 1])) > 3 && <line x1={L + w + 4} x2={L + w + 9} y1={Y(s.values[n - 1])} y2={y} stroke={s.color} stroke-width="1.5" />}<text x={L + w + 12} y={y + 4} class="end-label">{s.label}</text></g>)}
+      {labels && ends.map(({ s, y, label }) => <g key={s.id}>{Math.abs(y - Y(s.values[n - 1])) > 3 && <line x1={L + w + 4} x2={L + w + 9} y1={Y(s.values[n - 1])} y2={y} stroke={s.color} stroke-width="1.5" />}<text x={L + w + 12} y={y + 4} class="end-label">{label}</text></g>)}
       {hi !== null && <g><line x1={hx} x2={hx} y1={T} y2={T + h} class="cross" />{series.map(s => <circle key={s.id} cx={hx} cy={Y(s.values[hi])} r="4" fill={s.color} class="end-dot" />)}</g>}
     </svg>
     {hi !== null && <div class={`chart-tip ${labels ? '' : 'above'}`} style={labels ? (hx > L + w / 2 ? { left: L + 6 } : { right: R + 6 }) : undefined}><b>{fmtX(xs[hi])}</b>{pins.filter(m => m.i === hi).map((m, k) => <em key={k}>{m.n}. {m.label}</em>)}

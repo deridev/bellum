@@ -173,4 +173,5 @@ export const en: Record<string, Entry> = {
   'mil.supplyHint': 'Supply of the army\'s divisions: low supply weakens them at the front', 'mil.weakestSupply': 'Weakest supply', 'eco.fixTax': 'Raise tax +2 pt',
   'agenda.all': 'All {n} decisions', 'hud.decisionsN': { one: 'Decision', other: 'Decisions' }, 'mil.noFundsWait': 'No production funds: it will queue and wait until the military budget covers upkeep',
   'led.lost': { one: '{n} province lost', other: '{n} provinces lost' }, 'led.gained': { one: '{n} province taken', other: '{n} provinces taken' },
+  'agenda.daysLeft': { one: '{n} day left', other: '{n} days left' }, 'led.gdpFell': 'Economy falls {p}',
 };

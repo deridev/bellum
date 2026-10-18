@@ -63,6 +63,9 @@ function Overview({ g }: { g: Game }) {
     const names = [...new Set(g.w.log.filter(e => e.kind === 'city' && e.who?.includes(c.id) && e.day > from && e.day <= to).map(e => String(e.msg.a?.city ?? '')).filter(Boolean))].slice(0, 2);
     groups.push({ x: to, label: t(sw.d < 0 ? 'led.lost' : 'led.gained', { n: Math.abs(sw.d) }) + (names.length ? ': ' + names.join(', ') : '') });
   }
+  // and any month the economy fell by more than a tenth
+  const gdp = g.series('gdp');
+  gdp.forEach((v, i) => { if (i && gdp[i - 1] > 0 && v / gdp[i - 1] - 1 < -0.1) groups.push({ x: g.history[i].day, label: t('led.gdpFell', { p: pct(1 - v / gdp[i - 1]) }) }); });
   groups.sort((a, b) => a.x - b.x);
   // at most four pins, at least a tenth of the timeline apart
   const span = Math.max(1, (xs[xs.length - 1] ?? 1) - (xs[0] ?? 0)), spaced: typeof groups = [];
