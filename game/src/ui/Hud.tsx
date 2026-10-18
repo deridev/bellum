@@ -61,7 +61,7 @@ function useShortcuts(g: Game) {
     window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
   }, []);
 }
-const panelOrder = (g: Game): PanelKind[] => ['economy', 'politics', 'military', 'diplomacy', ...(warsOf(g.w, g.player).length ? ['war' as const] : []), 'ledger', 'chronicle', 'timelapse'];
+const panelOrder = (g: Game): PanelKind[] => ['economy', 'politics', 'military', 'diplomacy', ...(warsOf(g.w, g.player).length ? ['war' as const] : []), 'ledger', 'chronicle'];
 function togglePanel(g: Game, kind: PanelKind) {
   const cur = g.st.get().panel;
   if (cur?.kind === kind) { g.openPanel(null); return; }
@@ -84,7 +84,7 @@ function CommandStrip({ g, onDecisions }: { g: Game; onDecisions: () => void }) 
       <Res icon="treasury" tone="gold" k="treasury" v={fmtMoney(c.treasury)} danger={c.treasury <= 0 || (bal < 0 && c.treasury < -bal * 3)} onClick={() => togglePanel(g, 'economy')}
         sub={<span class={`delta ${bal < 0 ? 'bad' : 'good'}`}><Icon name={bal < 0 ? 'down' : 'up'} size={9} />{fmtMoney(Math.abs(bal))}{t('hud.perMo')}</span>} />
       <Res minor icon="manpower" tone="steel" k="manpower" v={fmtBig(c.manpower)} sub={<Delta v={monthly(g, 'manpower')} fmt={fmtBig} />} onClick={() => togglePanel(g, 'military')} />
-      <Res icon="stability" tone="teal" k="stability" v={pct(c.stability)} gauge={c.stability} sub={<Delta v={monthly(g, 'stability')} fmt={pts} />} onClick={() => togglePanel(g, 'politics')} />
+      <Res icon="stability" tone="teal" k="stability" v={pct(c.stability)} gauge={c.stability} danger_={0.3} danger={c.stability < 0.3} sub={<Delta v={monthly(g, 'stability')} fmt={pts} />} onClick={() => togglePanel(g, 'politics')} />
       <Res icon="warSupport" tone="rust" k="warSupport" v={pct(c.warSupport)} gauge={c.warSupport} sub={<Delta v={monthly(g, 'warSupport')} fmt={pts} />} onClick={() => togglePanel(g, 'politics')} />
       <Res minor icon="influence" tone="violet" k="influence" v={fmtInt(c.polCap)} onClick={() => togglePanel(g, 'diplomacy')} />
     </div>
@@ -117,10 +117,10 @@ function WarBanner({ g, war, more }: { g: Game; war: War; more: number }) {
       <b class="wb-score num">{score > 0 ? '+' : ''}{Math.round(score)}</b></span>
   </button>;
 }
-function Res({ icon, k, v, tone, gauge, sub, danger, minor, onClick }: { icon: string; k: string; v: string; tone: string; gauge?: number; sub?: any; danger?: boolean; minor?: boolean; onClick: () => void }) {
+function Res({ icon, k, v, tone, gauge, sub, danger, minor, onClick, danger_ }: { icon: string; k: string; v: string; tone: string; gauge?: number; sub?: any; danger?: boolean; minor?: boolean; onClick: () => void; danger_?: number }) {
   return <button class={`res-cell t-${tone} ${danger ? 'danger' : ''} ${minor ? 'minor' : ''}`} aria-label={`${t('ledger.' + k)} ${v}`} data-tip={`${t('ledger.' + k)} — ${t('ledger.' + k + '.hint')}`} onClick={onClick}>
     <span class="res-badge"><Icon name={icon} size={20} /></span>
-    <span class="res-txt"><span class="res-top"><b class="res-v num">{v}</b>{sub}</span>{gauge !== undefined && <span class="res-meter"><i style={{ width: pct(Math.max(0, Math.min(1, gauge))) }} /></span>}<span class="res-k">{t('ledger.' + k)}</span></span></button>;
+    <span class="res-txt"><span class="res-top"><b class="res-v num">{v}</b>{sub}</span>{gauge !== undefined && <span class="res-meter"><i style={{ width: pct(Math.max(0, Math.min(1, gauge))) }} />{danger_ !== undefined && <b style={{ left: pct(danger_) }} />}</span>}<span class="res-k">{t('ledger.' + k)}</span></span></button>;
 }
 
 // ---------------------------------------------------------------- the dock and the map lenses
@@ -130,10 +130,10 @@ function Dock({ g }: { g: Game }) {
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'm' && !(e.target as HTMLElement).closest('input, textarea')) setLensOpen(o => !o); if (e.key === 'Escape') setLensOpen(false); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
   return <nav class="ui dock plate" aria-label={t('hud.panels')}>
     {panelOrder(g).map((kind, i) => <button key={kind} class={`dock-btn d-${kind}`} aria-pressed={p?.kind === kind} data-tip={`${t('panel.' + kind)}  ·  ${i + 1}`} onClick={() => togglePanel(g, kind)}>
-      <Icon name={kind} size={26} /><span>{t('panel.' + kind)}</span><kbd>{i + 1}</kbd>{kind === 'war' && <i class="badge">{wars}</i>}</button>)}
+      <span class="dock-disc"><Icon name={kind} size={20} /></span><span>{t('panel.' + kind)}</span><kbd>{i + 1}</kbd>{kind === 'war' && <i class="badge">{wars}</i>}</button>)}
     <span class="dock-sep" aria-hidden="true" />
     <span class="map-pick">
-      <button class="dock-btn d-map" aria-expanded={lensOpen} aria-label={t('modes.label')} onClick={() => setLensOpen(!lensOpen)}><Icon name={cur.icon} size={26} /><span>{t('modes.' + cur.id)}</span><kbd>M</kbd></button>
+      <button class="dock-btn d-map" aria-expanded={lensOpen} aria-label={t('modes.label')} onClick={() => setLensOpen(!lensOpen)}><span class="dock-disc"><Icon name={cur.icon} size={20} /></span><span>{t('modes.' + cur.id)}</span><kbd>M</kbd></button>
       {lensOpen && <span class="lens-pop plate" role="group" aria-label={t('modes.label')}><span class="eyebrow">{t('modes.label')}</span>{LENSES.map(l => <button key={l.id} class="lens-btn" aria-pressed={lens === l.id} onClick={() => { g.s.setMapMode(l.id); setLensOpen(false); }}><Icon name={l.icon} size={20} /><span>{t('modes.' + l.id)}</span></button>)}</span>}
     </span>
   </nav>;
@@ -142,14 +142,14 @@ function Dock({ g }: { g: Game }) {
 // ---------------------------------------------------------------- news: short-lived dispatches with an icon each
 const KIND_ICON: Record<string, string> = { war: 'war', peace: 'peace', city: 'city', pocket: 'target', diplo: 'diplomacy', politics: 'ballot', event: 'chronicle', economy: 'economy', player: 'military' };
 function Toasts({ g }: { g: Game }) {
-  const w = g.w, me = g.player, seen = useRef(w.log.length);
+  const w = g.w, me = g.player, last = useRef(w.log[w.log.length - 1]); // the log is capped, so remember the last entry seen, not a count
   const [items, setItems] = useState<{ e: LogEntry; t0: number }[]>([]);
   useEffect(() => {
     const id = setInterval(() => {
-      if (w.log.length < seen.current) seen.current = w.log.length;
-      const fresh = w.log.slice(seen.current).filter(l => (l.who?.includes(me) || l.big || l.kind === 'war' || l.kind === 'peace') && l.msg.k !== 'log.peaceOffer'); // a peace offer already waits as a decision seen.current = w.log.length;
+      const fresh = w.log.slice(w.log.lastIndexOf(last.current!) + 1).filter(l => (l.who?.includes(me) || l.big || l.kind === 'war' || l.kind === 'peace') && l.msg.k !== 'log.peaceOffer' && w.day - l.day < 30); // a peace offer already waits as a decision
+      last.current = w.log[w.log.length - 1];
       const now = Date.now();
-      setItems(list => { const next = [...list.filter(x => now - x.t0 < 7000), ...fresh.map(e => ({ e, t0: now }))]; return next.length === list.length && !fresh.length ? list : next.slice(-3); });
+      setItems(list => { const next = [...list.filter(x => now - x.t0 < 7000 && w.day - x.e.day < 30), ...fresh.map(e => ({ e, t0: now }))]; /* old news goes, at speed too */ return next.length === list.length && !fresh.length ? list : next.slice(-3); });
     }, 300);
     return () => clearInterval(id);
   }, [w]);
@@ -163,13 +163,12 @@ function Toasts({ g }: { g: Game }) {
 /** Big moments get a banner across the map: war, peace, coups, annexations. */
 function Banner({ g }: { g: Game }) {
   const [cur, setCur] = useState<LogEntry | null>(null);
-  const seen = useRef(g.w.log.length), queue = useRef<LogEntry[]>([]);
+  const last = useRef(g.w.log[g.w.log.length - 1]), queue = useRef<LogEntry[]>([]);
   const w = g.w;
   useEffect(() => {
     const id = setInterval(() => {
-      if (w.log.length < seen.current) seen.current = w.log.length;
-      for (const e of w.log.slice(seen.current)) if (e.big && (e.who?.includes(g.player) || e.big === 'big.war' || e.big === 'big.peace')) queue.current.push(e);
-      seen.current = w.log.length;
+      for (const e of w.log.slice(w.log.lastIndexOf(last.current!) + 1)) if (w.day - e.day < 30 && e.big && (e.who?.includes(g.player) || e.big === 'big.war' || e.big === 'big.peace')) queue.current.push(e);
+      last.current = w.log[w.log.length - 1];
       if (!cur && queue.current.length) { const e = queue.current.shift()!; setCur(e); g.sound(e.big === 'big.war' ? 'war' : e.big === 'big.peace' ? 'peace' : 'alert'); setTimeout(() => setCur(null), 3600); }
     }, 200);
     return () => clearInterval(id);
@@ -234,7 +233,7 @@ function PoliticsPanel({ g }: { g: Game }) {
       </svg><small class="cmp-x"><span>{t('pol.collective')}</span><span>{t('pol.market')}</span></small><b class="cmp-name">{t('ideo.' + ['l', 'c', 'r'][ex < -0.33 ? 0 : ex > 0.33 ? 2 : 1] + ['a', 'c', 'l'][au > 0.33 ? 0 : au < -0.33 ? 2 : 1])}</b></div>
     </div>
     <div class="gauges">
-      <div class="gauge" data-tip={t('ledger.stability.hint')}><Ring v={c.stability} size={60} target={target}><b class="num">{Math.round(c.stability * 100)}</b></Ring><span class="gauge-t"><b>{t('ledger.stability')}</b><small class={target < c.stability - 0.01 ? 'bad' : target > c.stability + 0.01 ? 'good' : 'muted'}>{t('pol.heading', { p: pct(target) })}</small></span></div>
+      <div class="gauge" data-tip={t('ledger.stability.hint')}><Ring v={c.stability} size={60} target={target} danger={0.3}><b class="num">{Math.round(c.stability * 100)}</b></Ring><span class="gauge-t"><b>{t('ledger.stability')}</b><small class={target < c.stability - 0.01 ? 'bad' : target > c.stability + 0.01 ? 'good' : 'muted'}>{t('pol.heading', { p: pct(target) })}</small></span></div>
       <div class="gauge" data-tip={t('ledger.warSupport.hint')}><Ring v={c.warSupport} size={60}><b class="num">{Math.round(c.warSupport * 100)}</b></Ring><span class="gauge-t"><b>{t('ledger.warSupport')}</b><Spark values={g.series('warSupport')} w={80} h={20} /></span></div>
     </div>
     <Block title={t('pol.groups')} icon="population">
@@ -260,7 +259,7 @@ function MilitaryPanel({ g }: { g: Game }) {
     <Block title={t('mil.forces')} icon="military" aside={<span class="muted">{t('mil.atFront')} <b class="num">{fmtInt(front)}/{fmtInt(divs.length)}</b> · {fmtBig(men)}</span>}>
       <div class="forces">{(Object.keys(UNIT_SPEC) as UnitType[]).map(k => { const s = UNIT_SPEC[k], queued = c.production.filter(p => p.type === k).length;
         return <div key={k} class={`force u-${k}`}><UnitSymbol type={k} size={36} /><span class="f-t"><b class="num">{byType[k] || 0}{queued > 0 && <small class="f-q">+{queued}</small>}</b><span>{t('unitShort.' + k)}</span><small class="num">{fmtMoney(c.unitCost * s.costMul)} · {s.days}d</small></span>
-          <button class="f-build" aria-label={t('mil.buildOne', { u: t('unitShort.' + k) })} data-tip={t('mil.cost', { v: fmtMoney(c.unitCost * s.costMul), d: s.days, m: fmtBig(s.men) })} disabled={c.manpower < s.men} onClick={() => { const e = queueUnit(g.w, c, k); setNote(e ? t('mil.noManpower') : t('mil.queued', { u: t('unitShort.' + k) })); upd(); g.sound('click'); }}><Icon name="improve" size={14} />{t('mil.build')}</button></div>; })}</div>
+          <button class={`f-build ${free <= 0 ? 'warn' : ''}`} aria-label={t('mil.buildOne', { u: t('unitShort.' + k) })} data-tip={t('mil.cost', { v: fmtMoney(c.unitCost * s.costMul), d: s.days, m: fmtBig(s.men) })} disabled={c.manpower < s.men} onClick={() => { const e = queueUnit(g.w, c, k); setNote(e ? t('mil.noManpower') : t('mil.queued', { u: t('unitShort.' + k) })); upd(); g.sound('click'); }}><Icon name="improve" size={14} />{t('mil.build')}</button></div>; })}</div>
       {note && <small class="muted" role="status">{note}</small>}
       {c.production.length > 0 && <ol class="queue">{c.production.map(p => <li key={p.id}><UnitSymbol type={p.type} size={22} /><Bar v={p.progress / p.cost} tone="amber" /><button class="x" aria-label={t('ui.cancel')} onClick={() => { cancelUnit(g.w, c, p.id); upd(); }}><Icon name="x" size={12} /></button></li>)}</ol>}
       {c.production.length > 0 && free <= 0 && <small class="bad">{t('mil.noFunds')}</small>}
@@ -274,11 +273,10 @@ function MilitaryPanel({ g }: { g: Game }) {
 
     </Block>
     <Block title={t('mil.armies')} icon="military">
-      <ul class="armies">{g.w.armies.filter(a => a.country === c.id).sort((a, b) => divs.filter(d => d.army === b.id).length - divs.filter(d => d.army === a.id).length).slice(0, 4).map(a => { const n = divs.filter(d => d.army === a.id).length; return <li key={a.id} data-tip={a.general.traits.map(x => t('gtrait.' + x)).join(', ')}>
-        <span class="monogram sm">{a.general.name.split(' ').map(x => x[0]).slice(0, 2).join('')}</span><span><b>{armyName(a.num)}</b><small>{a.general.name}</small></span><span class="num stars">{'★'.repeat(a.general.skill)}</span><b class="num">{n}</b></li>; })}</ul>
-      {g.w.armies.filter(a => a.country === c.id).length > 4 && <small class="muted">{t('prov.more', { n: g.w.armies.filter(a => a.country === c.id).length - 4 })}</small>}
+      <ul class="armies">{g.w.armies.filter(a => a.country === c.id).sort((a, b) => divs.filter(d => d.army === b.id).length - divs.filter(d => d.army === a.id).length).slice(0, 4).map(a => { const ds = divs.filter(d => d.army === a.id), n = ds.length, str = ds.reduce((x, d) => x + d.str / d.max, 0) / Math.max(1, n), atFront = ds.some(d => d.theater >= 0); return <li key={a.id} data-tip={a.general.traits.map(x => t('gtrait.' + x)).join(', ')}>
+        <span class="monogram sm">{a.general.name.split(' ').map(x => x[0]).slice(0, 2).join('')}</span><span class="army-t"><b>{armyName(a.num)}</b><small>{a.general.name}</small><span class="army-s"><i class={atFront ? 'front' : ''}>{t(atFront ? 'mil.armyFront' : 'mil.armyReserve')}</i><span class="meter"><span class={`fill ${str < 0.5 ? 'bad' : str < 0.8 ? 'amber' : 'good'}`} style={{ width: pct(str) }} /></span></span></span><b class="num">{n}</b></li>; })}</ul>
+      {g.w.armies.filter(a => a.country === c.id).length > 4 && <small class="more-pill">{t('prov.more', { n: g.w.armies.filter(a => a.country === c.id).length - 4 })}</small>}
     </Block>
-    <div class="tech-row" data-tip={t('eco.resHint', { n: c.tech })}><Icon name="target" size={14} /> {t('mil.tech')} <b class="num">{c.tech}</b></div>
   </NationSheet>;
 }
 

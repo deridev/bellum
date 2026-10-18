@@ -96,13 +96,16 @@ function peaceFx(a: { data?: any }, i: number): [string, string][] {
 }
 const AGENDA_ICON: Record<string, string> = { peace: 'peace', diplo: 'diplomacy', event: 'chronicle' };
 export function AgendaCards({ g, slim }: { g: Game; slim?: boolean }) {
-  const items = g.w.agenda.filter(a => a.country === g.player);
+  // highest stakes first: peace, then proposals, then reports
+  const RANK: Record<string, number> = { peace: 0, diplo: 1, event: 2 };
+  const items = g.w.agenda.filter(a => a.country === g.player).sort((a, b) => (RANK[a.kind] ?? 3) - (RANK[b.kind] ?? 3));
   // a new decision opens for a few seconds, then folds into a one-line slip; a click on a slip opens it again
   const [open, setOpen] = useState<number | null>(null), seen = useRef(new Set<number>()), hover = useRef(false);
   useEffect(() => {
     const fresh = items.find(a => !seen.current.has(a.id)); items.forEach(a => seen.current.add(a.id));
-    if (!fresh) return;
-    setOpen(fresh.id); const id = setTimeout(() => { if (!hover.current) setOpen(o => o === fresh.id ? null : o); }, 6000);
+    if (!fresh || (open !== null && items.find(a => a.id === open && (RANK[a.kind] ?? 3) < (RANK[fresh.kind] ?? 3)))) return; // never bury a bigger decision
+    setOpen(fresh.id); if (fresh.kind === 'peace') return; // a peace offer stays open until answered
+    const id = setTimeout(() => { if (!hover.current) setOpen(o => o === fresh.id ? null : o); }, 6000);
     return () => clearTimeout(id);
   }, [items.map(a => a.id).join()]);
   if (!items.length) return null;

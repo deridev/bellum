@@ -28,7 +28,7 @@ export function ChroniclePanel({ g }: { g: Game }) {
       <dt>{t('chron.wars')}</dt><dd>{fmtInt(me.stats.wars)}</dd>
       <dt>{t('war.casualties')}</dt><dd>{fmtBig(me.stats.casualties)}</dd>
     </dl>
-    <button onClick={copy}><Icon name="copy" size={14} />{t('chron.copy')}</button>
+    <div class="row-btns"><button onClick={() => g.openPanel({ kind: 'timelapse' })}><Icon name="timelapse" size={16} />{t('chron.replay')}</button><button onClick={copy}><Icon name="copy" size={14} />{t('chron.copy')}</button></div>
     {note && <small class="muted" role="status">{note}</small>}
     {!entries.length && <p class="muted">{t('chron.empty')}</p>}
     {[...years.entries()].reverse().map(([y, es]) => <section class="chron-year" key={y}>

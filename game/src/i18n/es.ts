@@ -162,7 +162,6 @@ export const es: Record<string, Entry> = {
   'led.scale': 'Escala', 'led.growth': 'Crecimiento', 'led.absolute': 'Absoluto', 'led.growthOf': '{m}: cambio desde el inicio',
   'led.rankOf': 'Puesto mundial entre {n} naciones',
   'eco.debtBorrowing': 'Tesoro vacío: se piden prestados {v}/mes', 'dip.costOf': '{n} de {have}',
-  'group.want.military': 'Quiere un gran presupuesto militar', 'group.want.industry': 'Quiere impuestos bajos e inversión', 'group.want.labor': 'Quiere bienestar y crecimiento', 'group.want.rural': 'Quiere impuestos bajos y calma',
   'ui.more': 'Más', 'led.unchanged': 'sin cambios desde el inicio', 'led.noHistory': 'Los gráficos se llenan mes a mes. Vuelve tras unos meses de juego.',
   'agenda.fold': 'Plegar',
   'war.orders': 'Órdenes',
@@ -173,4 +172,6 @@ export const es: Record<string, Entry> = {
   'fx.endsWar': 'Termina la guerra', 'fx.provinces': { one: '−{n} provincia', other: '−{n} provincias' }, 'fx.noLand': 'Ninguna tierra cambia de manos', 'fx.warGoesOn': 'La guerra continúa', 'war.commitWhat': 'parte del ejército enviada',
   'ideo.la': 'Estado socialista', 'ideo.ca': 'Nacionalista', 'ideo.ra': 'Corporativista', 'ideo.lc': 'Socialdemócrata', 'ideo.cc': 'Centrista', 'ideo.rc': 'Conservador', 'ideo.ll': 'Izquierda libertaria', 'ideo.cl': 'Liberal', 'ideo.rl': 'Libertario',
   'pol.election': 'Próximas elecciones', 'pol.government': 'Gobierno',
+  'mil.armyFront': 'En el frente', 'mil.armyReserve': 'En reserva', 'chron.replay': 'Repetir el mapa',
+  'group.want.military': 'Gran presupuesto militar', 'group.want.industry': 'Impuestos bajos, inversión', 'group.want.labor': 'Bienestar y crecimiento', 'group.want.rural': 'Impuestos bajos y calma',
 };

@@ -52,12 +52,13 @@ export function SignedBar({ v, title }: { v: number; title?: string }) {
   return <div class="meter rel" title={title}><div class="fill" style={{ left: v < 0 ? pct(0.5 + v / 200) : '50%', width: pct(Math.abs(v) / 200), background: v < 0 ? 'var(--red)' : 'var(--green)' }} /></div>;
 }
 /** Ring gauge for a 0..1 value, with an optional target tick. */
-export function Ring({ v, size = 26, tone, target, children }: { v: number; size?: number; tone?: string; target?: number; children?: any }) {
+export function Ring({ v, size = 26, tone, target, danger, children }: { v: number; size?: number; tone?: string; target?: number; danger?: number; children?: any }) {
   const r = size / 2 - 3, c = 2 * Math.PI * r, x = Math.max(0, Math.min(1, v));
   const col = tone || (x < 0.35 ? 'var(--red)' : x > 0.65 ? 'var(--green)' : 'var(--brass)');
   const tick = target === undefined ? null : (() => { const a = -Math.PI / 2 + 2 * Math.PI * Math.max(0, Math.min(1, target)); return <line x1={size / 2 + Math.cos(a) * (r - 4)} y1={size / 2 + Math.sin(a) * (r - 4)} x2={size / 2 + Math.cos(a) * (r + 2.5)} y2={size / 2 + Math.sin(a) * (r + 2.5)} class="ring-tick" />; })();
+  const dz = danger === undefined ? null : (() => { const a = -Math.PI / 2 + 2 * Math.PI * danger; return <line x1={size / 2 + Math.cos(a) * (r - 4)} y1={size / 2 + Math.sin(a) * (r - 4)} x2={size / 2 + Math.cos(a) * (r + 2.5)} y2={size / 2 + Math.sin(a) * (r + 2.5)} class="ring-danger" />; })();
   return <span class="ring" style={{ width: size, height: size }}>
-    <svg width={size} height={size} aria-hidden="true"><circle cx={size / 2} cy={size / 2} r={r} class="ring-bg" /><circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={col} stroke-width="4" stroke-dasharray={`${c * x} ${c}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} stroke-linecap="round" />{tick}</svg>
+    <svg width={size} height={size} aria-hidden="true"><circle cx={size / 2} cy={size / 2} r={r} class="ring-bg" /><circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={col} stroke-width="4" stroke-dasharray={`${c * x} ${c}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} stroke-linecap="round" />{dz}{tick}</svg>
     {children && <span class="ring-in">{children}</span>}
   </span>;
 }
@@ -145,7 +146,7 @@ const P: Record<string, string> = {
   flat: 'M6 12h12', up: 'M12 5l7 9H5z',
   // unit types
   u_infantry: 'M12 3.5a2.6 2.6 0 1 0 0 5.2a2.6 2.6 0 1 0 0-5.2M7.5 21v-6.5a4.5 4.5 0 0 1 9 0V21zM15.5 11.5L20 3',
-  u_armor: 'M2.5 15h19v2.5a2.5 2.5 0 0 1-2.5 2.5H5a2.5 2.5 0 0 1-2.5-2.5zM5.5 15l1.5-4h9l1.5 4zM9.5 11V8.5h4V11M13.5 9.5H22',
+  u_armor: 'M4.5 14.5h15a3 3 0 0 1 0 6h-15a3 3 0 0 1 0-6zM7 17.5h.01M12 17.5h.01M17 17.5h.01M6.5 14.5l1.5-4h8l1.5 4M11 10.5V8h4.5v2.5M15.5 9h6.5',
   u_mechanized: 'M2.5 16l2-6h11l3.5 3h2.5v3zM4 18.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0M10 18.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0M16 18.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0',
   u_marines: 'M10 5a2 2 0 1 0 4 0a2 2 0 1 0-4 0M12 7v14M8 10.5h8M4.5 13.5a7.5 7.5 0 0 0 15 0M4.5 13.5L3 15M19.5 13.5L21 15',
   u_airborne: 'M3 11a9 7 0 0 1 18 0zM3 11l9 9 9-9M8.5 11l3.5 9 3.5-9M12 20v1.5', down: 'M12 19l7-9H5z',

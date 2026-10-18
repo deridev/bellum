@@ -156,7 +156,6 @@ export const en: Record<string, Entry> = {
   'led.scale': 'Scale', 'led.growth': 'Growth', 'led.absolute': 'Absolute', 'led.growthOf': '{m}: change since the start',
   'led.rankOf': 'World rank out of {n} nations',
   'eco.debtBorrowing': 'Treasury empty: {v}/mo is being borrowed', 'dip.costOf': '{n} of {have}',
-  'group.want.military': 'Wants a big military budget', 'group.want.industry': 'Wants low taxes and investment', 'group.want.labor': 'Wants welfare and growth', 'group.want.rural': 'Wants low taxes and calm',
   'ui.more': 'More', 'led.unchanged': 'unchanged since start', 'led.noHistory': 'Charts fill in month by month. Come back after a few months of play.',
   'agenda.fold': 'Fold away',
   'war.orders': 'Orders',
@@ -167,4 +166,6 @@ export const en: Record<string, Entry> = {
   'fx.endsWar': 'Ends the war', 'fx.provinces': { one: '−{n} province', other: '−{n} provinces' }, 'fx.noLand': 'No land changes hands', 'fx.warGoesOn': 'The war goes on', 'war.commitWhat': 'share of your army sent here',
   'ideo.la': 'Socialist state', 'ideo.ca': 'Nationalist', 'ideo.ra': 'Corporatist', 'ideo.lc': 'Social democrat', 'ideo.cc': 'Centrist', 'ideo.rc': 'Conservative', 'ideo.ll': 'Libertarian left', 'ideo.cl': 'Liberal', 'ideo.rl': 'Libertarian',
   'pol.election': 'Next election', 'pol.government': 'Government',
+  'mil.armyFront': 'At the front', 'mil.armyReserve': 'In reserve', 'chron.replay': 'Replay the map',
+  'group.want.military': 'A big military budget', 'group.want.industry': 'Low taxes, investment', 'group.want.labor': 'Welfare and growth', 'group.want.rural': 'Low taxes and calm',
 };
