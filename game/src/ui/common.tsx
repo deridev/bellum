@@ -195,7 +195,7 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
   const n = xs.length;
   if (n < 2) return <div ref={ref} class="chart empty" style={{ height }}><span>{t('led.empty')}</span></div>;
   const labels = series.length > 1, L = 54, R = labels ? 96 : 14, T = 10 + (marks.length ? 16 : 0), B = 24, w = Math.max(60, W - L - R), h = height - T - B;
-  const all = series.flatMap(s => s.values), mn = Math.min(...all), mx = Math.max(...all), pad = Math.max((mx - mn) * 0.08, Math.abs(mx) * 0.03, 1e-6);
+  const all = series.flatMap(s => s.values), mn = Math.min(...all), mx = Math.max(...all), pad = Math.max((mx - mn) * 0.12, Math.abs(mx) * 0.03, 1e-6);
   const tk0 = ticks(zero ? Math.min(0, mn) : (mn >= 0 && mn - pad < 0 ? 0 : mn - pad), mx + pad);
   const tk = tk0.filter((v, i) => i === 0 || fmtY(v) !== fmtY(tk0[i - 1])); // no repeated labels after rounding
   const y0 = tk0[0], y1 = tk0[tk0.length - 1], X = (i: number) => L + i / (n - 1) * w, Y = (v: number) => T + h - (v - y0) / (y1 - y0 || 1) * h;
@@ -213,7 +213,7 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
     <svg width={W} height={height} onPointerMove={move} onPointerLeave={() => setHi(null)} role="img" aria-label={series.map(s => `${s.label} ${fmtY(s.values[n - 1])}`).join(', ')}>
       {tk.map(v => <g key={v}><line x1={L} x2={L + w} y1={Y(v)} y2={Y(v)} class="grid" /><text x={L - 8} y={Y(v) + 4} class="axis" text-anchor="end">{fmtY(v)}</text></g>)}
       <text x={L} y={height - 6} class="axis">{fmtX(xs[0])}</text><text x={L + w} y={height - 6} class="axis" text-anchor="end">{fmtX(xs[n - 1])}</text>
-      {pins.map((m, k) => m.minor ? <path key={k} class="pin-minor" d={`M${m.px} ${T + h - 1}l4 -6h-8z`} /> : <g key={k} class="pin"><line x1={m.px} x2={m.px} y1={T + 8} y2={T + h} /><path d={`M${m.px} ${T - 7}l8 8-8 8-8-8z`} /><text x={m.px} y={T + 5} text-anchor="middle">{m.n}</text></g>)}
+      {pins.map((m, k) => m.minor ? <g key={k}><path class="pin-minor" d={`M${m.px} ${T + h - 1}l4 -6h-8z`} /><text x={m.px} y={T + h - 10} text-anchor="middle" class="pin-minor-n">{m.n}</text></g> : <g key={k} class="pin"><line x1={m.px} x2={m.px} y1={T + 8} y2={T + h} /><path d={`M${m.px} ${T - 7}l8 8-8 8-8-8z`} /><text x={m.px} y={T + 5} text-anchor="middle">{m.n}</text></g>)}
       {!labels && <path d={`${path(series[0].values)}L${X(n - 1)},${T + h}L${X(0)},${T + h}Z`} fill={series[0].color} opacity="0.16" />}
       {series.map((s, i) => <path key={s.id} d={path(s.values)} fill="none" stroke={s.color} stroke-width={i === 0 ? 3 : 2} stroke-dasharray={DASH[i % DASH.length]} stroke-linejoin="round" stroke-linecap="round" />)}
       {series.map(s => <circle key={s.id} cx={X(n - 1)} cy={Y(s.values[n - 1])} r="4" fill={s.color} class="end-dot" />)}

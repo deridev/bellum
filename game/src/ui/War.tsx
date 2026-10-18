@@ -105,7 +105,9 @@ export function AgendaCards({ g, slim, drawer, onDrawer }: { g: Game; slim?: boo
   useEffect(() => {
     const fresh = items.find(a => !seen.current.has(a.id)); items.forEach(a => seen.current.add(a.id));
     if (!fresh || (open !== null && items.find(a => a.id === open && (RANK[a.kind] ?? 3) < (RANK[fresh.kind] ?? 3)))) return; // never bury a bigger decision
-    if (fresh.kind === 'peace') setOpen(fresh.id); // a peace offer opens and stays open until answered; reports and proposals wait as slips
+    if (fresh.kind !== 'peace') return; // reports and proposals wait as slips
+    setOpen(fresh.id); const id = setTimeout(() => setOpen(o => o === fresh.id ? null : o), 12000); // read, then fold: the strip keeps it urgent
+    return () => clearTimeout(id);
   }, [items.map(a => a.id).join()]);
   if (!items.length) return null;
   const decide = (id: number, i: number) => { resolveAgenda(g.w, g.S, id, i); g.afterOrder(); g.sound('click'); };
