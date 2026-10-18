@@ -203,6 +203,8 @@ You don't push pixels. Each army gets:
 
 The map shows summed troop totals per side on each side of the front (*1,635,267 vs 961,920*), updating live during playback. They're visible at strategic zoom and fade out as you zoom in to the armies.
 
+What shipped (posture per war, offensives built from the reserve, the aim readout) is described in §16.
+
 ### 5.5 Naval and air (abstracted on purpose)
 - **Navies**: fleets operate in sea zones with missions: **Control**, **Convoy / Blockade**, **Support Invasion**. Battles resolve at sea-zone level.
 - **Amphibious invasions**: pick a coastal province behind the enemy's lines (Inchon-style). Success depends on naval control, defenders, and Special units. It's a huge gamble with a huge payoff.
@@ -426,6 +428,33 @@ Across 10 years of AI-only play (seed 11), median debt fell from 0.48 to 0.30 of
 
 ---
 
+## 16. War review: from "click and wait" to decisions (October 2026)
+
+A player put it plainly: *"There's no strategy. I just click start war and win or lose."* We measured it with a **war lab** (`npm run warlab -- <attacker> <defender> [days] [seeds]`). It plays the same war under several scripted players across random seeds and prints the war score after 240 days. A **strike lab** (`npm run strikelab`) saves a war mid-way and plays 45 days twice from the same moment, once with a strike and once without.
+
+| Found in play | Why it is a problem | Change |
+|---|---|---|
+| Posture changed nothing: Thailand vs Myanmar ended within a few points (+10 to +18) whether the player held, advanced or went all-out | A dial with no consequence | **Hold** digs in twice as fast and loses a third fewer men; **All-out** pushes everywhere and loses a third more. Offensives are allowed under Hold |
+| Aiming offensives at cities, as a player would, turned a slow win into a loss (−57, −100: Thailand conquered) | The main lever was a **trap** | An offensive took a whole army (12 divisions) from wherever it stood, so three offensives emptied the line. Now a strike force is the war's **reserve** plus nearby divisions (within 150 km of the jump-off point) |
+| The best-odds strike went to an empty corner of the map, and the line it left collapsed | Odds without value | The AI (and the lab's careful player) weighs targets: a city is worth 1.8× open country, a capital 2.5×. The player judges value by looking at the map |
+| An offensive aimed through neutral Afghanistan stood at the border for a month | An **invisible failure** | A strike needs a way over land. One aimed across the sea or a neutral country is refused, with the reason |
+| A breakthrough cut a thin tongue, then its divisions went home and the salient shrank back | Gains melted | Divisions stay to hold what they took, worn out (organisation × 0.55). The corridor is 130 km wide |
+| Ground taken did not move the war score until a province's capital fell | Cause and effect were hidden | The score counts the **share of each province** held, and whole divisions lost in pockets |
+| A strike nearly reached Kyiv, 220 km away, in seven weeks | Too fast to answer | An offensive reaches **150 km** at most; a deeper objective takes several pushes, with a pause between them |
+| 40 of Russia's 110 divisions never fought, and the old balance relied on it | A hidden rule | **Commitment** is the share of the army a war gets. Four fifths hold the line and one fifth waits as its reserve. Reserves join your offensives and **rush to meet the enemy's** (6 for every 10 attackers), so the reserve is both sword and shield. Only new divisions refill it. Russia's 60% is now scenario data |
+| Nothing said whether an attack would work | The player could not plan | While aiming, a **dashed arrow** shows the jump-off point and the objective, rings mark the divisions that would go, and the hint bar gives the verdict ("Breakthrough likely · 9 divisions against 3 · defence ×1.8 · 2.4 : 1") |
+
+**After** (Thailand vs Myanmar, 240 days, mean of 4 seeds): idle −6, All-out everywhere −8, sharp strikes (only at 1.5 : 1 or better, one at a time) +5, Total commitment with sharp strikes **+14**, reckless (All-out, Total, offensives at cities) +10 at half again the losses, the AI +13. Within a single seed the outcome now ranges over 64 points depending on how the war is played. Before, every strategy but the trap ended within a few points of the others.
+
+The AI uses the same tools and the same rules: it strikes at 1.4 : 1 or better (1.8 on a front where it is weaker), with one offensive per 25 divisions on a front, three at most.
+
+### 16.1 Known issues
+- Iran vs Pakistan is a mountain stalemate whatever the player does. Believable, but such a war needs another way out.
+- The AI sets its posture front by front; the player sets one for the whole war, which costs them on fronts where they are weaker.
+- A small country's reserve is small (a fifth of its commitment), so most of its strike force comes from the line around the jump-off point.
+
+---
+
 ## Decision log
 | # | Date | Decision |
 |---|---|---|
@@ -453,3 +482,8 @@ Across 10 years of AI-only play (seed 11), median debt fell from 0.48 to 0.30 of
 | 22 | 2026-10-18 | **Freedom over gates**: any nation can declare war at any time, on anyone, truce or not. The price restrains it: stability (more when the public is against it), war support (a just cause rallies, an unprovoked war starts under doubt, and at zero the government falls), world opinion, and sanctions from the victim's trading friends. Breaking a truce doubles the outrage; a puppet attacking its overlord fights a war of independence |
 | 23 | 2026-10-18 | **Ultimatums**: demand a border province (your claims first). A neighbour too weak to resist, allies counted, hands it over; one that refuses gives you a claim, so the war for it is justified. The AI issues them only with a grievance, and the player answers them as decision cards (ignoring one is refusing it) |
 | 24 | 2026-10-18 | **The HUD never moves on its own**: top-bar cells take fixed shares of the bar and the date box is sized for the widest date, so changing numbers never shift the layout. The map shows no hover under HUD elements |
+| 25 | 2026-10-18 | **War is played with three levers that trade off**: posture (dig in or push), commitment (a thick line or a big reserve) and offensives (where and when to strike). Each was measured to change outcomes in the war lab (§16) |
+| 26 | 2026-10-18 | **Offensives are built from the reserve**: reserves come by rail and add force; nearby divisions join; nothing is pulled from distant sectors. An offensive reaches 150 km, needs a way over land, and leaves its divisions worn out where they stopped |
+| 27 | 2026-10-18 | **Reserves answer offensives**: the side being attacked sends its free reserve to meet the blow, for the AI and the player alike |
+| 28 | 2026-10-18 | **Show the odds before the click**: aiming shows the strike force, the defenders, their defence multiplier and a verdict; the War panel shows the line and the reserve |
+| 29 | 2026-10-18 | **The war score follows the front**: it counts the share of each province held and divisions lost outright, so every kilometre gained shows |

@@ -2,6 +2,8 @@ import { locale, t } from '../i18n';
 // Numbers in the player's language: compact for big figures ("4.1B", "4,1 bi"), money in US dollars.
 const nf = (o: Intl.NumberFormatOptions) => new Intl.NumberFormat(locale(), o);
 export const fmtInt = (n: number) => nf({ maximumFractionDigits: 0 }).format(Math.round(n));
+/** one decimal, in the reader's notation (1.7 / 1,7) */
+export const fmt1 = (n: number) => nf({ minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(n);
 /** Compact big numbers. Spanish has no short form between a thousand millions and ten thousand millions ("4100,8 M"): use "4,1 mil M" there, as Spanish does above. */
 const compact = (n: number, o: Intl.NumberFormatOptions) => locale().startsWith('es') && Math.abs(n) >= 1e9 && Math.abs(n) < 1e10 ? nf({ ...o, notation: 'standard' }).format(n / 1e9) + '\u00a0mil\u00a0M' : nf({ notation: 'compact', ...o }).format(n);
 export const fmtBig = (n: number) => compact(n, { maximumFractionDigits: Math.abs(n) >= 1e5 && Math.abs(n) < 1e6 ? 0 : 1 });

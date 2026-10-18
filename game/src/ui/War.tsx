@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Game } from '../game/play';
 import { resolveAgenda } from '../sim/agenda';
-import { commitShare } from '../sim/war/ai';
+import { commitShare, warReserve } from '../sim/war/ai';
+import { aimVerdict } from '../game/warfx';
 import { acceptsPeace, heldDemand, sideOf, theatersOf, truceKey, warCost, warsOf, type PeaceTerms } from '../sim/war/war';
 import type { War } from '../sim/types';
-import { armyName, countryName, fmtDate, say, t } from '../i18n';
+import { countryName, fmtDate, say, t } from '../i18n';
 import { Block, Flag, Icon, Sheet, Tug } from './common';
-import { fmtBig, fmtInt, pct, cssPct } from './format';
+import { fmt1, fmtBig, fmtInt, pct, cssPct } from './format';
 
 /** Postures map onto the same push strengths the AI uses. */
 export const POSTURES = [{ id: 'hold', aggr: 0.9 }, { id: 'advance', aggr: 1.08 }, { id: 'offensive', aggr: 1.22 }] as const;
@@ -24,7 +25,7 @@ export function WarPanel({ g, id }: { g: Game; id: number }) {
   const oursD = inWar(ours), theirsD = inWar(theirs), transit = oursD.filter(d => d.arrive > w.day).length;
   const posture = POSTURES.reduce((b, p) => Math.abs(p.aggr - war.aggr[si]) < Math.abs(b.aggr - war.aggr[si]) ? p : b, POSTURES[1] as typeof POSTURES[number]);
   const offs = ths.flatMap(x => x.offensives.filter(o => !o.ended && o.country === me));
-  const all = warsOf(w, me), commit = war.commit?.[me];
+  const all = warsOf(w, me), commit = war.commit?.[me], reserve = warReserve(w, war, me).length, onFront = oursD.filter(d => d.country === me).length;
   const flags = (cs: number[]) => <span class="flags">{cs.slice(0, 4).map(c => <Flag key={c} s={g.s} code={w.countries[c].code} h={14} />)}{cs.length > 4 && <small>+{cs.length - 4}</small>}</span>;
   const pair = (a: number, b: number, fmt: (v: number) => string, label: string, icon: string, lowerIsBetter?: boolean) => { const tot = a + b || 1, win = lowerIsBetter ? a < b : a > b;
     return <div class="pair"><span class="pair-l"><Icon name={icon} size={16} />{label}</span><b class={`num ${win ? 'good' : ''}`}>{fmt(a)}</b><span class={`pair-bar ${lowerIsBetter ? 'inv' : ''}`}><i style={{ width: `${a / tot * 100}%` }} /></span><b class="num">{fmt(b)}</b></div>; };
@@ -43,11 +44,11 @@ export function WarPanel({ g, id }: { g: Game; id: number }) {
       <small class="row-k">{t('war.posture')}</small><div class="big-toggles" role="group" aria-label={t('war.posture')}>{POSTURES.map(p => <button key={p.id} aria-pressed={posture.id === p.id} data-tip={t('posture.' + p.id + '.hint')} onClick={() => { war.aggr[si] = p.aggr; g.bump(); g.sound('click'); }}><Icon name={p.id} size={22} /><span>{t('posture.' + p.id)}</span></button>)}</div>
       <small class="row-k">{t('war.commitment')} · {t('war.commitWhat')}</small><div class="steps commit" role="group" aria-label={t('war.commitment')}>{COMMIT.map((c, i) => { const cur = commit === undefined ? 'normal' : COMMIT.find(x => x.v === commit)?.id || 'normal', ci = COMMIT.findIndex(x => x.id === cur);
         return <button key={c.id} aria-pressed={cur === c.id} class={ci >= i ? 'on' : ''} data-tip={t('war.commitHint', { p: pct(c.v < 0 ? commitShare(w, { ...war, commit: {} }, me) : c.v) })} onClick={() => { war.commit ||= {}; if (c.v < 0) delete war.commit[me]; else war.commit[me] = c.v; g.bump(); }}><i style={{ height: `${8 + i * 6}px` }} /><span>{t('commit.' + c.id)}</span></button>; })}</div>
+      <div class="force" data-tip={t('war.reserveHint')}><span><small>{t('war.onFront')}</small><b class="num">{fmtInt(onFront)}</b></span><span><small>{t('war.reserve')}</small><b class={`num ${reserve ? '' : 'muted'}`}>{fmtInt(reserve)}</b></span></div>
     </Block>
     <Block title={t('war.offensives')} icon="offensive" aside={<b class="num">{offs.length}/3</b>}>
-      {offs.length > 0 && <ul class="offs">{offs.map(o => { const a = w.armies.find(x => x.id === o.army); return <li key={o.id}><Icon name="advance" size={14} /><span>{a ? armyName(a.num) : t('war.army')}</span><small class="num">{t('war.day', { n: w.day - o.created })}</small><div class="meter" data-tip={t('war.momentum')}><div class="fill amber" style={{ width: cssPct(o.org) }} /></div></li>; })}</ul>}
-      <button class="primary wide" disabled={posture.id === 'hold' || offs.length >= 3} data-tip={t(posture.id === 'hold' ? 'war.planHold' : offs.length >= 3 ? 'war.planMax' : 'war.planHint')} onClick={() => g.setTool({ kind: 'offensive', war: war.id })}><Icon name="target" size={16} />{t('war.plan')}</button>
-      {posture.id === 'hold' && <small class="muted">{t('war.planHold')}</small>}
+      {offs.length > 0 && <ul class="offs">{offs.map(o => { const us = w.divisions.filter(d => d.op === o.id), coming = us.some(d => d.arrive > w.day); return <li key={o.id}><Icon name="advance" size={14} /><span>{t('off.divs', { n: us.length })}</span><small class="num">{coming ? t('off.gathering') : t('war.day', { n: w.day - o.created })}</small><div class="meter" data-tip={t('war.momentum')}><div class="fill amber" style={{ width: cssPct(o.org) }} /></div></li>; })}</ul>}
+      <button class="primary wide" disabled={offs.length >= 3} data-tip={t(offs.length >= 3 ? 'war.planMax' : 'war.planHint')} onClick={() => g.setTool({ kind: 'offensive', war: war.id })}><Icon name="target" size={16} />{t('war.plan')}</button>
     </Block>
     <Block title={t('war.peace')} icon="peace"><PeaceOptions g={g} war={war} side={side} /></Block>
   </Sheet>;
@@ -139,7 +140,11 @@ export function AgendaCards({ g, slim, drawer, onDrawer }: { g: Game; slim?: boo
 export function ToolHint({ g }: { g: Game }) {
   const st = g.st.get();
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') g.setTool(null); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
-  if (st.tool) return <div class="ui toolhint plate" role="status"><Icon name="target" size={16} />{t('war.aim')} <button onClick={() => g.setTool(null)}>{t('ui.cancel')}</button></div>;
+  if (st.tool) { const a = st.aim, v = a && !a.err ? aimVerdict(a) : null;
+    return <div class="ui toolhint plate" role="status"><Icon name="target" size={16} />
+      {!a ? <span>{t('war.aim')}</span> : a.err ? <span class="muted">{t(a.err)}</span>
+        : <span class="aim"><b class={`verdict v-${v}`}>{t('aim.' + v)}</b><span>{t('aim.force', { n: a.n, m: a.foes })}{a.reserves > 0 && <small> · {t('aim.fromReserve', { n: a.reserves })}</small>}<small> · {t('aim.def', { x: fmt1(a.def) })}</small></span>{a.foes > 0 && <b class="num">{a.odds >= 10 ? '10+' : fmt1(a.odds)} : 1</b>}</span>}
+      <button onClick={() => g.setTool(null)}>{t('ui.cancel')}</button></div>; }
   if (st.toast) return <div class="ui toolhint plate" role="status">{st.toast}</div>;
   return null;
 }

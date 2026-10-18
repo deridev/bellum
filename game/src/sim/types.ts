@@ -49,6 +49,7 @@ export interface Division {
   theater: number; x: number; y: number; // position (lon/lat) when deployed in a theater, theater = -1 otherwise
   sup: number; retreat: number; // supply 0..1, retreating flag
   arrive: number; // day it reaches its theater (in transit until then)
+  op?: number; // the offensive it is fighting in (0 or missing: holding the line)
 }
 export interface General { name: string; skill: number; traits: string[]; born: number }
 export interface Army { id: number; country: number; num: number; general: General; theater: number; posture: Posture }
@@ -61,6 +62,7 @@ export interface War {
   aggr: [number, number]; // how hard each side pushes (set by AI/player postures)
   exhaustion: [number, number]; casualties: [number, number]; theaters: number[]; ended: number;
   commit?: Record<number, number>; // share of its army a country sends to this war (players choose; AI decides by role)
+  lost?: [number, number]; // divisions each side has lost outright (destroyed, or captured in a pocket)
 }
 export interface Bloc { name: string; members: number[]; alliance: boolean; leader: number }
 export interface Treaty { type: TreatyType; a: number; b: number; since: number; until: number }

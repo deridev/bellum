@@ -377,6 +377,10 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 .big-toggles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
 .big-toggles button { display: flex; justify-content: center; gap: 8px; padding: 9px 4px; font: 700 14px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; }
 .offs li { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 8px; align-items: center; } .offs .meter { grid-column: 1 / -1; } .offs .icon { color: var(--brass-hi); }
+.force { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; } .force > span { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.04); } .force small { color: var(--mute); }
+.aim { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--paper); } .aim small { color: var(--mute); }
+.aim .verdict { font: 700 12px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 8px; border-radius: 10px; }
+.v-open, .v-likely { background: rgba(130, 196, 116, 0.2); color: var(--green); } .v-hard { background: rgba(232, 192, 99, 0.18); color: #e8c063; } .v-stall { background: rgba(224, 100, 90, 0.15); color: var(--red); }
 .peace { display: grid; gap: 6px; }
 .peace-card { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 11px 12px; font-weight: 600; font-size: 14px; }
 .peace-card .verdict { font: 700 13px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 8px; border-radius: 10px; }

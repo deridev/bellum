@@ -1,0 +1,72 @@
+import { describe, expect, it } from 'vitest';
+import { createWorld } from '../src/sim/world';
+import { stepDay } from '../src/sim/step';
+import { initSim } from '../src/sim';
+import { setupScenario, tablesFor } from '../src/sim/scenario';
+import { declareWar, theatersOf } from '../src/sim/war/war';
+import { bestStrike, endOffensive, startOffensive, strikeForce, warReserve, commitShare } from '../src/sim/war/ai';
+import { cellLonLat, T } from '../src/sim/war/theater';
+import { serialize, deserialize } from '../src/game/save';
+import { km } from '../src/geo';
+import type { World } from '../src/sim/types';
+import { loadStatic } from './helpers';
+
+// Offensives are the player's main lever in a war: they must gather real force, go where they are aimed (over land, 150 km at most),
+// and pay off when aimed well. Thailand attacks Myanmar: a long border, an even fight.
+describe('offensives', () => {
+  initSim();
+  const S = loadStatic();
+  const ci = (w: World, c: string) => w.countries.find(x => x.code === c)!.id;
+  const start = (seed: number, days: number) => {
+    const w = createWorld(S, { seed, scenario: '2026', tables: tablesFor('2026') }); setupScenario(w, S);
+    const tha = ci(w, 'THA'); w.countries[tha].player = true;
+    for (let d = 0; d < 20; d++) stepDay(w, S);
+    const war = declareWar(w, S, tha, ci(w, 'MMR'));
+    for (let d = 0; d < days; d++) stepDay(w, S);
+    return { w, war, tha, t: theatersOf(w, war)[0] };
+  };
+
+  it('a fifth of the commitment waits as the reserve, and a strike uses it first, 150 km deep at most', () => {
+    const { w, war, tha, t } = start(3, 0);
+    const mine = w.divisions.filter(d => d.country === tha), committed = Math.ceil(mine.length * commitShare(w, war, tha));
+    const reserve = warReserve(w, war, tha);
+    expect(reserve.length).toBeGreaterThan(0);
+    expect(mine.length - mine.filter(d => d.theater < 0).length + reserve.length).toBeLessThanOrEqual(committed);
+    const b = bestStrike(w, war, t, tha)!;
+    expect(b).toBeTruthy();
+    expect(b.reserves).toBe(Math.min(12, reserve.length));
+    expect(km(b.from![0], b.from![1], b.to![0], b.to![1])).toBeLessThanOrEqual(T.offReach + 1);
+  }, 120000);
+
+  it('cannot be aimed across the sea or through a neutral country', () => {
+    const { w, tha, t } = start(3, 5);
+    // the Andaman Sea, west of Thailand's coast, and Laos, a neutral neighbour
+    expect(strikeForce(w, t, tha, [96.5, 12.5]).err).toMatch(/off\.(notEnemy|blocked)/);
+    expect(strikeForce(w, t, tha, [102.6, 18.0]).err).toMatch(/off\.(notEnemy|blocked)/);
+  }, 120000);
+
+  it('its divisions stay at the front when it ends, worn out', () => {
+    const { w, war, tha, t } = start(3, 10);
+    const b = bestStrike(w, war, t, tha)!; expect(startOffensive(w, S, t, tha, b.target)).toBeNull();
+    const o = t.offensives[t.offensives.length - 1], us = w.divisions.filter(d => d.op === o.id), org = us.map(d => d.org);
+    expect(us.length).toBeGreaterThanOrEqual(3);
+    endOffensive(w, o);
+    expect(us.every(d => d.theater === t.id && !d.op)).toBe(true);
+    us.forEach((d, i) => expect(d.org).toBeCloseTo(org[i] * 0.55));
+  }, 120000);
+
+  it('a well-aimed strike takes more ground than doing nothing, from the same moment', () => {
+    const { w, war, tha } = start(3, 100);
+    const myr = ci(w, 'MMR'), snap = serialize(w);
+    const ground = (v: World) => { let n = 0; for (const t of v.theaters.filter(t => t.war === war.id)) { const a = t.cellKm ** 2; for (let k = 0; k < t.W * t.H; k++) if (t.land[k]) { const o = v.provinces[t.prov[k]].owner, ours = t.c[k] * t.sideOf[tha] > 0; if (ours && o === myr) n += a; else if (!ours && o === tha) n -= a; } } return n; };
+    const play = (strike: boolean) => {
+      const v = deserialize(snap); const vw = v.wars.find(x => x.id === war.id)!; stepDay(v, S); const g0 = ground(v);
+      if (strike) for (const t of theatersOf(v, vw)) { const b = bestStrike(v, vw, t, tha); if (b) startOffensive(v, S, t, tha, b.target); }
+      for (let d = 0; d < 45; d++) stepDay(v, S);
+      return ground(v) - g0;
+    };
+    const idle = play(false), strike = play(true);
+    console.log('ground (km²) idle', Math.round(idle), 'strike', Math.round(strike));
+    expect(strike).toBeGreaterThan(idle);
+  }, 300000);
+});

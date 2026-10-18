@@ -3,6 +3,7 @@ import type { Camera } from '../render/camera';
 import { MAX_TIPS, type TheaterLayer } from '../render/theaters';
 import type { MapAssets } from '../data/types';
 import type { Session } from './session';
+import type { Aim } from './play';
 import type { LogEntry, World } from '../sim/types';
 import { cAt, cellLonLat, cellOf, offensiveTip, type Offensive, type Theater } from '../sim/war/theater';
 
@@ -263,5 +264,27 @@ export class WarFx {
     ctx.lineWidth = 1.4; ctx.strokeStyle = 'rgba(255,244,236,0.75)'; ctx.stroke();
     ctx.restore();
   }
+
+  /** while aiming an offensive: a dashed arrow from the jump-off point to the objective, coloured by the odds, and rings on the divisions that would go */
+  drawAim(ctx: CanvasRenderingContext2D, cam: Camera, w: World, aim: Aim, now: number) {
+    if (aim.err || !aim.from || !aim.to) return;
+    const scr = (lon: number, lat: number) => cam.toScreen(...project(lon, lat));
+    const col = aimColor(aim), [ax, ay] = scr(...aim.from), [bx, by] = scr(...aim.to), l = Math.hypot(bx - ax, by - ay); if (l < 6) return;
+    const tx = (bx - ax) / l, ty = (by - ay) / l, hl = Math.min(18, l * 0.4);
+    ctx.save();
+    ctx.lineCap = 'round'; ctx.setLineDash([7, 6]); ctx.lineDashOffset = -now * 24 % 13;
+    ctx.strokeStyle = 'rgba(8,12,18,0.7)'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx - tx * hl, by - ty * hl); ctx.stroke();
+    ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx - tx * hl - ty * hl * 0.6, by - ty * hl + tx * hl * 0.6); ctx.lineTo(bx - tx * hl + ty * hl * 0.6, by - ty * hl - tx * hl * 0.6); ctx.closePath();
+    ctx.fillStyle = col; ctx.strokeStyle = 'rgba(8,12,18,0.7)'; ctx.lineWidth = 1.5; ctx.fill(); ctx.stroke();
+    // the divisions at this front that would join (reserves arrive by rail)
+    const ids = new Set(aim.ids); ctx.strokeStyle = col; ctx.lineWidth = 1.5;
+    for (const d of w.divisions) { if (!ids.has(d.id)) continue; const [x, y] = scr(d.x, d.y); ctx.beginPath(); ctx.arc(x, y, 9, 0, 7); ctx.stroke(); }
+    ctx.restore();
+  }
 }
 const hex = (h: string) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+/** the verdict colours shared by the aim arrow and its readout */
+export const aimVerdict = (a: Aim) => a.foes === 0 ? 'open' : a.odds >= 1.5 ? 'likely' : a.odds >= 1 ? 'hard' : 'stall';
+const aimColor = (a: Aim) => ({ open: '#8fd07a', likely: '#8fd07a', hard: '#e8c063', stall: '#e0645a' })[aimVerdict(a)];

@@ -25,6 +25,7 @@ export function setupScenario(w: World, S: MapStatic) {
   const rus = ci.RUS, ukr = ci.UKR; if (rus === undefined || ukr === undefined) return;
   const war = declareWar(w, S, rus, ukr, { silent: true, name: msg('war.name.rusukr') });
   war.aggr = [1.04, 0.98]; (war as any).lastChange = 0;
+  war.commit = { [rus]: 0.6, [ukr]: 0.85 }; // Russia keeps much of its army on its other borders
   for (const t of theatersOf(w, war)) {
     for (let k = 0; k < t.W * t.H; k++) {
       if (!t.land[k]) continue; const p = t.prov[k]; if (w.provinces[p].owner !== ukr) continue;

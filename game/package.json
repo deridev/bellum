@@ -9,6 +9,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "playtest": "vite-node tests/playtest.ts --",
+    "warlab": "vite-node tests/warlab.ts --",
+    "strikelab": "vite-node tests/strikelab.ts --",
     "mapgen": "node tools/mapgen/build.mjs && node tools/mapgen/flags.mjs && node tools/mapgen/history.mjs"
   },
   "dependencies": {

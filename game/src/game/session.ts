@@ -74,7 +74,8 @@ export class Session {
     st.addEventListener('pointermove', e => {
       const p = pos(e); this.ui.set({ mouse: p });
       // over the HUD the map is covered: no province under the pointer (otherwise a hidden one stays lit and changes as you move)
-      if (!ptrs.has(e.pointerId) && (e.target as HTMLElement).closest?.('.ui')) { this.pickPending = null; if (this.ui.get().hover !== -1) this.ui.set({ hover: -1 }); return; }
+      this.overUi = !!(e.target as HTMLElement).closest?.('.ui');
+      if (!ptrs.has(e.pointerId) && this.overUi) { this.pickPending = null; if (this.ui.get().hover !== -1) this.ui.set({ hover: -1 }); return; }
       this.pickPending = p;
       if (!ptrs.has(e.pointerId)) return; ptrs.set(e.pointerId, p);
       if (pinch && ptrs.size === 2) {
@@ -94,6 +95,8 @@ export class Session {
     st.addEventListener('pointerleave', () => { this.pickPending = null; this.ui.set({ hover: -1 }); });
   }
   clickWorld: [number, number] = [0, 0];
+  /** the pointer is over the HUD (not the map) */
+  overUi = false;
   click(p: [number, number]) {
     this.clickWorld = this.cam.toWorld(p[0], p[1]);
     const pid = this.ren.pick(this.cam, p[0], p[1]);

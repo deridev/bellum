@@ -5,7 +5,7 @@ import type { Division, MapStatic, Msg, War, WarGoal, World } from '../types';
 import { msg } from '../types';
 import { addRel, clamp01, rel, say } from '../world';
 import { newLeader } from '../politics';
-import { frontAggr } from './ai';
+import { commitShare, frontAggr } from './ai';
 import { buildMasks, cellLonLat, cellOf, createTheater, stepTheater, T, work, type Theater } from './theater';
 
 export const sideOf = (war: War, c: number): 1 | -1 | 0 => war.attackers.includes(c) ? 1 : war.defenders.includes(c) ? -1 : 0;
@@ -119,13 +119,16 @@ export function addTheater(w: World, S: MapStatic, war: War, box: [number, numbe
   deployInto(w, S, t);
   return t;
 }
-/** Units already stationed inside a new theater's box enter it immediately. */
+/** Units already stationed inside a new theater's box enter it immediately, up to the share of the commitment that holds the line
+ *  (the rest of the commitment waits as the war's reserve). */
 function deployInto(w: World, S: MapStatic, t: Theater) {
+  const war = w.wars.find(x => x.id === t.war), room = new Map<number, number>();
+  const roomFor = (c: number) => { let r = room.get(c); if (r === undefined) { const mine = w.divisions.filter(d => d.country === c); r = war ? Math.ceil(mine.length * commitShare(w, war, c) * T.line) - mine.filter(d => war.theaters.includes(d.theater)).length : Infinity; room.set(c, r); } return r; };
   for (const d of w.divisions) {
-    if (d.theater >= 0 || !t.sideOf[d.country]) continue;
+    if (d.theater >= 0 || !t.sideOf[d.country] || roomFor(d.country) <= 0) continue;
     const [lon, lat] = S.provinces[d.prov].label; const k = cellOf(t, lon, lat);
     if (k < 0 || !t.land[k] || t.c[k] * t.sideOf[d.country] <= 0) continue;
-    placeUnit(w, t, d, lon, lat);
+    placeUnit(w, t, d, lon, lat); room.set(d.country, roomFor(d.country) - 1);
   }
 }
 export function placeUnit(w: World, t: Theater, d: Division, lon: number, lat: number, arrive = 0) {
@@ -158,7 +161,7 @@ export function sendToTheater(w: World, S: MapStatic, d: Division, t: Theater, f
   const [x, y] = cellLonLat(t, best); placeUnit(w, t, d, x, y, w.day + days);
   return true;
 }
-export function withdraw(d: Division) { d.theater = -1; d.arrive = 0; }
+export function withdraw(d: Division) { d.theater = -1; d.arrive = 0; d.op = 0; }
 
 /** Daily war step: theaters, occupation, score, exhaustion. */
 export function stepWars(w: World, S: MapStatic) {
@@ -167,20 +170,21 @@ export function stepWars(w: World, S: MapStatic) {
       if (t.frozen) continue;
       const units = w.divisions.filter(d => d.theater === t.id && d.arrive <= w.day);
       stepTheater(w, S, t, units, { aggr: frontAggr(w, war, t) });
-      cullUnits(w, t, units);
+      cullUnits(w, t, war, units);
       if (w.day % 2 === 0) { updateOccupation(w, S, t, war); maybeExpand(w, S, t); }
       reportCities(w, t, war);
     }
     if (w.day % 7 === 0) weeklyWar(w, S, war);
   }
 }
-function cullUnits(w: World, t: Theater, units: Division[]) {
+function cullUnits(w: World, t: Theater, war: War, units: Division[]) {
   const gone: Division[] = [];
   for (const d of units) {
     if (d.sup === 0 && d.str < 0.42 * d.max) { w.countries[d.country].stats.captured += d.str; gone.push(d); }
     else if (d.str < 0.12 * d.max) gone.push(d);
   }
   if (!gone.length) return;
+  war.lost ||= [0, 0]; for (const d of gone) war.lost[t.sideOf[d.country] > 0 ? 0 : 1]++;
   const cap = gone.filter(d => d.sup === 0);
   if (cap.length >= 2) say(w, msg('log.surrender', { n: cap.length, c: { c: cap[0].country } }), 'pocket', { who: [cap[0].country] });
   const ids = new Set(gone.map(d => d.id)); w.divisions = w.divisions.filter(d => !ids.has(d.id));
@@ -300,15 +304,23 @@ const popTotal = (w: World, c: number) => { let s = 0; for (const p of w.provinc
 export function warScore(w: World, war: War): number {
   const val = (side: number[]) => { let g = 0, p = 0; for (const pr of w.provinces) if (side.includes(pr.owner)) { g += pr.gdp; p += pr.pop; } return { g: g || 1, p: p || 1 }; };
   const VA = val(war.attackers), VD = val(war.defenders);
+  // the share of each province each side holds on the ground (inside a war zone), else who controls it: every kilometre the front moves counts
+  const held = new Map<number, [number, number]>(); // province -> [cells held by attackers, cells]
+  for (const t of theatersOf(w, war)) for (let k = 0; k < t.W * t.H; k++) { if (!t.land[k]) continue; let e = held.get(t.prov[k]); if (!e) held.set(t.prov[k], e = [0, 0]); e[1]++; if (t.c[k] >= 0) e[0]++; }
   let occD = 0, occA = 0;
   for (const pr of w.provinces) {
-    if (war.defenders.includes(pr.owner) && war.attackers.includes(pr.controller)) occD += (pr.gdp / VD.g + pr.pop / VD.p) / 2;
-    if (war.attackers.includes(pr.owner) && war.defenders.includes(pr.controller)) occA += (pr.gdp / VA.g + pr.pop / VA.p) / 2;
+    const e = held.get(pr.id), fa = e ? e[0] / e[1] : war.attackers.includes(pr.controller) ? 1 : war.defenders.includes(pr.controller) ? 0 : -1;
+    if (fa < 0) continue;
+    if (war.defenders.includes(pr.owner)) occD += fa * (pr.gdp / VD.g + pr.pop / VD.p) / 2;
+    if (war.attackers.includes(pr.owner)) occA += (1 - fa) * (pr.gdp / VA.g + pr.pop / VA.p) / 2;
   }
   const [ca, cd] = war.casualties; const cas = (cd - ca) / (ca + cd + 1) * 15;
+  // whole divisions lost (pockets, routs), as a share of each side's army: a quarter of it is worth 10 points
+  const [la, ld] = war.lost || [0, 0], army = (side: number[]) => w.divisions.filter(d => side.includes(d.country)).length;
+  const lost = 40 * (ld / Math.max(1, army(war.defenders) + ld) - la / Math.max(1, army(war.attackers) + la));
   const capA = war.attackers.some(c => war.defenders.includes(w.provinces[w.countries[c].capital].controller)) ? -25 : 0;
   const capD = war.defenders.some(c => war.attackers.includes(w.provinces[w.countries[c].capital].controller)) ? 25 : 0;
-  return Math.max(-100, Math.min(100, Math.round((occD - occA) * 160 + cas + capA + capD)));
+  return Math.max(-100, Math.min(100, Math.round((occD - occA) * 160 + cas + lost + capA + capD)));
 }
 
 export interface PeaceTerms { type: 'white' | 'ceasefire' | 'treaty'; provinces: number[]; puppet?: boolean; reparations?: boolean }

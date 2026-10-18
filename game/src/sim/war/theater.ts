@@ -11,6 +11,7 @@ import { km } from '../../geo';
 export interface Offensive {
   id: number; side: 1 | -1; country: number; army: number;
   from: [number, number]; to: [number, number]; created: number; org: number; ended: number;
+  met?: number; // the other side's reserves have answered it
 }
 export interface Theater {
   id: number; war: number; name: string;
@@ -27,7 +28,7 @@ export function work(t: Theater): Work {
   let wk = WORK.get(t); const N = t.W * t.H;
   if (!wk || wk.c2.length !== N) {
     wk = { c2: new Float32Array(N), P0: new Float32Array(N), P1: new Float32Array(N), tmp: new Float32Array(N), F: new Float32Array(N), eff0: new Float32Array(N), eff1: new Float32Array(N), distF: new Int16Array(N), q: new Int32Array(N), dtmp: new Int16Array(N), air: [1, 1], atk: [1, 1], aggr: [1, 1], act: new Int32Array(N), nAct: 0 };
-    WORK.set(t, wk);
+    WORK.set(t, wk); computeDist(t, wk); // distances to the front are needed before the first day (a new war, a loaded game)
   }
   return wk;
 }
@@ -35,7 +36,11 @@ export function work(t: Theater): Work {
 export const T = {
   D: 1.0, K: 0.6, dt: 0.2, FMAX: 0.3, P0: 4500, COLLAPSE: 0.2,
   blurKm: 18, lossRate: 0.0045, baseDef: 1.5, entMax: 0.8, entRate: 0.015, outOfSupplyLoss: 0.016,
-  orgDrain: 0.022, orgRegen: 0.025, repelKm: 22, kmPerDayInf: 15, frontSpeedRef: 4.4, luck: 0.45, airWeight: 0.25, offBoost: 0.55,
+  orgDrain: 0.022, orgRegen: 0.025, repelKm: 22, kmPerDayInf: 15, frontSpeedRef: 4.4, luck: 0.45, airWeight: 0.25, offBoost: 0.7,
+  offKm: 65, // half-width of an offensive's corridor
+  offReach: 150, // how deep one offensive can go (km)
+  line: 0.8, // share of the divisions committed to a war that hold the line; the rest wait as its reserve
+  shock: 0.5, // share of the trench bonus a fresh offensive cancels in its corridor
 };
 
 // ---------------------------------------------------------------------------- geometry
@@ -109,6 +114,7 @@ export function buildMasks(t: Theater, w: World, S: MapStatic, seed: boolean) {
     for (let k = 0; k < N; k++) t.main[k] = lab[k] === best ? 1 : 0; }
   // settle the initial front a little
   if (seed) { const wk = work(t); wk.F.fill(0); for (let s = 0; s < 20; s++) fieldStep(t, wk); }
+  computeDist(t, work(t));
   // cities worth reporting
   t.cities = [];
   for (const city of S.cities) {
@@ -201,7 +207,7 @@ export function stepTheater(w: World, S: MapStatic, t: Theater, units: Division[
   // entrenchment, flips, heat
   for (let k = 0; k < N; k++) {
     if (!land[k]) continue; const s = c[k] >= 0 ? 1 : 0, prevS = t.flip[k] & 128 ? 1 : 0; let age = t.flip[k] & 127;
-    if (s === prevS) { if (t.ent[k] < T.entMax) t.ent[k] += T.entRate; if (age < 127) age++; } else { t.ent[k] = 0; age = 0; }
+    if (s === prevS) { if (t.ent[k] < T.entMax) t.ent[k] += T.entRate * stanceDig(wk.aggr[1 - s]); if (age < 127) age++; } else { t.ent[k] = 0; age = 0; }
     t.flip[k] = (s << 7) | age;
   }
   computeDist(t, wk);
@@ -260,12 +266,17 @@ export function supplyAt(t: Theater, k: number, side: number): number {
 
 /** effective [A, B] pressure at a cell, with defence bonuses and offensive pushes */
 export function balanceAt(t: Theater, wk: Work, k: number): [number, number] {
-  const c = t.c[k], m = t.mtn[k], def = T.baseDef + 0.8 * m + t.ent[k];
-  const holder = c >= 0 ? 0 : 1;
-  const ea = wk.P0[k] * (holder === 0 ? def : wk.aggr[0] * pushAt(t, k, 1));
-  const eb = wk.P1[k] * (holder === 1 ? def : wk.aggr[1] * pushAt(t, k, -1));
+  const holder = c0(t, k), push = pushAt(t, k, holder === 0 ? -1 : 1);
+  // a fresh offensive's barrage cancels most of the trench bonus in its corridor
+  const def = T.baseDef + 0.8 * t.mtn[k] + t.ent[k] * (1 - T.shock * Math.max(0, push - 1) / T.offBoost);
+  const ea = wk.P0[k] * (holder === 0 ? def : wk.aggr[0] * push);
+  const eb = wk.P1[k] * (holder === 1 ? def : wk.aggr[1] * push);
   return [ea, eb];
 }
+const c0 = (t: Theater, k: number) => t.c[k] >= 0 ? 0 : 1;
+/** Stance: Hold digs in and spares men; All-out pushes everywhere and pays for it. (aggr < 1 is Hold, > 1.15 All-out) */
+export const stanceLoss = (aggr: number) => aggr < 1 ? 0.65 : aggr > 1.15 ? 1.35 : 1;
+export const stanceDig = (aggr: number) => aggr < 1 ? 2 : 1;
 /** extra attack strength inside an active offensive's corridor; past its target the push halts */
 function pushAt(t: Theater, k: number, side: number): number {
   let best = 1; if (!t.offensives.length) return best;
@@ -277,9 +288,9 @@ function pushAt(t: Theater, k: number, side: number): number {
     const dx = (bx - ax) * cosL, dy = by - ay, L2 = dx * dx + dy * dy; if (L2 < 1e-9) continue;
     const px = (lon - ax) * cosL, py = lat - ay; const u = (px * dx + py * dy) / L2;
     const ex = px - u * dx, ey = py - u * dy, dKm = Math.sqrt(ex * ex + ey * ey) * 111.2;
-    if (u > 1.02) { if (dKm < 60) best = Math.min(best, 0.45); continue; } // halt line
-    if (u < -0.1 || dKm > 55) continue;
-    const boost = 1 + T.offBoost * (0.4 + 0.6 * o.org) * (1 - dKm / 55);
+    if (u > 1.02) { if (dKm < T.offKm) best = Math.min(best, 0.45); continue; } // halt line
+    if (u < -0.1 || dKm > T.offKm) continue;
+    const boost = 1 + T.offBoost * (0.4 + 0.6 * o.org) * Math.min(1, 1.5 * (1 - dKm / T.offKm));
     if (boost > best) best = boost;
   }
   return best;
@@ -327,7 +338,7 @@ function combat(w: World, t: Theater, units: Division[], wk: Work) {
     let loss = 0;
     if (k >= 0) {
       const [ea, eb] = balanceAt(t, wk, k), eo = side > 0 ? ea : eb, ee = side > 0 ? eb : ea;
-      if (ee > 300) loss += (d.retreat ? 0.6 : 1) * T.lossRate * inten * (0.5 + 0.5 * (side > 0 ? wk.aggr[0] : wk.aggr[1])) * d.str * ee / (eo + ee + T.P0);
+      if (ee > 300) loss += (d.retreat ? 0.6 : 1) * (d.op ? 1.2 : 1) * T.lossRate * inten * stanceLoss(side > 0 ? wk.aggr[0] : wk.aggr[1]) * d.str * ee / (eo + ee + T.P0);
       if (ee > 300) d.exp = Math.min(1, d.exp + 0.002);
     }
     if (d.sup === 0) loss += T.outOfSupplyLoss * d.str;
@@ -354,7 +365,7 @@ function moveUnits(w: World, t: Theater, units: Division[], wk: Work) {
     const gx = ((i < W - 1 && land[k + 1] ? c[k + 1] : c[k]) - (i > 0 && land[k - 1] ? c[k - 1] : c[k])) * sg;
     const gy = -((j < H - 1 && land[k + W] ? c[k + W] : c[k]) - (j > 0 && land[k - W] ? c[k - W] : c[k])) * sg; // north = +y
     // offensive assignment: units of an army with an active offensive head for its tip
-    const off = t.offensives.find(o => !o.ended && o.army === u.army && o.country === u.country);
+    const off = u.op ? t.offensives.find(o => o.id === u.op && !o.ended) : undefined;
     if (own < -0.15) { const g = Math.hypot(gx, gy) || 1; vx += gx / g * spd; vy += gy / g * spd; }
     else if (off && d[k] > 1) {
       const tip = offensiveTip(t, off); const dx = (tip[0] - u.x) * cosL, dy = tip[1] - u.y, l = Math.hypot(dx, dy) || 1;

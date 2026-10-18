@@ -10,7 +10,7 @@ import { TheaterLayer } from '../render/theaters';
 import { WarFx } from './warfx';
 import { countryName, say, t } from '../i18n';
 import { acceptsPeace, allied, declareWar, makePeace, sideOf, theatersOf, type PeaceTerms } from '../sim/war/war';
-import { startOffensive } from '../sim/war/ai';
+import { startOffensive, strikeOdds } from '../sim/war/ai';
 import { cellOf } from '../sim/war/theater';
 import { diploOdds, doDiplo, type DiploAction } from '../sim/diplomacy';
 import { loadScenario, staticFor } from './scenarios';
@@ -18,7 +18,9 @@ import { audio, type Cue } from './audio';
 
 export type Panel = { kind: 'economy' | 'politics' | 'military' | 'diplomacy' | 'ledger' | 'chronicle' | 'timelapse' } | { kind: 'province'; id: number } | { kind: 'country'; id: number } | { kind: 'war'; id: number } | null;
 export type Tool = { kind: 'offensive'; war: number } | null;
-export interface GameState { day: number; speed: number; paused: boolean; tick: number; panel: Panel; turnMode: World['settings']['turnMode']; menu: boolean; tool: Tool; toast: string; declare: number }
+/** What a strike at the pointer would be, while aiming (see strikeOdds). */
+export interface Aim { err: string | null; odds: number; n: number; reserves: number; foes: number; def: number; from: [number, number] | null; to: [number, number] | null; ids: number[] }
+export interface GameState { day: number; speed: number; paused: boolean; tick: number; panel: Panel; turnMode: World['settings']['turnMode']; menu: boolean; tool: Tool; toast: string; declare: number; aim: Aim | null }
 export const SPEEDS = [0.5, 1.5, 4, 10, 25]; // days per second
 
 /** Owns the world and the clock; bridges simulation -> renderer and UI. */
@@ -28,7 +30,7 @@ export type NationStat = typeof NATION_STATS[number];
 
 export class Game {
   w: World; S: MapStatic; player: number;
-  st = createStore<GameState>({ day: 0, speed: 1, paused: true, tick: 0, panel: null, turnMode: 'continuous', menu: false, tool: null, toast: '', declare: -1 });
+  st = createStore<GameState>({ day: 0, speed: 1, paused: true, tick: 0, panel: null, turnMode: 'continuous', menu: false, tool: null, toast: '', declare: -1, aim: null });
   acc = 0; private lastUi = 0; private mapSeen = ''; private now = 0; private dt = 0; private lastAssign = 0;
   layer: TheaterLayer; fx: WarFx;
   /** monthly snapshots of who holds each province, for the timelapse */
@@ -76,7 +78,18 @@ export class Game {
   toast(text: string) { this.st.set({ toast: text }); clearTimeout(this.toastT); this.toastT = setTimeout(() => this.st.set({ toast: '' }), 3500); }
   private toastT: any = 0;
   sound(c: Cue) { audio.cue(c); }
-  setTool(tool: Tool) { this.st.set({ tool }); this.s.stage.style.cursor = tool ? 'crosshair' : ''; }
+  setTool(tool: Tool) { this.st.set({ tool, aim: null }); this.aimAt = ''; this.s.stage.style.cursor = tool ? 'crosshair' : ''; }
+  private aimAt = '';
+  /** while aiming: what a strike at the pointer would be (recomputed when the pointer moves or a day passes) */
+  private updateAim() {
+    const tool = this.st.get().tool, war = tool && this.w.wars.find(x => x.id === tool.war); if (!war || war.ended || this.s.overUi) return;
+    const m = this.s.ui.get().mouse, key = `${Math.round(m[0] / 4)},${Math.round(m[1] / 4)},${this.w.day},${this.s.cam.upp}`; if (key === this.aimAt) return; this.aimAt = key;
+    const [lon, lat] = unproject(...this.s.cam.toWorld(m[0], m[1]));
+    const th = theatersOf(this.w, war).find(x => { const k = cellOf(x, lon, lat); return k >= 0 && x.land[k]; });
+    const r = th ? strikeOdds(this.w, war, th, this.player, [lon, lat]) : null;
+    this.st.set({ aim: r ? { err: r.err, odds: r.odds, n: r.units.length, reserves: r.reserves, foes: r.foes, def: r.def, from: r.from, to: r.to ?? null, ids: r.units.filter(d => d.theater === th!.id).map(d => d.id) }
+      : { err: 'off.outside', odds: 0, n: 0, reserves: 0, foes: 0, def: 1, from: null, to: null, ids: [] } });
+  }
   /** after an order that can change the map (war, peace, agenda) */
   afterOrder() { this.syncMap(false); this.afterDay(); this.bump(); }
   declareWar(target: number) {
@@ -106,7 +119,7 @@ export class Game {
     const [lon, lat] = unproject(...this.s.clickWorld);
     const th = theatersOf(this.w, war).find(x => { const k = cellOf(x, lon, lat); return k >= 0 && x.land[k]; });
     if (!th) { this.toast(t('off.outside')); return; }
-    const err = startOffensive(this.w, th, this.player, [lon, lat]);
+    const err = startOffensive(this.w, this.S, th, this.player, [lon, lat]);
     this.toast(t(err || 'off.launched')); if (!err) { this.afterDay(); this.bump(); this.sound('order'); }
   }
   click(p: number) {
@@ -162,6 +175,7 @@ export class Game {
       if (n) this.syncMap(false);
     }
     this.layer.mix = Math.min(1, this.acc);
+    if (g.tool) this.updateAim();
     if (tt - this.lastAssign > 1) this.assignTheaters();
     audio.ambience(this.fx.heatOnScreen, !g.paused);
     const now = performance.now();
@@ -181,6 +195,7 @@ export class Game {
     const g = this.st.get();
     if (this.snapshot !== null) return;
     this.fx.draw(ctx, this.s.cam, this.w, this.layer.mix, this.now, this.dt, !g.paused, SPEEDS[g.speed]);
+    if (g.tool && g.aim) this.fx.drawAim(ctx, this.s.cam, this.w, g.aim, this.now);
     const cam = this.s.cam, zoom = 0.12 / cam.upp; if (zoom < 1.6) return;
     const stacks = new Map<number, { c: number; n: number }>();
     for (const d of this.w.divisions) { if (d.theater >= 0) continue; const k = d.prov * 1000 + d.country; const s = stacks.get(k); if (s) s.n++; else stacks.set(k, { c: d.country, n: 1 }); }
