@@ -1,3 +1,4 @@
+import { setProvinceNames } from '../src/i18n';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { MapStatic } from '../src/sim/types';
@@ -11,5 +12,6 @@ export function loadStatic(): MapStatic {
   const n = 4096 * 2048, provRaster = new Uint16Array(n), dem = new Uint8Array(n);
   const prCh = pr.length / n, demCh = dem3.length / n;
   for (let i = 0; i < n; i++) { provRaster[i] = pr[i * prCh] + pr[i * prCh + 1] * 256; dem[i] = dem3[i * demCh]; }
-  return { provinces: j('provinces.json'), countries: j('countries.json'), cities: j('cities.json'), dem, demW: 4096, demH: 2048, provRaster };
+  const provinces = j('provinces.json'); setProvinceNames(provinces.map((p: { name: string }) => p.name)); // so logs name provinces
+  return { provinces, countries: j('countries.json'), cities: j('cities.json'), dem, demW: 4096, demH: 2048, provRaster };
 }

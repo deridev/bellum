@@ -53,7 +53,7 @@ for (let d = 0; d < 365 * +years; d++) {
       for (const n of [...nb[ci]]) for (const act of ['improve', 'trade', 'nap', 'alliance'] as const) if (diploOdds(w, ci, n, act).ok) { doDiplo(w, ci, n, act); actions++; break; }
     }
     if (strat === 'hawk' && !warsOf(w, ci).length && !warCost(w, ci, ci).overlord) {
-      const target = [...nb[ci]].filter(n => w.countries[n].alive && !warCost(w, ci, n).truce && warCost(w, ci, n).influence <= me.polCap).sort((a, b) => w.countries[a].gdp - w.countries[b].gdp)[0];
+      const target = [...nb[ci]].filter(n => w.countries[n].alive && !warCost(w, ci, n).truce).sort((a, b) => w.countries[a].gdp - w.countries[b].gdp)[0];
       if (target !== undefined) { declareWar(w, S, ci, target); actions++; }
     }
     // try to make peace on good terms

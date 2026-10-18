@@ -1,6 +1,6 @@
 // Country AI outside battle: budget and production, diplomacy, and when to start a war.
 import { atWar, demobilize, queueUnit } from './economy';
-import { DIPLO, diploOdds, doDiplo, hasTreaty, power, type DiploAction } from './diplomacy';
+import { DIPLO, demandTarget, diploOdds, doDiplo, hasTreaty, power, type DiploAction } from './diplomacy';
 import { nextRand } from './rng';
 import type { Country, MapStatic, UnitType, World } from './types';
 import { msg } from './types';
@@ -22,7 +22,7 @@ export function aiMonthly(w: World, S: MapStatic) {
     const threats = [...nb[c.id]].filter(n => enemies(w, c.id, n) || (rel(w, c.id, n) < -40 && pw[n] > pw[c.id] * 1.2));
     aiEconomy(w, c, threats.length > 0);
     aiPolicies(w, c);
-    aiDiplomacy(w, c, pw, nb, threats);
+    aiDiplomacy(w, S, c, pw, nb, threats);
   }
   aiWars(w, S, pw, nb);
 }
@@ -53,43 +53,50 @@ function aiEconomy(w: World, c: Country, threatened: boolean) {
 }
 
 // ---- diplomacy ----
-function act(w: World, from: number, to: number, a: DiploAction) {
-  if (!diploOdds(w, from, to, a).ok) return false;
-  if (w.countries[to].player && a !== 'denounce' && a !== 'improve' && a !== 'guarantee') { offerToPlayer(w, from, to, a); return true; }
-  doDiplo(w, from, to, a); return true;
+function act(w: World, S: MapStatic, from: number, to: number, a: DiploAction) {
+  if (!diploOdds(w, from, to, a, S).ok) return false;
+  if (w.countries[to].player && a !== 'denounce' && a !== 'improve' && a !== 'guarantee') { offerToPlayer(w, S, from, to, a); return true; }
+  doDiplo(w, from, to, a, S); return true;
 }
-/** Proposals to the player arrive as agenda cards. */
-function offerToPlayer(w: World, from: number, to: number, a: DiploAction) {
+/** Proposals (and ultimatums) to the player arrive as agenda cards. */
+function offerToPlayer(w: World, S: MapStatic, from: number, to: number, a: DiploAction) {
   if (w.agenda.some(x => x.kind === 'diplo' && x.data?.from === from)) return;
   w.countries[from].polCap -= DIPLO[a].cost; // spent on making the offer
   w.cooldowns[`${from}:${to}:${a}`] = w.day + DIPLO[a].cooldown;
-  w.agenda.push({ id: w.nextId++, country: to, day: w.day, kind: 'diplo', title: msg('agenda.diplo.title', { c: { c: from } }), text: msg('agenda.diplo.' + a, { c: { c: from } }),
-    data: { from, act: a }, expires: w.day + 30, options: [{ label: msg('opt.accept'), effect: 'diplo.accept' }, { label: msg('opt.decline'), effect: 'diplo.decline' }] });
+  const prov = a === 'demand' ? demandTarget(w, S, from, to) : -1;
+  w.agenda.push({ id: w.nextId++, country: to, day: w.day, kind: 'diplo', title: msg(a === 'demand' ? 'agenda.demand.title' : 'agenda.diplo.title', { c: { c: from } }), text: msg('agenda.diplo.' + a, { c: { c: from }, p: { p: prov } }),
+    data: { from, act: a, prov }, expires: w.day + 30, options: a === 'demand' ? [{ label: msg('opt.yield'), effect: 'diplo.accept' }, { label: msg('opt.refuse'), effect: 'diplo.decline' }] : [{ label: msg('opt.accept'), effect: 'diplo.accept' }, { label: msg('opt.decline'), effect: 'diplo.decline' }] });
 }
-function aiDiplomacy(w: World, c: Country, pw: number[], nb: Set<number>[], threats: number[]) {
+function aiDiplomacy(w: World, S: MapStatic, c: Country, pw: number[], nb: Set<number>[], threats: number[]) {
   const me = c.id, r = nextRand(w);
   // threatened: look for a strong friend who shares the enemy
   if (threats.length && c.polCap >= DIPLO.alliance.cost) {
     const cands = w.countries.filter(k => k.alive && k.id !== me && !allied(w, me, k.id) && rel(w, k.id, me) > 30 && threats.some(t => rel(w, k.id, t) < -20) && !warsOf(w, k.id).some(x => !sideOf(x, me))).sort((a, b) => pw[b.id] - pw[a.id]);
-    for (const k of cands.slice(0, 4)) if (act(w, me, k.id, 'alliance')) return;
+    for (const k of cands.slice(0, 4)) if (act(w, S, me, k.id, 'alliance')) return;
   }
   // great powers guarantee threatened friends
   const rank = pw.filter(p => p > pw[me]).length;
   if (rank < 12 && r < 0.05 && c.polCap >= DIPLO.guarantee.cost) {
     const k = w.countries.find(k => k.alive && k.id !== me && rel(w, me, k.id) > 50 && !hasTreaty(w, me, k.id, 'guarantee') && !allied(w, me, k.id) && [...nb[k.id]].some(n => rel(w, n, k.id) < -50 && rel(w, me, n) < -20 && pw[n] > pw[k.id] * 1.5));
-    if (k && act(w, me, k.id, 'guarantee')) return;
+    if (k && act(w, S, me, k.id, 'guarantee')) return;
+  }
+  // the ambitious lean on much weaker neighbours, but only with a grievance: land they claim, or (for regimes that answer to no voters) real hostility
+  if ((c.personality === 'expansionist' || c.personality === 'opportunist') && r < 0.02 && !atWar(w, me)) {
+    const grievance = (n: number) => w.provinces.some(p => p.owner === n && p.core.includes(me)) || (c.gov !== 'democracy' && rel(w, me, n) <= -30);
+    const k = [...nb[me]].find(n => w.countries[n].alive && pw[me] >= 3 * pw[n] && grievance(n) && !allied(w, me, n) && !inTruce(w, me, n));
+    if (k !== undefined && act(w, S, me, k, 'demand')) return;
   }
   // the ambitious build grievances against a rival neighbour (a justified war later)
   if ((c.personality === 'expansionist' || c.personality === 'ideologue') && r < 0.1) {
     const k = [...nb[me]].find(n => rel(w, me, n) < -20 && rel(w, me, n) > -50 && !allied(w, me, n));
-    if (k !== undefined && act(w, me, k, 'denounce')) return;
+    if (k !== undefined && act(w, S, me, k, 'denounce')) return;
   }
   // otherwise, with spare influence: trade with friends, warm up to neighbours
   if (c.polCap > 140 && r < 0.2) {
     const trades = w.treaties.filter(t => t.type === 'trade' && (t.a === me || t.b === me)).length;
-    if (trades < 2) { const k = w.countries.find(k => k.alive && k.id !== me && !k.player && rel(w, k.id, me) > 30 && !hasTreaty(w, me, k.id, 'trade')); if (k && act(w, me, k.id, 'trade')) return; }
+    if (trades < 2) { const k = w.countries.find(k => k.alive && k.id !== me && !k.player && rel(w, k.id, me) > 30 && !hasTreaty(w, me, k.id, 'trade')); if (k && act(w, S, me, k.id, 'trade')) return; }
     const k = [...nb[me]].filter(n => rel(w, n, me) > -30 && rel(w, n, me) < 50).sort((a, b) => pw[b] - pw[a])[0];
-    if (k !== undefined && act(w, me, k, 'improve')) return;
+    if (k !== undefined && act(w, S, me, k, 'improve')) return;
   }
 }
 
@@ -100,14 +107,12 @@ function aiWars(w: World, S: MapStatic, pw: number[], nb: Set<number>[]) {
   for (const c of w.countries) {
     const g = GATE[c.personality];
     if (!g || !c.alive || c.player || atWar(w, c.id) || c.stability < 0.45 || overlordOf(w, c.id) || nextRand(w) > g.p) continue;
-    const cost = (n: number) => warCost(w, c.id, n);
     let best = -1, bestR = 0;
     for (const n of nb[c.id]) {
       const N = w.countries[n];
       if (!N.alive || allied(w, c.id, n) || hasTreaty(w, c.id, n, 'nap') || inTruce(w, c.id, n) || (N.player && w.day < 180)) continue;
       const claim = w.provinces.some(p => p.owner === n && p.core.includes(c.id));
       if (!claim && rel(w, c.id, n) > -50) continue;
-      if (c.polCap < cost(n).influence) continue;
       const helpers = defendersOf(w, n).filter(d => !allied(w, c.id, d) && rel(w, d, c.id) < 40);
       const theirs = pw[n] + helpers.reduce((a, d) => a + pw[d] * (nb[d].has(c.id) || nb[d].has(n) ? 1 : 0.5), 0);
       const ratio = pw[c.id] / Math.max(1, theirs);

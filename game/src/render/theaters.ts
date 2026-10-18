@@ -142,9 +142,9 @@ export class TheaterLayer {
       const s = this.slots.find(s => s.id < 0)!; s.id = t.id; s.dirty = true;
     }
     // which side each country is on, per slot
-    this.side.fill(0);
-    this.slots.forEach((s, i) => { const t = ranked.find(t => t.id === s.id); if (!t) return; for (const [c, sd] of Object.entries(t.sideOf)) this.side[i * 1024 + +c] = sd > 0 ? 1 : 2; });
-    updateTexture(this.gl, this.tSide, 1024, MAX_SLOTS, 'r8', this.side);
+    const side = new Uint8Array(this.side.length);
+    this.slots.forEach((s, i) => { const t = ranked.find(t => t.id === s.id); if (!t) return; for (const [c, sd] of Object.entries(t.sideOf)) side[i * 1024 + +c] = sd > 0 ? 1 : 2; });
+    if (side.some((v, k) => v !== this.side[k])) { this.side = side; updateTexture(this.gl, this.tSide, 1024, MAX_SLOTS, 'r8', this.side); } // only when sides changed
   }
 
   private upload(s: Slot, h: Hist) {

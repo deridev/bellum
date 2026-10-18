@@ -90,9 +90,9 @@ export class Game {
     this.afterOrder(); this.openPanel(null);
   }
   diplo(target: number, act: DiploAction) {
-    const o = diploOdds(this.w, this.player, target, act);
+    const o = diploOdds(this.w, this.player, target, act, this.S);
     if (!o.ok) { this.toast(say(this.w, o.why)); return; }
-    doDiplo(this.w, this.player, target, act); this.toast(t('dip.done.' + act, { c: countryName(this.w, target) })); this.sound('click'); this.bump();
+    doDiplo(this.w, this.player, target, act, this.S); this.toast(t('dip.done.' + act, { c: countryName(this.w, target) })); this.sound('click'); this.bump();
     if (this.s.ui.get().mapMode === 'diplomacy') this.s.setMapMode('diplomacy');
   }
   /** pan to where a dispatch happened */

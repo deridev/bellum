@@ -68,8 +68,8 @@ export type TreatyType = 'alliance' | 'nap' | 'guarantee' | 'access' | 'trade' |
 
 /** A message the UI renders in the player's language: a dictionary key and its arguments. */
 export interface Msg { k: string; a?: Record<string, MsgArg> }
-/** Arguments: plain values, a country ({c}), a list of countries ({cs}), a date ({d}), a nested message ({m}) or a division ({u}: type, number). */
-export type MsgArg = string | number | { c: number } | { cs: number[] } | { d: number } | { m: Msg } | { u: [string, number] };
+/** Arguments: plain values, a country ({c}), a list of countries ({cs}), a date ({d}), a nested message ({m}), a division ({u}: type, number) or a province ({p}). */
+export type MsgArg = string | number | { c: number } | { cs: number[] } | { d: number } | { m: Msg } | { u: [string, number] } | { p: number };
 export const msg = (k: string, a?: Record<string, MsgArg>): Msg => (a ? { k, a } : { k });
 
 export interface LogEntry { day: number; msg: Msg; kind: LogKind; who?: number[]; prov?: number; big?: string; at?: [number, number] }

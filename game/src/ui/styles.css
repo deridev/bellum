@@ -570,3 +570,18 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
   .desk { top: var(--top); left: var(--left); right: var(--left); max-height: calc(100vh - var(--top) - var(--above-dock)); }
   .desk-body { grid-template-columns: 1fr; }
 }
+
+/* the strip never moves when numbers change: cells take fixed shares, values truncate rather than push */
+.res { justify-content: flex-start; }
+.res-cell { flex: var(--share, 1) 1 0; min-width: 0; justify-content: flex-start; overflow: hidden; }
+.res-txt { min-width: 0; } .res-top { display: flex; align-items: baseline; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; }
+.res-top > * { flex: none; } .res-top .delta { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+.date-box { position: relative; } .date-sizer { display: grid; height: 0; overflow: hidden; visibility: hidden; } .date-sizer > * { grid-area: 1 / 1; }
+
+.res-k { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 1100px) and (min-width: 761px) {
+  /* labels are hidden here, so the monthly change takes the second line instead of being cut */
+  .res-top { flex-direction: column; align-items: flex-start; gap: 3px; } .res-top .delta { font-size: 13px; }
+  .res-cell { padding: 0 6px; gap: 6px; } .res-badge, .res-cell.minor .res-badge { width: 28px; height: 28px; } .res-badge .icon { width: 16px; height: 16px; }
+  .res-v, .res-cell.minor .res-v { font-size: 16px; }
+}

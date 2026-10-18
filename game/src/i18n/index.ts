@@ -45,8 +45,12 @@ function arg(w: World, v: MsgArg): string | number {
   if ('d' in v) return fmtDate(w, v.d);
   if ('m' in v) return say(w, v.m);
   if ('u' in v) return unitName(v.u[0], v.u[1]);
+  if ('p' in v) return provNames[v.p] ?? '';
   return '';
 }
+/** Province names come with the map data, not the simulation; the session registers them once loaded. */
+let provNames: string[] = [];
+export function setProvinceNames(names: string[]) { provNames = names; }
 
 // ---- names ----
 let regionNames: Intl.DisplayNames | null = null;

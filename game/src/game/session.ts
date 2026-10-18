@@ -5,7 +5,7 @@ import { computeLabels, drawCountryLabels, type CountryLabel } from '../render/l
 import { MapRenderer, type MapMode } from '../render/map';
 import { createStore } from './store';
 import { presentDay, type Scenario } from './scenarios';
-import { nameFor, onLang } from '../i18n';
+import { nameFor, onLang, setProvinceNames } from '../i18n';
 
 export interface UIState {
   phase: 'pick' | 'play';
@@ -32,7 +32,7 @@ export class Session {
     this.ctx = ovc.getContext('2d')!;
     this.scenario = presentDay(assets); this.owner = this.scenario.owner;
     this.setScenario(this.scenario);
-    onLang(() => this.relabel());
+    onLang(() => this.relabel()); setProvinceNames(this.assets.provinces.map(p => p.name));
     this.resize(); this.cam.upp = 360 / this.cam.w; this.cam.x = 15; this.cam.y = 28; this.cam.clamp();
     this.bindInput();
     window.addEventListener('resize', () => this.resize());
@@ -72,7 +72,10 @@ export class Session {
       if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), upp: this.cam.upp }; drag = null; }
     });
     st.addEventListener('pointermove', e => {
-      const p = pos(e); this.ui.set({ mouse: p }); this.pickPending = p;
+      const p = pos(e); this.ui.set({ mouse: p });
+      // over the HUD the map is covered: no province under the pointer (otherwise a hidden one stays lit and changes as you move)
+      if (!ptrs.has(e.pointerId) && (e.target as HTMLElement).closest?.('.ui')) { this.pickPending = null; if (this.ui.get().hover !== -1) this.ui.set({ hover: -1 }); return; }
+      this.pickPending = p;
       if (!ptrs.has(e.pointerId)) return; ptrs.set(e.pointerId, p);
       if (pinch && ptrs.size === 2) {
         const [a, b] = [...ptrs.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]), m: [number, number] = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];

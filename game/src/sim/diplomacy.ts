@@ -1,14 +1,14 @@
 // Diplomacy: the same actions and acceptance rules for the player and the AI.
 import { addRel, clamp01, rel, say } from './world';
 import { allied, defendersOf, enemies, sideOf, warsOf } from './war/war';
-import type { Msg, TreatyType, World } from './types';
+import type { MapStatic, Msg, TreatyType, World } from './types';
 import { msg } from './types';
 
-export type DiploAction = 'improve' | 'alliance' | 'nap' | 'guarantee' | 'trade' | 'denounce' | 'break';
+export type DiploAction = 'improve' | 'alliance' | 'nap' | 'guarantee' | 'trade' | 'denounce' | 'break' | 'demand';
 /** Influence cost and cooldown (days) of each action. */
 export const DIPLO: Record<DiploAction, { cost: number; cooldown: number }> = {
   improve: { cost: 20, cooldown: 60 }, alliance: { cost: 40, cooldown: 180 }, nap: { cost: 15, cooldown: 180 }, guarantee: { cost: 25, cooldown: 180 },
-  trade: { cost: 15, cooldown: 180 }, denounce: { cost: 10, cooldown: 90 }, break: { cost: 0, cooldown: 30 },
+  trade: { cost: 15, cooldown: 180 }, denounce: { cost: 10, cooldown: 90 }, break: { cost: 0, cooldown: 30 }, demand: { cost: 10, cooldown: 365 },
 };
 export const hasTreaty = (w: World, a: number, b: number, type: TreatyType) => w.treaties.some(t => t.type === type && ((t.a === a && t.b === b) || (t.a === b && t.b === a)));
 const cdKey = (a: number, b: number, act: DiploAction) => `${a}:${b}:${act}`;
@@ -21,8 +21,33 @@ export function power(w: World, c: number) {
 }
 const ideoDist = (w: World, a: number, b: number) => { const A = w.countries[a].ideology, B = w.countries[b].ideology; return Math.hypot(A[0] - B[0], A[1] - B[1]); };
 
+/** An ultimatum asks for one border province: land we claim first, else their richest province touching ours (never the capital). */
+export function demandTarget(w: World, S: MapStatic, from: number, to: number) {
+  const cap = w.countries[to].capital;
+  const border = w.provinces.filter(p => p.owner === to && p.controller === to && p.id !== cap && S.provinces[p.id].nbr.some(n => w.provinces[n].owner === from));
+  return border.sort((a, b) => (+b.core.includes(from) - +a.core.includes(from)) || b.gdp - a.gdp)[0]?.id ?? -1;
+}
+/** A demand is met when resisting is hopeless: we are three times stronger than them and the allies who would help. */
+export function demandAccepted(w: World, from: number, to: number) {
+  const theirs = power(w, to) + defendersOf(w, to).filter(d => d !== from).reduce((a, d) => a + power(w, d) * 0.7, 0);
+  return power(w, from) >= 3 * Math.max(0.5, theirs);
+}
+/** They hand the province over, or refuse: then we hold a claim on it, which makes a war for it justified. */
+export function resolveDemand(w: World, from: number, to: number, prov: number, accepted: boolean) {
+  const pr = w.provinces[prov]; if (!pr || pr.owner !== to) return;
+  if (accepted) {
+    pr.owner = from; pr.controller = from; pr.unrest = pr.core.includes(from) ? 0 : 1;
+    addRel(w, to, from, -30, false); w.countries[to].stability = clamp01(w.countries[to].stability - 0.04); w.countries[from].stability = clamp01(w.countries[from].stability + 0.02);
+    say(w, msg('log.demandMet', { a: { c: from }, b: { c: to }, p: { p: prov } }), 'diplo', { who: [from, to], prov });
+  } else {
+    if (!pr.core.includes(from)) pr.core.push(from);
+    addRel(w, to, from, -15, false);
+    say(w, msg('log.demandRefused', { a: { c: from }, b: { c: to }, p: { p: prov } }), 'diplo', { who: [from, to], prov });
+  }
+}
+
 /** Would `to` accept `act` from `from`? Returns the answer and the main reason, for the UI. */
-export function diploOdds(w: World, from: number, to: number, act: DiploAction): { ok: boolean; why: Msg } {
+export function diploOdds(w: World, from: number, to: number, act: DiploAction, S?: MapStatic): { ok: boolean; why: Msg } {
   const A = w.countries[from], opinion = rel(w, to, from);
   if (from === to || !w.countries[to].alive) return { ok: false, why: msg('dip.why.invalid') };
   const cd = w.cooldowns[cdKey(from, to, act)];
@@ -32,6 +57,8 @@ export function diploOdds(w: World, from: number, to: number, act: DiploAction):
   switch (act) {
     case 'improve': return { ok: opinion < 90, why: msg(opinion < 90 ? 'dip.why.improve' : 'dip.why.maxed') };
     case 'denounce': return { ok: true, why: msg('dip.why.denounce') };
+    case 'demand': { const prov = S ? demandTarget(w, S, from, to) : -1; if (prov < 0) return { ok: false, why: msg('dip.why.noBorder') };
+      return { ok: true, why: msg(demandAccepted(w, from, to) ? 'dip.why.demandYes' : 'dip.why.demandNo', { p: { p: prov } }) }; }
     case 'break': { const t = w.treaties.find(t => t.type !== 'puppet' && ((t.a === from && t.b === to) || (t.a === to && t.b === from))); return { ok: !!t, why: msg(t ? 'dip.why.break' : 'dip.why.noTreaty') }; }
     case 'trade': if (hasTreaty(w, from, to, 'trade')) return { ok: false, why: msg('dip.why.already') };
       return opinion >= 10 ? { ok: true, why: msg('dip.why.tradeOk') } : { ok: false, why: msg('dip.why.opinion', { n: 10 }) };
@@ -57,7 +84,7 @@ export function diploOdds(w: World, from: number, to: number, act: DiploAction):
 }
 
 /** Carry out an action (assumes the caller checked diploOdds, or is forcing a unilateral one). */
-export function doDiplo(w: World, from: number, to: number, act: DiploAction) {
+export function doDiplo(w: World, from: number, to: number, act: DiploAction, S?: MapStatic) {
   const A = w.countries[from], B = w.countries[to];
   A.polCap = Math.max(0, A.polCap - DIPLO[act].cost);
   w.cooldowns[cdKey(from, to, act)] = w.day + DIPLO[act].cooldown;
@@ -77,6 +104,7 @@ export function doDiplo(w: World, from: number, to: number, act: DiploAction) {
     case 'trade': add('trade', 10); addRel(w, from, to, 5); say(w, msg('log.treaty.trade', { a: { c: from }, b: { c: to } }), 'diplo', { who: [from, to] }); break;
     case 'nap': add('nap', 10); addRel(w, from, to, 8); say(w, msg('log.treaty.nap', { a: { c: from }, b: { c: to } }), 'diplo', { who: [from, to] }); break;
     case 'guarantee': add('guarantee', 0); addRel(w, to, from, 15, false); say(w, msg('log.treaty.guarantee', { a: { c: from }, b: { c: to } }), 'diplo', { who: [from, to] }); break;
+    case 'demand': if (S) resolveDemand(w, from, to, demandTarget(w, S, from, to), demandAccepted(w, from, to)); break;
     case 'alliance': add('alliance', 0); addRel(w, from, to, 15); say(w, msg('log.treaty.alliance', { a: { c: from }, b: { c: to } }), 'diplo', { who: [from, to], big: A.player || B.player ? 'big.alliance' : undefined }); break;
   }
 }

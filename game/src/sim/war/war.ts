@@ -33,7 +33,12 @@ export function warCost(w: World, a: number, b: number) {
   const claim = w.provinces.some(p => p.owner === b && p.core.includes(a));
   const rival = rel(w, a, b) <= -50;
   const justified = claim || rival;
-  return { justified, claim, truce: inTruce(w, a, b), ally: allied(w, a, b), overlord: overlordOf(w, a), stability: justified ? 0.03 : 0.12, influence: justified ? 25 : 80, worldOpinion: justified ? -8 : -25, joiners: defendersOf(w, b).filter(x => x !== a && !allied(w, a, x)) };
+  const A = w.countries[a], truce = inTruce(w, a, b), ally = allied(w, a, b), overlord = overlordOf(w, a);
+  // Nothing forbids a war. What restrains it is the price: an unpopular war shakes the government, broken word costs trust, friends of the victim stop trading.
+  const stability = (justified ? 0.03 : 0.04 + 0.16 * (1 - A.warSupport)) + (truce ? 0.06 : 0) + (ally ? 0.04 : 0);
+  const warSupport = justified ? 0.2 : truce ? -0.1 : -0.03; // a just cause rallies the public; an unprovoked war starts under doubt
+  const sanctions = justified ? [] : w.treaties.filter(t => t.type === 'trade' && (t.a === a || t.b === a)).map(t => t.a === a ? t.b : t.a).filter(x => x !== b && rel(w, x, b) > 25);
+  return { justified, claim, truce, ally, overlord, independence: overlord?.a === b, stability, warSupport, sanctions, worldOpinion: (justified ? -8 : -25) * (truce ? 2 : 1), joiners: defendersOf(w, b).filter(x => x !== a && !allied(w, a, x)) };
 }
 
 export function declareWar(w: World, S: MapStatic, a: number, b: number, opts: { goal?: WarGoal; silent?: boolean; name?: Msg; sides?: { attackers: number[]; defenders: number[] }; alone?: boolean } = {}): War {
@@ -46,7 +51,7 @@ export function declareWar(w: World, S: MapStatic, a: number, b: number, opts: {
   };
   w.wars.push(war);
   // attacking a partner tears up every treaty with it, and leaves the bloc they share
-  if (!opts.silent && cost.ally) {
+  if (!opts.silent && (cost.ally || cost.independence)) {
     w.treaties = w.treaties.filter(t => !((t.a === a && t.b === b) || (t.a === b && t.b === a)));
     if (A.bloc && A.bloc === B.bloc) { const bl = w.blocs[A.bloc]; bl.members = bl.members.filter(m => m !== a); A.bloc = ''; }
   }
@@ -57,10 +62,11 @@ export function declareWar(w: World, S: MapStatic, a: number, b: number, opts: {
   // the attacker's allies may join an offensive war if they share the grudge
   if (!opts.alone) for (const d of defendersOf(w, a)) if (!war.defenders.includes(d) && rel(w, d, b) < -40 && nextRand(w) < 0.6) war.attackers.push(d);
   if (!opts.silent) {
-    A.stability = clamp01(A.stability - cost.stability); A.polCap = Math.max(0, A.polCap - cost.influence);
+    A.stability = clamp01(A.stability - cost.stability);
+    if (cost.sanctions.length) { w.treaties = w.treaties.filter(t => !(t.type === 'trade' && ((t.a === a && cost.sanctions.includes(t.b)) || (t.b === a && cost.sanctions.includes(t.a))))); say(w, msg('log.sanctions', { a: { c: a }, cs: { cs: cost.sanctions.slice(0, 5) }, n: cost.sanctions.length }), 'diplo', { who: [a, ...cost.sanctions] }); }
     for (const c of w.countries) if (c.alive && c.id !== a && !war.attackers.includes(c.id)) addRel(w, c.id, a, cost.worldOpinion * (war.defenders.includes(c.id) ? 2 : 1), false);
     for (const d of war.defenders) w.countries[d].warSupport = clamp01(w.countries[d].warSupport + 0.35);
-    A.warSupport = clamp01(A.warSupport + (cost.justified ? 0.2 : 0.05));
+    A.warSupport = clamp01(A.warSupport + cost.warSupport);
     say(w, msg('log.warDeclared', { a: { c: a }, b: { c: b } }), 'war', { who: [a, b, ...war.defenders], big: 'big.war' });
     if (war.defenders.length > 1) say(w, msg('log.joinDefence', { cs: { cs: war.defenders.slice(1, 6) }, n: war.defenders.length - 1 }), 'war', { who: war.defenders });
   }

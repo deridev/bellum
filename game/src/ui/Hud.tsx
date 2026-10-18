@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { SPEEDS, type Game, type Panel } from '../game/play';
 import { useStore, useTick } from '../game/store';
 import { atWar, cashFlow, popOf, UNIT_SPEC, queueUnit, cancelUnit, demobilize, reservesOf } from '../sim/economy';
@@ -98,7 +98,7 @@ function CommandStrip({ g, onDecisions }: { g: Game; onDecisions: () => void }) 
       {waiting > 0 && <button class={`alert wait ${peace ? 'urgent' : ''}`} data-tip={t('hud.decisions', { n: waiting })} onClick={onDecisions}><Icon name={peace ? 'peace' : 'ballot'} size={20} /><span class="al-txt">{peace ? <><b>{t('agenda.peaceShort')}</b><small>{t('agenda.daysLeft', { n: Math.max(0, peace.expires - g.w.day) })}</small></> : <><b class="num">{waiting}</b><small>{t('hud.decisionsN', { n: waiting })}</small></>}</span>{peace && <i class="badge">{waiting}</i>}</button>}
     </div>
     <div class="time">
-      <div class="date-box"><div class="date num">{fmtDate(g.w)}</div><div class={`speed-l ${st.paused ? 'paused' : ''}`}>{st.paused ? t('clock.paused') : t('clock.speedN', { n: st.speed + 1 })}</div></div>
+      <div class="date-box"><div class="date num">{fmtDate(g.w)}</div><DateSizer g={g} /><div class={`speed-l ${st.paused ? 'paused' : ''}`}>{st.paused ? t('clock.paused') : t('clock.speedN', { n: st.speed + 1 })}</div></div>
       <button class={`pp ${st.paused ? 'is-paused' : ''}`} aria-label={st.paused ? t('clock.play') : t('clock.pause')} data-tip={`${st.paused ? t('clock.play') : t('clock.pause')}  ·  ␣`} onClick={() => g.togglePause()}><Icon name={st.paused ? 'play' : 'pause'} size={16} /></button>
       <div class="pips" role="group" aria-label={t('clock.speed')}>{SPEEDS.map((sp, i) => <button key={i} class="pip" aria-pressed={!st.paused && st.speed >= i} aria-label={t('clock.speedN', { n: i + 1 })} data-tip={t('clock.perSec', { n: sp })} onClick={() => g.setSpeed(i)}><i style={{ height: `${6 + i * 3}px` }} /></button>)}</div>
       {st.turnMode === 'monthly' && <span class="turn-tag" data-tip={t('set.turnsHint')}>M</span>}
@@ -119,8 +119,19 @@ function WarBanner({ g, war, more }: { g: Game; war: War; more: number }) {
       <b class="wb-score num">{score > 0 ? '+' : ''}{Math.round(score)}</b></span>
   </button>;
 }
+/** Invisible copies of the widest dates of the year: the date box takes their width, so it never changes size from day to day. */
+function DateSizer({ g }: { g: Game }) {
+  const y = new Date(g.w.startDate + g.w.day * 864e5).getUTCFullYear();
+  const days = Array.from({ length: 48 }, (_, i) => Math.round((Date.UTC(y, i >> 2, [10, 20, 28, 30][i & 3]) - g.w.startDate) / 864e5)); // digits differ in width
+  const ref = useRef<HTMLSpanElement>(null);
+  // round the width up to a 12px step: a new year's digits differ by a fraction of a pixel and must not move the strip
+  useLayoutEffect(() => { const el = ref.current, box = el?.parentElement; if (el && box) box.style.minWidth = `${Math.ceil((el.scrollWidth + 2) / 12) * 12}px`; });
+  return <span class="date-sizer" ref={ref} aria-hidden="true">{days.map(d => <span key={d} class="date num">{fmtDate(g.w, d)}</span>)}</span>;
+}
+/** Each cell has a fixed share of the strip, so a number that grows never pushes its neighbours. */
+const RES_SHARE: Record<string, number> = { treasury: 1.6, manpower: 1.05, stability: 1, warSupport: 1.2, influence: 0.9 };
 function Res({ icon, k, v, tone, gauge, sub, danger, minor, onClick, danger_ }: { icon: string; k: string; v: string; tone: string; gauge?: number; sub?: any; danger?: boolean; minor?: boolean; onClick: () => void; danger_?: number }) {
-  return <button class={`res-cell t-${tone} ${danger ? 'alarm' : ''} ${minor ? 'minor' : ''}`} aria-label={`${t('ledger.' + k)} ${v}`} data-tip={`${t('ledger.' + k)} — ${t('ledger.' + k + '.hint')}`} onClick={onClick}>
+  return <button style={{ '--share': RES_SHARE[k] ?? 1 }} class={`res-cell t-${tone} ${danger ? 'alarm' : ''} ${minor ? 'minor' : ''}`} aria-label={`${t('ledger.' + k)} ${v}`} data-tip={`${t('ledger.' + k)} — ${t('ledger.' + k + '.hint')}`} onClick={onClick}>
     <span class="res-badge"><Icon name={icon} size={20} /></span>
     <span class="res-txt"><span class="res-top"><b class="res-v num">{v}</b>{sub}</span>{gauge !== undefined && <span class="res-meter"><i style={{ width: cssPct(Math.max(0, Math.min(1, gauge))) }} />{danger_ !== undefined && <b style={{ left: cssPct(danger_) }} />}</span>}<span class="res-k">{t('ledger.' + k)}</span></span></button>;
 }
@@ -379,7 +390,7 @@ function ProvincePanel({ g, id }: { g: Game; id: number }) {
 }
 
 const Fact = ({ icon, label, v }: { icon: string; label: string; v: string }) => <span class="fact"><Icon name={icon} size={18} /><span><small>{label}</small><b>{v}</b></span></span>;
-const ACTIONS: DiploAction[] = ['improve', 'trade', 'nap', 'alliance', 'guarantee', 'denounce', 'break'];
+const ACTIONS: DiploAction[] = ['improve', 'trade', 'nap', 'alliance', 'guarantee', 'denounce', 'demand', 'break'];
 function CountryPanel({ g, id }: { g: Game; id: number }) {
   const w = g.w, c = w.countries[id], me = g.player, r = rel(w, id, me);
   const [, force] = useState(0); const [focus, setFocus] = useState<DiploAction | null>(null);
@@ -387,7 +398,7 @@ function CountryPanel({ g, id }: { g: Game; id: number }) {
   const treaties = w.treaties.filter(x => (x.a === id && x.b === me) || (x.b === id && x.a === me));
   const war = enemies(w, me, id);
   const shown = ACTIONS.filter(a => a !== 'break' || treaties.some(x => x.type !== 'puppet'));
-  const fo = focus ? diploOdds(w, me, id, focus) : null;
+  const fo = focus ? diploOdds(w, me, id, focus, g.S) : null;
   return <Sheet onClose={() => g.openPanel(null)} icon="diplomacy" eyebrow={t('panel.country')}
     title={<div class="title-row"><Flag s={g.s} code={c.code} h={26} /><div><div class="h2">{countryName(w, id)}</div><div class="sub">{t('gov.' + c.gov)} · {c.leader.name}</div></div></div>}>
     <div class="opinion"><span class="eyebrow">{t('dip.opinion')}</span><b class={`num ${r < -25 ? 'bad' : r > 25 ? 'good' : ''}`}>{r > 0 ? '+' : ''}{r}</b><SignedBar v={r} />
@@ -399,16 +410,16 @@ function CountryPanel({ g, id }: { g: Game; id: number }) {
       <Fact icon="stability" label={t('ledger.stability')} v={pct(c.stability)} />
     </div>
     {c.alive && id !== me && !war && <Block title={t('panel.diplomacy')} icon="diplomacy">
-      <div class="action-grid">{shown.map(a => { const o = diploOdds(w, me, id, a);
+      <div class="action-grid">{shown.map(a => { const o = diploOdds(w, me, id, a, g.S);
         const cost = DIPLO[a].cost, poor = cost > g.me.polCap;
-        return <button key={a} class={`act ${a === 'denounce' || a === 'break' ? 'hostile' : ''} ${o.ok ? 'ok' : ''} ${focus === a ? 'focus' : ''}`} aria-disabled={!o.ok}
+        return <button key={a} class={`act ${a === 'denounce' || a === 'break' || a === 'demand' ? 'hostile' : ''} ${o.ok ? 'ok' : ''} ${focus === a ? 'focus' : ''}`} aria-disabled={!o.ok}
           onMouseEnter={() => setFocus(a)} onFocus={() => setFocus(a)} onClick={() => { if (o.ok) { g.diplo(id, a); force(x => x + 1); } else setFocus(a); }}>
           <Icon name={a} size={20} /><span class="act-l">{t('dip.act.' + a)}{cost ? <small class={`act-c num ${poor ? 'poor' : ''}`}><Icon name="influence" size={12} />{poor ? t('dip.needMore', { n: Math.ceil(cost - g.me.polCap) }) : t('dip.costOf', { n: cost, have: fmtInt(g.me.polCap) })}</small> : null}</span>{!o.ok && <i class="act-s bad"><Icon name="cross" size={12} /></i>}</button>; })}</div>
       <div class={`act-why ${fo ? (fo.ok ? 'ok' : 'no') : ''}`}>{focus && fo ? <><b>{t('dip.act.' + focus)}</b> <span>{say(w, fo.why)}</span></> : <span class="muted">{t('dip.hover')}</span>}</div>
     </Block>}
     {c.alive && id !== me && (war
       ? <button class="primary" onClick={() => { const x = warsOf(w, me).find(x => sideOf(x, id)); if (x) g.openPanel({ kind: 'war', id: x.id }); }}><Icon name="war" size={16} />{t('war.open')}</button>
-      : <button class="danger outline wide" onClick={() => g.st.set({ declare: id, paused: true })}><Icon name="war" size={16} />{t('war.declare')}{(() => { const n = warCost(w, me, id).influence, short = n > g.me.polCap; return <small class={`dw-cost ${short ? 'poor' : ''}`}><Icon name="influence" size={12} />{short ? t('dip.needMore', { n: Math.ceil(n - g.me.polCap) }) : n}</small>; })()}</button>)}
+      : <button class="danger outline wide" onClick={() => g.st.set({ declare: id, paused: true })}><Icon name="war" size={16} />{t('war.declare')}<small class="dw-cost" data-tip={t('ledger.stability')}><Icon name="stability" size={12} />−{pct(warCost(w, me, id).stability)}</small></button>)}
   </Sheet>;
 }
 

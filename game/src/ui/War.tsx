@@ -69,22 +69,26 @@ export function DeclareDialog({ g, target }: { g: Game; target: number }) {
   const w = g.w, me = g.me, T = w.countries[target], cost = warCost(w, me.id, target), name = countryName(w, target);
   const close = () => g.st.set({ declare: -1 });
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
-  const short = me.polCap < cost.influence;
+  const ws = Math.max(0, Math.min(1, me.warSupport + cost.warSupport));
+  const Who = ({ cs }: { cs: number[] }) => <div class="flags wrap">{cs.map(c => <span class="joiner" key={c}><Flag s={g.s} code={w.countries[c].code} h={14} /> {countryName(w, c)}</span>)}</div>;
+  // nothing forbids a war: the dialog shows its price, and the choice stays yours
   return <div class="ui modal-wrap" onClick={e => { if (e.target === e.currentTarget) close(); }}>
     <section class="plate modal" role="dialog" aria-label={t('declare.aria', { c: name })}>
       <header class="sheet-head"><div class="title-row"><Flag s={g.s} code={T.code} h={22} /><div><div class="eyebrow">{t('war.declare')}</div><div class="h2">{name}</div></div></div><button class="x" aria-label={t('ui.close')} onClick={close}><Icon name="x" /></button></header>
       <div class="sheet-body">
-        <p>{t(cost.claim ? 'declare.claim' : cost.justified ? 'declare.rival' : 'declare.unprovoked', { c: name })}</p>
+        <p>{t(cost.independence ? 'declare.independence' : cost.claim ? 'declare.claim' : cost.justified ? 'declare.rival' : 'declare.unprovoked', { c: name })}</p>
         <dl class="stat">
           <dt>{t('ledger.stability')}</dt><dd class="bad">−{pct(cost.stability)}</dd>
-          <dt>{t('ledger.influence')}</dt><dd class={short ? 'bad' : ''}>{t('declare.influence', { n: cost.influence, have: fmtInt(me.polCap) })}</dd>
+          <dt>{t('ledger.warSupport')}</dt><dd class={cost.warSupport < 0 ? 'bad' : 'good'}>{pct(me.warSupport)} → {pct(ws)}</dd>
           <dt>{t('declare.opinion')}</dt><dd class="bad">{cost.worldOpinion}</dd>
+          {cost.sanctions.length > 0 && <><dt>{t('declare.sanctions')}</dt><dd class="bad">{t('declare.sanctionsN', { n: cost.sanctions.length })}</dd></>}
         </dl>
-        {cost.overlord && <p class="bad">{t('declare.puppet', { c: countryName(w, cost.overlord.a), d: fmtDate(w, cost.overlord.until) })}</p>}
-        {cost.truce && <p class="bad">{t('declare.truce', { d: fmtDate(w, w.cooldowns[truceKey(me.id, target)]) })}</p>}
+        {ws < 0.25 && <p class="bad">{t('declare.unpopular')}</p>}
+        {cost.truce && <p class="bad">{t('declare.truceBreak', { d: fmtDate(w, w.cooldowns[truceKey(me.id, target)]) })}</p>}
         {cost.ally && <p class="bad">{t('declare.ally', { c: name })}</p>}
-        {cost.joiners.length > 0 ? <><h3 class="h3">{t('declare.defenders')}</h3><div class="flags wrap">{cost.joiners.map(c => <span class="joiner" key={c}><Flag s={g.s} code={w.countries[c].code} h={14} /> {countryName(w, c)}</span>)}</div></> : <small class="muted">{t('declare.alone')}</small>}
-        <button class="primary danger" disabled={short || cost.truce || !!cost.overlord} onClick={() => { g.declareWar(target); close(); }}>{cost.overlord ? t('declare.puppetBtn') : cost.truce ? t('declare.truceBtn') : short ? t('declare.short') : t('war.declare')}</button>
+        {cost.sanctions.length > 0 && <><h3 class="h3">{t('declare.sanctionsBy')}</h3><Who cs={cost.sanctions} /></>}
+        {cost.joiners.length > 0 ? <><h3 class="h3">{t('declare.defenders')}</h3><Who cs={cost.joiners} /></> : <small class="muted">{t('declare.alone')}</small>}
+        <button class="primary danger" onClick={() => { g.declareWar(target); close(); }}>{t('war.declare')}</button>
         <button onClick={close}>{t('ui.cancel')}</button>
       </div>
     </section>
