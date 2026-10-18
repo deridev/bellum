@@ -204,7 +204,7 @@ function EconomyPanel({ g }: { g: Game }) {
       <Figure icon="treasury" label={t('ledger.treasury')} value={fmtMoney(c.treasury)} spark={g.series('treasury')} sub={<span class="tr-sub" data-tip={t('eco.inOut', { i: fmtMoney(c.income), o: fmtMoney(c.spending) })}><b class={bal < 0 ? 'bad' : 'good'}>{(bal >= 0 ? '+' : '−') + fmtMoney(Math.abs(bal))}{t('hud.perMo')}</b><small class="muted">{t('eco.net')}</small></span>} />
       <Figure icon="trendDown" label={t('eco.debt')} value={pct(debt)} spark={g.series('debt')} tone={debt > 1 ? 'bad' : debt > 0.8 ? 'warn' : ''} sub={<span class="muted">{fmtMoney(c.debt)}</span>} />
     </div>
-    {(debt > 0.8 || (bal < 0 && c.treasury <= 0)) && <div class={`debt-row ${debt > 0.8 ? 'danger' : 'warn'}`} data-tip={t('eco.borrowHint')}><Icon name="coup" size={20} /><small>{t(debt > 1.2 ? 'eco.debtHigh' : bal < 0 && c.treasury <= 0 ? 'eco.debtBorrowing' : 'eco.debtMid', { v: fmtMoney(-bal) })}</small>
+    {(debt > 0.8 || (bal < 0 && c.treasury <= 0)) && <div class={`debt-row ${debt > 0.8 ? 'danger' : 'warn'}`} data-tip={t('eco.borrowHint')}><Icon name="coup" size={20} /><small>{debt > 1.2 && bal < 0 && c.treasury <= 0 ? `${t('eco.debtHigh')} · ${t('eco.borrowingNow', { v: fmtMoney(-bal) })}` : t(debt > 1.2 ? 'eco.debtHigh' : bal < 0 && c.treasury <= 0 ? 'eco.debtBorrowing' : 'eco.debtMid', { v: fmtMoney(-bal) })}</small>
       {c.taxRate < 0.55 && <button class="fix" onClick={() => { c.taxRate = Math.min(0.55, +(c.taxRate + 0.02).toFixed(2)); upd(); g.sound('click'); }}>{t('eco.fixTax')}</button>}</div>}
     <Block title={t('eco.budget')} icon="economy">
       <StackBar parts={BUDGET.map(b => ({ v: c.budget[b.k], color: b.color, label: t('eco.' + b.k) }))} />
@@ -244,7 +244,7 @@ function PoliticsPanel({ g }: { g: Game }) {
         <span class="g-name"><b>{t('group.' + gr.id)} <small>· {t('pol.power', { p: pct(gr.power) })}</small></b><small>{risk ? <span class="bad">{t('pol.angry')}</span> : t('group.want.' + gr.id)}</small></span>
         <Bar v={gr.support} tone={gr.support < 0.35 ? 'bad' : gr.support > 0.6 ? 'good' : 'amber'} mark={mood[gr.id]} />
         <b class="num g-v">{pct(gr.support)}</b>
-        <span class={`g-dir ${dir > 0.02 ? 'good' : dir < -0.02 ? 'bad' : ''}`}><Icon name={dir > 0.02 ? 'up' : dir < -0.02 ? 'down' : 'flat'} size={16} /></span></div>; })}</div>
+        <span class={`g-dir ${dir > 0.02 ? 'good' : dir < -0.02 ? 'bad' : ''}`} data-tip={t(dir > 0.02 ? 'pol.rising' : dir < -0.02 ? 'pol.falling' : 'pol.steady')}>{Math.abs(dir) > 0.02 ? <Icon name={dir > 0 ? 'up' : 'down'} size={16} /> : <i class="steady" />}</span></div>; })}</div>
     </Block>
   </NationSheet>;
 }

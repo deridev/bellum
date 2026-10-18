@@ -201,7 +201,7 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
   const tk = tk0.filter((v, i) => i === 0 || fmtY(v) !== fmtY(tk0[i - 1])); // no repeated labels after rounding
   const X = (i: number) => L + i / (n - 1) * w, Y = (v: number) => T + h - (v - y0) / (y1 - y0 || 1) * h;
   // direct labels, nudged apart so they never collide
-  const ends0 = series.map(s => ({ s, y: Y(s.values[n - 1]), label: s.label })).sort((a, b) => a.y - b.y), ends: typeof ends0 = [];
+  const ends0 = series.map(s => ({ s, y: Y(s.values[n - 1]), label: s.values.every(v => v === s.values[0]) ? `${s.label} · ${t('led.noChange')}` : s.label })).sort((a, b) => a.y - b.y), ends: typeof ends0 = [];
   for (const e of ends0) { const last = ends[ends.length - 1]; if (last && e.y - last.y < 6) last.label += ', ' + e.label; else ends.push({ ...e }); }
   for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 20) ends[i].y = ends[i - 1].y + 20;
   const path = (v: number[]) => smooth(v.map((y, i) => [X(i), Y(y)]));
@@ -225,7 +225,7 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
       const half = (a: number, b: number) => Math.min(...series.flatMap(s => s.values.slice(a, b).map(Y)));
       const top = pins.length && !pins[0].minor ? T + 12 : undefined;
       return half(0, Math.ceil(n / 2)) > half(Math.floor(n / 2), n) ? { left: L + 6, top } : { right: R + 6, top }; })()}><b>{fmtX(xs[hi])}</b>{pins.filter(m => m.i === hi).map((m, k) => <em key={k} class="pin-n">◆{m.n} {(s => s.length > 34 ? s.slice(0, 33) + '…' : s)(m.label.split(' · ')[0])}</em>)}
-      {series.slice().sort((a, b) => b.values[hi] - a.values[hi]).map(s => { const d0 = hi > 0 ? s.values[hi] - s.values[hi - 1] : 0, d = Math.abs(d0) < Math.abs(s.values[hi]) * 0.01 ? 0 : d0; return <span key={s.id}><i style={{ background: s.color }} />{labels ? s.label : ''}<b class="num">{fmtY(s.values[hi])}</b>{hi > 0 && <small class={`num ${(d > 0) !== !!invert ? 'up' : 'dn'} ${d === 0 ? 'flat' : ''}`}>{d > 0 ? '▴' : d < 0 ? '▾' : '·'}{d ? fmtY(Math.abs(d)) : ''}</small>}</span>; })}</div>}
+      {series.slice().sort((a, b) => b.values[hi] - a.values[hi]).map(s => { const d0 = hi > 0 ? s.values[hi] - s.values[hi - 1] : 0, d = Math.abs(d0) < Math.abs(s.values[hi]) * 0.01 ? 0 : d0; return <span key={s.id}><i style={{ background: s.color }} />{labels ? s.label : ''}<b class="num">{fmtY(s.values[hi])}</b>{hi > 0 && d !== 0 && <small class={`num ${(d > 0) !== !!invert ? 'up' : 'dn'}`}>{d > 0 ? '▴' : '▾'}{fmtY(Math.abs(d))}</small>}</span>; })}</div>}
   </div>;
 }
 /** An icon button whose label shows as a tooltip (and is its accessible name). */

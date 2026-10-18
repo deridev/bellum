@@ -66,7 +66,8 @@ function Overview({ g }: { g: Game }) {
   }
   // and any month the economy fell by more than a tenth
   const gdp = g.series('gdp');
-  gdp.forEach((v, i) => { if (i && gdp[i - 1] > 0 && v / gdp[i - 1] - 1 < -0.1) groups.push({ x: g.history[i].day, w: 4, label: t('led.gdpFell', { p: pct(1 - v / gdp[i - 1]) }) }); });
+  gdp.map((v, i) => ({ i, f: i && gdp[i - 1] > 0 ? 1 - v / gdp[i - 1] : 0 })).filter(x => x.f > 0.1).sort((a, b) => b.f - a.f).slice(0, 2)
+    .forEach(({ i, f }) => groups.push({ x: g.history[i].day, w: 4, label: t('led.gdpFell', { p: pct(f) }) }));
   groups.sort((a, b) => a.x - b.x);
   // at most four pins, at least a tenth of the timeline apart
   const span = Math.max(1, (xs[xs.length - 1] ?? 1) - (xs[0] ?? 0)), spaced: typeof groups = [];

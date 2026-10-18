@@ -180,4 +180,5 @@ export const en: Record<string, Entry> = {
   'dip.needMore': 'Need {n} more',
   'agenda.peaceShort': 'Peace offer', 'agenda.moreIn': '+{n} more in Decisions ↑', 'led.andMore': '+{n} more', 'mil.locate': 'Show on the map',
   'mil.show': 'Show',
+  'led.noChange': 'no change', 'pol.rising': 'Support rising', 'pol.falling': 'Support falling', 'pol.steady': 'Steady', 'eco.borrowingNow': '{v}/mo borrowed',
 };

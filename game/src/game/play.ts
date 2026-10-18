@@ -185,10 +185,17 @@ export class Game {
     const stacks = new Map<number, { c: number; n: number }>();
     for (const d of this.w.divisions) { if (d.theater >= 0) continue; const k = d.prov * 1000 + d.country; const s = stacks.get(k); if (s) s.n++; else stacks.set(k, { c: d.country, n: 1 }); }
     const A = this.s.assets, fw = 18, fh = 12;
+    // nearby garrisons of one nation merge into a single chip, so they never pile onto the map's labels
+    const chips: { c: number; n: number; x: number; y: number; w: number }[] = [];
     for (const [k, s] of stacks) {
       if (s.c !== this.player && zoom < 8) continue; // other nations' garrisons only up close
       const prov = Math.floor(k / 1000), [lon, lat] = A.provinces[prov].label, [x, y] = cam.toScreen(...project(lon, lat - 0.25));
       if (x < -30 || y < -30 || x > cam.w + 30 || y > cam.h + 30) continue;
+      const near = chips.find(q => q.c === s.c && Math.hypot(q.x / q.w - x, q.y / q.w - y) < 70);
+      if (near) { near.n += s.n; near.x += x * s.n; near.y += y * s.n; near.w += s.n; } else chips.push({ c: s.c, n: s.n, x: x * s.n, y: y * s.n, w: s.n });
+    }
+    for (const q of chips) {
+      const s = q, x = q.x / q.w, y = q.y / q.w;
       const code = this.w.countries[s.c].code, fi = A.flagIndex[this.s.flagOf[code] || code];
       ctx.fillStyle = 'rgba(8,12,18,0.82)'; ctx.fillRect(x - fw / 2 - 2, y - fh / 2 - 2, fw + 22, fh + 4);
       if (fi) ctx.drawImage(A.flags, fi[0], fi[1], A.flagW, A.flagH, x - fw / 2, y - fh / 2, fw, fh);
