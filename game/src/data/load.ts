@@ -12,10 +12,10 @@ async function bitmap(f: string, progress: (f: string) => void) {
 }
 
 export async function loadAssets(progress: (done: number, total: number, what: string) => void): Promise<MapAssets> {
-  const total = 9; let done = 0; const tick = (what: string) => progress(++done, total, what);
-  const [topology, provinces, countries, cities, baseW, baseE, dem, flags, flagMeta] = await Promise.all([
+  const total = 10; let done = 0; const tick = (what: string) => progress(++done, total, what);
+  const [topology, provinces, countries, cities, baseW, baseE, dem, flags, flagMeta, provBmp] = await Promise.all([
     json<any>('provinces.topo.json', tick), json<ProvinceData[]>('provinces.json', tick), json<CountryData[]>('countries.json', tick), json<CityData[]>('cities.json', tick),
-    bitmap('base-w.jpg', tick), bitmap('base-e.jpg', tick), bitmap('dem.png', tick), bitmap('flags.png', tick), json<{ w: number; h: number; index: Record<string, [number, number]> }>('flags.json', tick),
+    bitmap('base-w.jpg', tick), bitmap('base-e.jpg', tick), bitmap('dem.png', tick), bitmap('flags.png', tick), json<{ w: number; h: number; index: Record<string, [number, number]> }>('flags.json', tick), bitmap('provraster.png', tick),
   ]);
   // triangulate every province (projected), keep projected rings
   const geoms = topology.objects.provinces.geometries;
@@ -45,6 +45,9 @@ export async function loadAssets(progress: (done: number, total: number, what: s
   const c = new OffscreenCanvas(dem.width, dem.height), cx = c.getContext('2d', { willReadFrequently: true })!;
   cx.drawImage(dem, 0, 0); const px = cx.getImageData(0, 0, dem.width, dem.height).data;
   const demData = new Uint8Array(dem.width * dem.height); for (let i = 0; i < demData.length; i++) demData[i] = px[i * 4];
-  return { provinces, countries, cities, baseW, baseE, dem, demData, bbox, rings, flags, flagIndex: flagMeta.index, flagW: flagMeta.w, flagH: flagMeta.h,
+  const pc = new OffscreenCanvas(provBmp.width, provBmp.height), pcx = pc.getContext('2d', { willReadFrequently: true })!; pcx.drawImage(provBmp, 0, 0);
+  const pp = pcx.getImageData(0, 0, provBmp.width, provBmp.height).data; const provRaster = new Uint16Array(provBmp.width * provBmp.height);
+  for (let i = 0; i < provRaster.length; i++) provRaster[i] = pp[i * 4] + pp[i * 4 + 1] * 256;
+  return { provinces, countries, cities, baseW, baseE, dem, demData, bbox, rings, flags, flagIndex: flagMeta.index, flagW: flagMeta.w, flagH: flagMeta.h, provRaster,
     mesh: { pos: new Float32Array(posA), prov: new Float32Array(provA), index: new Uint32Array(idxA) } };
 }

@@ -165,6 +165,12 @@ pFeats.forEach((f, pi) => {
   }
 });
 
+// province raster for the war simulation (cell -> province lookup): id+1 packed in R (lo) and G (hi)
+{
+  const pr = Buffer.alloc(RW * RH * 3);
+  for (let k = 0; k < RW * RH; k++) { const v = idr[k] + 1; pr[k * 3] = v & 255; pr[k * 3 + 1] = v >> 8; }
+  await sharp(pr, { raw: { width: RW, height: RH, channels: 3 } }).png({ compressionLevel: 9 }).toFile(path.join(OUT, 'provraster.png'));
+}
 // DEM from terrarium tiles (z4, Web Mercator) -> equirectangular
 log('building elevation');
 const Z = 4, TS = 256, MW = TS << Z;

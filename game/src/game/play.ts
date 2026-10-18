@@ -1,6 +1,8 @@
 import { stepDay } from '../sim/step';
 import type { MapStatic, World } from '../sim/types';
 import { createWorld } from '../sim/world';
+import { initSim } from '../sim';
+import { setupScenario } from '../sim/scenario';
 import { project } from '../geo';
 import type { Session } from './session';
 import { createStore } from './store';
@@ -16,8 +18,10 @@ export class Game {
   acc = 0; private lastUi = 0; private mapSeen = '';
   constructor(public s: Session, player: number, w?: World) {
     const A = s.assets;
-    this.S = { provinces: A.provinces, countries: A.countries, cities: A.cities, dem: A.demData, demW: A.dem.width, demH: A.dem.height };
-    this.w = w ?? createWorld(this.S, { player, seed: 2026 });
+    this.S = { provinces: A.provinces, countries: A.countries, cities: A.cities, dem: A.demData, demW: A.dem.width, demH: A.dem.height, provRaster: A.provRaster };
+    initSim();
+    if (!w) { w = createWorld(this.S, { player, seed: 2026 }); setupScenario(w, this.S); }
+    this.w = w;
     this.player = player; this.w.countries[player].player = true;
     s.onFrame = (dt) => this.frame(dt);
     s.onClick = (p) => this.click(p);

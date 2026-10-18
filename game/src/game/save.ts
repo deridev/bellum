@@ -9,12 +9,13 @@ export function serialize(w: World): string {
     if (v instanceof Float32Array) return { __t: 'f32', d: b64(v) };
     if (v instanceof Uint8Array) return { __t: 'u8', d: b64(v) };
     if (v instanceof Int16Array) return { __t: 'i16', d: b64(v) };
+    if (v instanceof Int32Array) return { __t: 'i32', d: b64(v) };
     return v;
   });
 }
 export function deserialize(s: string): World {
   return JSON.parse(s, (k, v) => {
-    if (v && v.__t) { const u = unb64(v.d); const buf = u.buffer; return v.__t === 'i8' ? new Int8Array(buf) : v.__t === 'f32' ? new Float32Array(buf) : v.__t === 'i16' ? new Int16Array(buf) : u; }
+    if (v && v.__t) { const u = unb64(v.d); const buf = u.buffer; return v.__t === 'i8' ? new Int8Array(buf) : v.__t === 'f32' ? new Float32Array(buf) : v.__t === 'i16' ? new Int16Array(buf) : v.__t === 'i32' ? new Int32Array(buf) : u; }
     return v;
   });
 }

@@ -3,7 +3,7 @@ import type { Gov, Personality } from './types';
 
 /** Active military personnel (thousands). Countries not listed get a size from population and wealth. */
 export const ACTIVE_K: Record<string, number> = {
-  CHN: 2035, IND: 1455, USA: 1330, PRK: 1280, RUS: 1320, UKR: 800, PAK: 654, IRN: 610, KOR: 500, VNM: 480,
+  CHN: 2035, IND: 1455, USA: 1330, PRK: 1280, RUS: 1320, UKR: 950, PAK: 654, IRN: 610, KOR: 500, VNM: 480,
   EGY: 440, MMR: 400, IDN: 400, BRA: 366, THA: 360, TUR: 355, COL: 293, SAU: 257, JPN: 247, MEX: 236,
   FRA: 203, ERI: 200, POL: 202, MAR: 196, IRQ: 193, ISR: 170, TWN: 169, ITA: 165, SYR: 150, DEU: 182,
   GBR: 150, ETH: 162, DZA: 139, NGA: 143, AFG: 150, BGD: 163, PHL: 145, VEN: 123, SDN: 104, ESP: 133,
@@ -52,7 +52,7 @@ export const RIVALS: [string, string, number][] = [
   ['PAK', 'AFG', -40], ['CHN', 'PHL', -35], ['CHN', 'VNM', -25], ['RUS', 'POL', -60], ['RUS', 'EST', -50], ['RUS', 'LVA', -50], ['RUS', 'LTU', -50], ['RUS', 'GEO', -60], ['RUS', 'FIN', -40],
   ['TUR', 'SYR', -45], ['EGY', 'ETH', -35], ['COL', 'VEN', -30], ['KHM', 'THA', -25], ['IRQ', 'IRN', 10], ['BLR', 'POL', -45],
 ];
-export const FRIENDS: [string, string, number][] = [['RUS', 'BLR', 85], ['CHN', 'PAK', 70], ['USA', 'ISR', 75], ['USA', 'GBR', 80], ['RUS', 'SYR', 50], ['IRN', 'SYR', 65], ['CHN', 'RUS', 45], ['IND', 'RUS', 35], ['TUR', 'AZE', 75], ['RUS', 'ARM', 20], ['SAU', 'EGY', 50]];
+export const FRIENDS: [string, string, number][] = [['USA', 'UKR', 60], ['GBR', 'UKR', 75], ['POL', 'UKR', 75], ['DEU', 'UKR', 60], ['FRA', 'UKR', 60], ['CAN', 'UKR', 65], ['NLD', 'UKR', 65], ['SWE', 'UKR', 65], ['DNK', 'UKR', 65], ['FIN', 'UKR', 65], ['LTU', 'UKR', 75], ['EST', 'UKR', 75], ['LVA', 'UKR', 75], ['NOR', 'UKR', 60], ['CZE', 'UKR', 60], ['IRN', 'RUS', 55], ['PRK', 'RUS', 60], ['BLR', 'RUS', 90], ['RUS', 'BLR', 85], ['CHN', 'PAK', 70], ['USA', 'ISR', 75], ['USA', 'GBR', 80], ['RUS', 'SYR', 50], ['IRN', 'SYR', 65], ['CHN', 'RUS', 45], ['IND', 'RUS', 35], ['TUR', 'AZE', 75], ['RUS', 'ARM', 20], ['SAU', 'EGY', 50]];
 
 /** Ideology [economy, authority] by government type, with nudges. */
 export const IDEOLOGY_NUDGE: Record<string, [number, number]> = { USA: [0.6, 0.1], CHN: [-0.1, 0.85], PRK: [-0.9, 1], CUB: [-0.8, 0.7], VEN: [-0.6, 0.6], SWE: [-0.1, -0.5], RUS: [0.2, 0.75], IRN: [-0.2, 0.9], SAU: [0.3, 0.9] };

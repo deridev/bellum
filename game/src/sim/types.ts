@@ -1,8 +1,9 @@
 // Bellum simulation state. Plain data (serializable); all money in US$ millions.
 import type { CityData, CountryData, ProvinceData } from '../data/types';
+import type { Theater } from './war/theater';
 
 /** Static map data the simulation reads (never saved; rebuilt from game data files). */
-export interface MapStatic { provinces: ProvinceData[]; countries: CountryData[]; cities: CityData[]; dem: Uint8Array; demW: number; demH: number }
+export interface MapStatic { provinces: ProvinceData[]; countries: CountryData[]; cities: CityData[]; dem: Uint8Array; demW: number; demH: number; provRaster: Uint16Array }
 
 export type Gov = 'democracy' | 'authoritarian' | 'oneparty' | 'junta' | 'monarchy' | 'theocracy';
 export type GroupId = 'military' | 'industry' | 'labor' | 'rural';
@@ -47,6 +48,7 @@ export interface Division {
   army: number; prov: number; // where it is stationed (peace) or last province (war)
   theater: number; x: number; y: number; // position (lon/lat) when deployed in a theater, theater = -1 otherwise
   sup: number; retreat: number; // supply 0..1, retreating flag
+  arrive: number; // day it reaches its theater (in transit until then)
 }
 export interface General { name: string; skill: number; traits: string[]; born: number }
 export interface Army { id: number; country: number; name: string; general: General; theater: number; posture: Posture }
@@ -56,6 +58,7 @@ export interface WarGoal { type: 'conquest' | 'claim' | 'liberate' | 'regime' | 
 export interface War {
   id: number; name: string; attackers: number[]; defenders: number[]; leadA: number; leadD: number;
   start: number; goal: WarGoal; score: number; // -100 (defenders win) .. 100 (attackers win)
+  aggr: [number, number]; // how hard each side pushes (set by AI/player postures)
   exhaustion: [number, number]; casualties: [number, number]; theaters: number[]; ended: number;
 }
 export interface Bloc { name: string; members: number[]; alliance: boolean; leader: number }
@@ -72,7 +75,7 @@ export interface World {
   version: number; seed: number; rng: number; day: number; startDate: number; scenario: string;
   provinces: Province[]; countries: Country[];
   divisions: Division[]; armies: Army[]; nextId: number;
-  wars: War[]; theaters: any[]; treaties: Treaty[]; blocs: Record<string, Bloc>;
+  wars: War[]; theaters: Theater[]; treaties: Treaty[]; blocs: Record<string, Bloc>;
   relations: Int8Array; // N*N opinion -100..100 (row = opinion of a about b)
   log: LogEntry[]; agenda: AgendaItem[];
   settings: { turnMode: 'continuous' | 'monthly'; difficulty: number };

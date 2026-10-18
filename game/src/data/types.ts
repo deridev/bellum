@@ -12,5 +12,5 @@ export interface MapAssets {
   rings: Float32Array[][]; // per province: projected rings (for label/geometry work)
   baseW: ImageBitmap; baseE: ImageBitmap; dem: ImageBitmap;
   demData: Uint8Array; // 4096x2048 raw elevation bytes for the sim
-  flags: ImageBitmap; flagIndex: Record<string, [number, number]>; flagW: number; flagH: number;
+  flags: ImageBitmap; flagIndex: Record<string, [number, number]>; flagW: number; flagH: number; provRaster: Uint16Array;
 }

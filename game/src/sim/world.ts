@@ -53,7 +53,7 @@ export function createWorld(S: MapStatic, opts: { seed?: number; player?: number
       treasury: revenue * 2, debt: gdp * (({ JPN: 2.4, USA: 1.2, ITA: 1.4, GRC: 1.6, FRA: 1.1, GBR: 1.0, CAN: 1.05 } as Record<string, number>)[code] ?? (rich > 0.5 ? 0.6 : 0.45)),
       taxRate, deficit, budget: { military, investment, welfare, research },
       gdp, gdpStart: gdp, growth: 0.02, income: revenue, spending: revenue, upkeep: 0, unitCost: 1,
-      manpower: pop * CONSCRIPTION_RATE[conscription] * 0.6, conscription, polCap: 50, research: 0, tech: 0,
+      manpower: pop * CONSCRIPTION_RATE[conscription] * 0.6, conscription, polCap: 50, research: 0, tech: Math.round(4 * rich),
       gov, ideology, stability: clamp01(stability), warSupport: code === 'UKR' ? 0.82 : code === 'RUS' ? 0.6 : code === 'ISR' ? 0.65 : 0.32,
       groups, leader: { name: personName(w, code), title, born: 1950 + Math.floor(nextRand(w) * 25), traits: leaderTraits(w), since: 0 },
       nextElection: gov === 'democracy' ? Math.floor(nextRand(w) * 365 * 4) + 30 : -1,
@@ -102,7 +102,7 @@ export function createWorld(S: MapStatic, opts: { seed?: number; player?: number
 
 export function newDivision(w: World, country: number, type: UnitType, name: string, prov: number, army: number): Division {
   const max = type === 'armor' ? 10000 : type === 'airborne' || type === 'marines' ? 9000 : 12000;
-  return { id: w.nextId++, country, type, name, str: max, max, org: 1, exp: 0.1, army, prov, theater: -1, x: 0, y: 0, sup: 1, retreat: 0 };
+  return { id: w.nextId++, country, type, name, str: max, max, org: 1, exp: 0.1, army, prov, theater: -1, x: 0, y: 0, sup: 1, retreat: 0, arrive: 0 };
 }
 export const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 const clampRel = (v: number) => Math.max(-100, Math.min(100, Math.round(v)));
