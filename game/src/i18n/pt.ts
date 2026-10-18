@@ -165,4 +165,7 @@ export const pt: Record<string, Entry> = {
   'group.want.military': 'Quer um orçamento militar grande', 'group.want.industry': 'Quer impostos baixos e investimento', 'group.want.labor': 'Quer bem-estar e crescimento', 'group.want.rural': 'Quer impostos baixos e calma',
   'ui.more': 'Mais', 'led.unchanged': 'sem mudança desde o início', 'led.noHistory': 'Os gráficos se preenchem mês a mês. Volte depois de alguns meses de jogo.',
   'agenda.fold': 'Recolher',
+  'war.orders': 'Ordens',
+  'agenda.review': 'Analisar', 'hud.pts': '{n} pt',
+  'led.moved': 'Posições ganhas ou perdidas desde o início', 'led.tip.gdp': 'Tamanho da economia', 'led.tip.pop': 'Pessoas nas províncias controladas', 'led.tip.divisions': 'Divisões em armas', 'led.tip.provinces': 'Províncias possuídas', 'led.tip.tech': 'Nível tecnológico, elevado com gasto em pesquisa', 'led.tip.stability': 'Quão estável o país está',
 };

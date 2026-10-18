@@ -4,7 +4,7 @@ import { useStore, useTick } from '../game/store';
 import { atWar, popOf, UNIT_SPEC, queueUnit, cancelUnit } from '../sim/economy';
 import { groupMood, stabilityTarget } from '../sim/politics';
 import { DIPLO, diploOdds, type DiploAction } from '../sim/diplomacy';
-import { type Conscription, type Country, type LogEntry, type UnitType } from '../sim/types';
+import { type Conscription, type Country, type LogEntry, type UnitType, type War } from '../sim/types';
 import { CONSCRIPTION_RATE, rel } from '../sim/world';
 import { armyName, countryName, fmtDate, say, t, unitName } from '../i18n';
 import { HoverTip } from './App';
@@ -73,7 +73,7 @@ function togglePanel(g: Game, kind: PanelKind) {
 // ---------------------------------------------------------------- the command strip
 /** change of a recorded statistic since the previous month */
 function monthly(g: Game, k: 'manpower' | 'stability' | 'warSupport') { const v = g.series(k); return v.length > 1 ? v[v.length - 1] - v[v.length - 2] : 0; }
-const pts = (v: number) => `${Math.round(v * 100)}`;
+const pts = (v: number) => t('hud.pts', { n: Math.round(v * 100) });
 function CommandStrip({ g, onDecisions }: { g: Game; onDecisions: () => void }) {
   const c = g.me, st = g.st.get(), bal = c.income - c.spending, wars = warsOf(g.w, g.player), waiting = g.w.agenda.filter(a => a.country === g.player).length;
   const war = wars[0], score = war ? war.score * sideOf(war, g.player) : 0;
@@ -84,15 +84,15 @@ function CommandStrip({ g, onDecisions }: { g: Game; onDecisions: () => void }) 
     <div class="res">
       <Res icon="treasury" tone="gold" k="treasury" v={fmtMoney(c.treasury)} danger={c.treasury <= 0 || (bal < 0 && c.treasury < -bal * 3)} onClick={() => togglePanel(g, 'economy')}
         sub={<span class={`delta ${bal < 0 ? 'bad' : 'good'}`}><Icon name={bal < 0 ? 'down' : 'up'} size={9} />{fmtMoney(Math.abs(bal))}{t('hud.perMo')}</span>} />
-      <Res icon="manpower" tone="steel" k="manpower" v={fmtBig(c.manpower)} sub={<Delta v={monthly(g, 'manpower')} fmt={fmtBig} />} onClick={() => togglePanel(g, 'military')} />
+      <Res minor icon="manpower" tone="steel" k="manpower" v={fmtBig(c.manpower)} sub={<Delta v={monthly(g, 'manpower')} fmt={fmtBig} />} onClick={() => togglePanel(g, 'military')} />
       <Res icon="stability" tone="teal" k="stability" v={pct(c.stability)} gauge={c.stability} sub={<Delta v={monthly(g, 'stability')} fmt={pts} />} onClick={() => togglePanel(g, 'politics')} />
       <Res icon="warSupport" tone="rust" k="warSupport" v={pct(c.warSupport)} gauge={c.warSupport} sub={<Delta v={monthly(g, 'warSupport')} fmt={pts} />} onClick={() => togglePanel(g, 'politics')} />
-      <Res icon="influence" tone="violet" k="influence" v={fmtInt(c.polCap)} onClick={() => togglePanel(g, 'diplomacy')} />
+      <Res minor icon="influence" tone="violet" k="influence" v={fmtInt(c.polCap)} onClick={() => togglePanel(g, 'diplomacy')} />
     </div>
   </header>
   <header class="ui strip strip-r plate">
     <div class="alerts">
-      {war && <button class={`alert war ${score < -20 ? 'bad' : score > 20 ? 'good' : ''}`} data-tip={`${say(g.w, war.name)} · ${t('war.score')} ${Math.round(score)}`} onClick={() => togglePanel(g, 'war')}>
+      {war && <button class={`alert war phone-only ${score < -20 ? 'bad' : score > 20 ? 'good' : ''}`} onClick={() => togglePanel(g, 'war')}>
         <Icon name="war" size={20} /><span class="al-txt"><b class="num">{score > 0 ? '+' : ''}{Math.round(score)}</b><small>{t('war.score')}</small></span>{wars.length > 1 && <i class="badge">{wars.length}</i>}</button>}
       {waiting > 0 && <button class="alert wait" data-tip={t('hud.decisions', { n: waiting })} onClick={onDecisions}><Icon name="ballot" size={20} /><span class="al-txt"><b class="num">{waiting}</b><small>{t('hud.decisionsShort')}</small></span></button>}
     </div>
@@ -103,10 +103,22 @@ function CommandStrip({ g, onDecisions }: { g: Game; onDecisions: () => void }) 
       {st.turnMode === 'monthly' && <span class="turn-tag" data-tip={t('set.turnsHint')}>M</span>}
       <IconBtn icon="menu" label={t('menu.title')} onClick={() => g.st.set({ menu: true, paused: true })} size={20} />
     </div>
-  </header></>;
+  </header>
+  {war && <WarBanner g={g} war={war} more={wars.length - 1} />}</>;
 }
-function Res({ icon, k, v, tone, gauge, sub, danger, onClick }: { icon: string; k: string; v: string; tone: string; gauge?: number; sub?: any; danger?: boolean; onClick: () => void }) {
-  return <button class={`res-cell t-${tone} ${danger ? 'danger' : ''}`} aria-label={`${t('ledger.' + k)} ${v}`} data-tip={`${t('ledger.' + k)} — ${t('ledger.' + k + '.hint')}`} onClick={onClick}>
+/** The war you are fighting, always in view under the strip: both sides, the tug of war and the score. */
+function WarBanner({ g, war, more }: { g: Game; war: War; more: number }) {
+  const side = sideOf(war, g.player), score = war.score * side, ours = side > 0 ? war.attackers : war.defenders, theirs = side > 0 ? war.defenders : war.attackers;
+  const x = 50 + Math.max(-100, Math.min(100, score)) / 2;
+  const flags = (cs: number[]) => cs.slice(0, 3).map(c => <Flag key={c} s={g.s} code={g.w.countries[c].code} h={16} />);
+  return <button class={`ui war-banner plate ${score < -20 ? 'bad' : score > 20 ? 'good' : ''}`} onClick={() => togglePanel(g, 'war')} data-tip={t('war.scoreHint')}>
+    <span class="wb-name"><Icon name="war" size={16} />{say(g.w, war.name)}{more > 0 && <i class="wb-more">+{more}</i>}</span>
+    <span class="wb-row"><span class="wb-flags">{flags(ours)}</span><span class="wb-bar"><i style={{ width: `${x}%` }} /><b style={{ left: `${x}%` }} /></span><span class="wb-flags">{flags(theirs)}</span>
+      <b class="wb-score num">{score > 0 ? '+' : ''}{Math.round(score)}</b></span>
+  </button>;
+}
+function Res({ icon, k, v, tone, gauge, sub, danger, minor, onClick }: { icon: string; k: string; v: string; tone: string; gauge?: number; sub?: any; danger?: boolean; minor?: boolean; onClick: () => void }) {
+  return <button class={`res-cell t-${tone} ${danger ? 'danger' : ''} ${minor ? 'minor' : ''}`} aria-label={`${t('ledger.' + k)} ${v}`} data-tip={`${t('ledger.' + k)} — ${t('ledger.' + k + '.hint')}`} onClick={onClick}>
     {gauge !== undefined ? <Ring v={gauge} size={42} tone="currentColor"><Icon name={icon} size={20} /></Ring> : <span class="res-badge"><Icon name={icon} size={20} /></span>}
     <span class="res-txt"><span class="res-top"><b class="res-v num">{v}</b>{sub}</span><span class="res-k">{t('ledger.' + k)}</span></span></button>;
 }
@@ -188,11 +200,12 @@ function EconomyPanel({ g }: { g: Game }) {
   const free = Math.max(0, c.spending * c.budget.military - c.upkeep), bal = c.income - c.spending, debt = c.debt / Math.max(1, c.gdp);
   const hints: Record<string, string> = { military: t('eco.milHint', { up: fmtMoney(c.upkeep), prod: fmtMoney(free) }), investment: t('eco.invHint'), welfare: t('eco.welHint'), research: t('eco.resHint', { n: c.tech }) };
   return <NationSheet g={g} kind="economy">
-    <div class="figures two">
-      <Figure label={t('stat.gdp')} value={fmtMoney(c.gdp)} spark={g.series('gdp')} sub={<span class={c.growth < 0 ? 'bad' : 'good'}><Icon name={c.growth < 0 ? 'trendDown' : 'trend'} size={12} /> {pct(c.growth)}</span>} />
-      <Figure label={t('ledger.treasury')} value={fmtMoney(c.treasury)} spark={g.series('treasury')} sub={<span class={bal < 0 ? 'bad' : 'good'}>{t('eco.perMonth', { v: (bal >= 0 ? '+' : '') + fmtMoney(bal) })}</span>} />
+    <div class="figures three">
+      <Figure icon="gdp" label={t('led.col.gdp')} value={fmtMoney(c.gdp)} spark={g.series('gdp')} sub={<span class={c.growth < 0 ? 'bad' : 'good'}><Icon name={c.growth < 0 ? 'trendDown' : 'trend'} size={13} /> {t('eco.perYear', { v: pct(c.growth) })}</span>} />
+      <Figure icon="treasury" label={t('ledger.treasury')} value={fmtMoney(c.treasury)} tone={c.treasury <= 0 ? 'bad' : ''} spark={g.series('treasury')} sub={<span class={bal < 0 ? 'bad' : 'good'}>{t('eco.perMonth', { v: (bal >= 0 ? '+' : '−') + fmtMoney(Math.abs(bal)) })}</span>} />
+      <Figure icon="trendDown" label={t('eco.debt')} value={pct(debt)} tone={debt > 0.8 ? 'bad' : ''} sub={<span class="muted">{fmtMoney(c.debt)}</span>} />
     </div>
-    <div class={`debt-row ${debt > 0.8 ? 'danger' : bal < 0 && c.treasury <= 0 ? 'warn' : ''}`} data-tip={t('eco.borrowHint')}><Ring v={Math.min(1, debt / 2)} size={44} tone={debt > 0.8 ? 'var(--red)' : debt > 0.5 ? 'var(--brass)' : 'var(--green)'}><b class="num">{Math.round(debt * 100)}%</b></Ring><div><b>{t('eco.debt')} · {fmtMoney(c.debt)}</b><small>{t(debt > 1.2 ? 'eco.debtHigh' : bal < 0 && c.treasury <= 0 ? 'eco.debtBorrowing' : debt > 0.5 ? 'eco.debtMid' : 'eco.debtLow', { v: fmtMoney(-bal) })}</small></div></div>
+    {(debt > 0.8 || (bal < 0 && c.treasury <= 0)) && <div class={`debt-row ${debt > 0.8 ? 'danger' : 'warn'}`} data-tip={t('eco.borrowHint')}><Icon name="coup" size={20} /><small>{t(debt > 1.2 ? 'eco.debtHigh' : bal < 0 && c.treasury <= 0 ? 'eco.debtBorrowing' : 'eco.debtMid', { v: fmtMoney(-bal) })}</small></div>}
     <Block title={t('eco.budget')} icon="economy">
       <StackBar parts={BUDGET.map(b => ({ v: c.budget[b.k], color: b.color, label: t('eco.' + b.k) }))} />
       {BUDGET.map(b => <Slider key={b.k} id={'b-' + b.k} color={b.color} label={t('eco.' + b.k)} value={c.budget[b.k]} min={b.k === 'research' ? 0 : 0.02} max={b.k === 'research' ? 0.3 : 0.8} step={0.01} fmt={pct} onInput={v => setShare(b.k, v)} hint={hints[b.k]} sub={t('eco.perMonth', { v: fmtMoney(c.spending * c.budget[b.k]) })} />)}
@@ -208,15 +221,22 @@ function PoliticsPanel({ g }: { g: Game }) {
   const c = g.me, target = stabilityTarget(g.w, c), mood = groupMood(g.w, c), [ex, au] = c.ideology;
   const initials = c.leader.name.split(' ').map(x => x[0]).slice(0, 2).join('');
   return <NationSheet g={g} kind="politics">
-    <div class="leader-card">
-      <span class="monogram" style={{ borderColor: c.color }}>{initials}</span>
-      <div><div class="eyebrow">{t('title.' + c.leader.title)} · {t('gov.' + c.gov)}</div><div class="h3 plain">{c.leader.name}</div>
-        <div class="traits">{c.leader.traits.map(x => <span class="trait" key={x}>{t('trait.' + x)}</span>)}</div>
-        {c.gov === 'democracy' && c.nextElection >= 0 && <small class="muted"><Icon name="ballot" size={12} /> {fmtDate(g.w, c.nextElection)}</small>}</div>
+    <div class="leader-row">
+      <div class="leader-card">
+        <span class="monogram" style={{ borderColor: c.color }}>{initials}</span>
+        <div><div class="eyebrow">{t('title.' + c.leader.title)} · {t('gov.' + c.gov)}</div><div class="h3 plain">{c.leader.name}</div>
+          <div class="traits">{c.leader.traits.map(x => <span class="trait" key={x}>{t('trait.' + x)}</span>)}</div>
+          {c.gov === 'democracy' && c.nextElection >= 0 && <small class="muted elect"><Icon name="ballot" size={13} /> {t('pol.nextElection', { d: fmtDate(g.w, c.nextElection) })}</small>}</div>
+      </div>
+      <div class="compass" data-tip={t('pol.ideology')}><svg viewBox="-110 -110 220 220" role="img" aria-label={t('pol.ideology')}>
+        <rect x="-100" y="-100" width="200" height="200" class="cmp-bg" /><line x1="-100" y1="0" x2="100" y2="0" class="cmp-ax" /><line x1="0" y1="-100" x2="0" y2="100" class="cmp-ax" />
+        <text x="0" y="-80" class="cmp-t" text-anchor="middle">{t('pol.order')}</text><text x="0" y="94" class="cmp-t" text-anchor="middle">{t('pol.liberty')}</text>
+        <circle cx={ex * 90} cy={-au * 90} r="11" class="cmp-dot" style={{ fill: c.color }} />
+      </svg><small class="cmp-x"><span>{t('pol.collective')}</span><span>{t('pol.market')}</span></small></div>
     </div>
     <div class="gauges">
-      <div class="gauge" data-tip={t('ledger.stability.hint')}><Ring v={c.stability} size={72} target={target}><b class="num">{Math.round(c.stability * 100)}</b></Ring><span>{t('ledger.stability')}</span><small class={target < c.stability - 0.01 ? 'bad' : target > c.stability + 0.01 ? 'good' : 'muted'}>{t('pol.heading', { p: pct(target) })}</small></div>
-      <div class="gauge" data-tip={t('ledger.warSupport.hint')}><Ring v={c.warSupport} size={72}><b class="num">{Math.round(c.warSupport * 100)}</b></Ring><span>{t('ledger.warSupport')}</span><Spark values={g.series('warSupport')} w={90} h={18} /></div>
+      <div class="gauge" data-tip={t('ledger.stability.hint')}><Ring v={c.stability} size={60} target={target}><b class="num">{Math.round(c.stability * 100)}</b></Ring><span class="gauge-t"><b>{t('ledger.stability')}</b><small class={target < c.stability - 0.01 ? 'bad' : target > c.stability + 0.01 ? 'good' : 'muted'}>{t('pol.heading', { p: pct(target) })}</small></span></div>
+      <div class="gauge" data-tip={t('ledger.warSupport.hint')}><Ring v={c.warSupport} size={60}><b class="num">{Math.round(c.warSupport * 100)}</b></Ring><span class="gauge-t"><b>{t('ledger.warSupport')}</b><Spark values={g.series('warSupport')} w={80} h={20} /></span></div>
     </div>
     <Block title={t('pol.groups')} icon="population">
       <div class="groups">{c.groups.map(gr => { const dir = mood[gr.id] - gr.support; return <div class="group" key={gr.id} data-tip={t('pol.markerHint')}>
@@ -225,13 +245,6 @@ function PoliticsPanel({ g }: { g: Game }) {
         <Bar v={gr.support} tone={gr.support < 0.35 ? 'bad' : gr.support > 0.6 ? 'good' : 'amber'} mark={mood[gr.id]} />
         <b class="num g-v">{pct(gr.support)}</b>
         <span class={`g-dir ${dir > 0.02 ? 'good' : dir < -0.02 ? 'bad' : ''}`}><Icon name={dir > 0.02 ? 'up' : dir < -0.02 ? 'down' : 'flat'} size={14} /></span></div>; })}</div>
-    </Block>
-    <Block title={t('pol.ideology')} icon="politics">
-      <div class="compass"><svg viewBox="-110 -110 220 220" role="img" aria-label={t('pol.ideology')}>
-        <rect x="-100" y="-100" width="200" height="200" class="cmp-bg" /><line x1="-100" y1="0" x2="100" y2="0" class="cmp-ax" /><line x1="0" y1="-100" x2="0" y2="100" class="cmp-ax" />
-        <text x="0" y="-86" class="cmp-t" text-anchor="middle">{t('pol.order')}</text><text x="0" y="94" class="cmp-t" text-anchor="middle">{t('pol.liberty')}</text><text x="-94" y="4" class="cmp-t" text-anchor="start">{t('pol.collective')}</text><text x="94" y="4" class="cmp-t" text-anchor="end">{t('pol.market')}</text>
-        <circle cx={ex * 90} cy={-au * 90} r="7" class="cmp-dot" style={{ fill: c.color }} />
-      </svg></div>
     </Block>
   </NationSheet>;
 }
@@ -250,7 +263,7 @@ function MilitaryPanel({ g }: { g: Game }) {
       <Figure label={t('mil.atFront')} value={fmtInt(front)} />
       <Figure label={t('ledger.manpower')} value={fmtBig(c.manpower)} spark={g.series('manpower')} />
     </div>
-    <div class="order-of-battle">{(Object.keys(UNIT_SPEC) as UnitType[]).filter(k => byType[k]).map(k => <span key={k} class="oob" data-tip={t('unitShort.' + k)}><UnitSymbol type={k} size={36} /><span class="oob-t"><b class="num">{byType[k]}</b><small>{t('unitShort.' + k)}</small></span></span>)}
+    <div class="order-of-battle">{(Object.keys(UNIT_SPEC) as UnitType[]).filter(k => byType[k]).map(k => <span key={k} class={`oob u-${k}`} data-tip={t('unitShort.' + k)}><UnitSymbol type={k} size={40} /><span class="oob-t"><b class="num">{byType[k]}</b><small>{t('unitShort.' + k)}</small></span></span>)}
       <span class="oob-men" data-tip={t('mil.divCount', { n: divs.length, men: fmtBig(men) })}><Icon name="population" size={14} /> {fmtBig(men)}</span></div>
     <Block title={t('mil.build')} icon="economy" aside={<span class={free <= 0 ? 'bad' : 'muted'} data-tip={t('mil.funds')}>{t('eco.perMonth', { v: fmtMoney(free) })}</span>}>
       <div class="build">{(Object.keys(UNIT_SPEC) as UnitType[]).map(k => { const s = UNIT_SPEC[k];

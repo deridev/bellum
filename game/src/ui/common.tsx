@@ -30,7 +30,7 @@ export function Sheet({ title, onClose, children, eyebrow, icon, head }: { title
 /** Whether a scroll box has more below; the footer strip shows it without covering content. */
 export function useMore() {
   const body = useRef<HTMLDivElement>(null), [more, setMore] = useState(false);
-  const check = () => { const b = body.current; if (b) setMore(b.scrollHeight - b.scrollTop - b.clientHeight > 6); };
+  const check = () => { const b = body.current; if (b) setMore(b.scrollHeight - b.scrollTop - b.clientHeight > 24); };
   useEffect(check);
   return [body, more, check] as const;
 }
@@ -188,12 +188,12 @@ const DASH = ['', '7 4', '2 4', '10 4 2 4'];
 export const dashOf = (i: number) => DASH[i % DASH.length];
 export type Series = { id: string | number; label: string; color: string; values: number[] };
 /** Line chart over months: one y axis, recessive grid, direct labels at the line ends, a crosshair on hover. */
-export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = [] }: { series: Series[]; xs: number[]; fmtX: (x: number) => string; fmtY: (v: number) => string; height?: number; zero?: boolean; marks?: { x: number; label: string }[] }) {
+export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = [] }: { series: Series[]; xs: number[]; fmtX: (x: number) => string; fmtY: (v: number) => string; height?: number; zero?: boolean; marks?: { x: number; label: string; n: number }[] }) {
   const ref = useRef<HTMLDivElement>(null), [W, setW] = useState(480), [hi, setHi] = useState<number | null>(null);
   useEffect(() => { const el = ref.current; if (!el) return; const ro = new ResizeObserver(() => setW(el.clientWidth || 480)); ro.observe(el); return () => ro.disconnect(); }, []);
   const n = xs.length;
   if (n < 2) return <div ref={ref} class="chart empty" style={{ height }}><span>{t('led.empty')}</span></div>;
-  const labels = series.length > 1, L = 54, R = labels ? 96 : 14, T = 10, B = 24, w = Math.max(60, W - L - R), h = height - T - B;
+  const labels = series.length > 1, L = 54, R = labels ? 96 : 14, T = 10 + (marks.length ? 16 : 0), B = 24, w = Math.max(60, W - L - R), h = height - T - B;
   const all = series.flatMap(s => s.values), mn = Math.min(...all), mx = Math.max(...all), pad = Math.max((mx - mn) * 0.15, Math.abs(mx) * 0.05, 1e-6);
   const tk0 = ticks(zero ? Math.min(0, mn) : (mn >= 0 && mn - pad < 0 ? 0 : mn - pad), mx + pad);
   const tk = tk0.filter((v, i) => i === 0 || fmtY(v) !== fmtY(tk0[i - 1])); // no repeated labels after rounding
@@ -210,14 +210,14 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
     <svg width={W} height={height} onPointerMove={move} onPointerLeave={() => setHi(null)} role="img" aria-label={series.map(s => `${s.label} ${fmtY(s.values[n - 1])}`).join(', ')}>
       {tk.map(v => <g key={v}><line x1={L} x2={L + w} y1={Y(v)} y2={Y(v)} class="grid" /><text x={L - 8} y={Y(v) + 4} class="axis" text-anchor="end">{fmtY(v)}</text></g>)}
       <text x={L} y={height - 6} class="axis">{fmtX(xs[0])}</text><text x={L + w} y={height - 6} class="axis" text-anchor="end">{fmtX(xs[n - 1])}</text>
-      {pins.map((m, k) => <g key={k} class="pin"><line x1={X(m.i)} x2={X(m.i)} y1={T} y2={T + h} /><path d={`M${X(m.i)} ${T - 2}l4 4-4 4-4-4z`} /></g>)}
+      {pins.map((m, k) => <g key={k} class="pin"><line x1={X(m.i)} x2={X(m.i)} y1={T + 8} y2={T + h} /><path d={`M${X(m.i)} ${T - 7}l8 8-8 8-8-8z`} /><text x={X(m.i)} y={T + 5} text-anchor="middle">{m.n}</text></g>)}
       {!labels && <path d={`${path(series[0].values)}L${X(n - 1)},${T + h}L${X(0)},${T + h}Z`} fill={series[0].color} opacity="0.16" />}
       {series.map((s, i) => <path key={s.id} d={path(s.values)} fill="none" stroke={s.color} stroke-width={i === 0 ? 3 : 2} stroke-dasharray={DASH[i % DASH.length]} stroke-linejoin="round" stroke-linecap="round" />)}
       {series.map(s => <circle key={s.id} cx={X(n - 1)} cy={Y(s.values[n - 1])} r="4" fill={s.color} class="end-dot" />)}
       {labels && ends.map(({ s, y }) => <g key={s.id}>{Math.abs(y - Y(s.values[n - 1])) > 3 && <line x1={L + w + 4} x2={L + w + 9} y1={Y(s.values[n - 1])} y2={y} stroke={s.color} stroke-width="1.5" />}<text x={L + w + 12} y={y + 4} class="end-label">{s.label}</text></g>)}
       {hi !== null && <g><line x1={hx} x2={hx} y1={T} y2={T + h} class="cross" />{series.map(s => <circle key={s.id} cx={hx} cy={Y(s.values[hi])} r="4" fill={s.color} class="end-dot" />)}</g>}
     </svg>
-    {hi !== null && <div class={`chart-tip ${hx > W / 2 ? 'left' : ''}`} style={{ left: hx }}><b>{fmtX(xs[hi])}</b>{pins.filter(m => m.i === hi).map((m, k) => <em key={k}>◆ {m.label}</em>)}{series.slice().sort((a, b) => b.values[hi] - a.values[hi]).map(s => <span key={s.id}><i style={{ background: s.color }} />{s.label}<b class="num">{fmtY(s.values[hi])}</b></span>)}</div>}
+    {hi !== null && <div class={`chart-tip ${hx > W / 2 ? 'left' : ''}`} style={{ left: hx }}><b>{fmtX(xs[hi])}</b>{pins.filter(m => m.i === hi).map((m, k) => <em key={k}>{m.n}. {m.label}</em>)}{series.slice().sort((a, b) => b.values[hi] - a.values[hi]).map(s => <span key={s.id}><i style={{ background: s.color }} />{s.label}<b class="num">{fmtY(s.values[hi])}</b></span>)}</div>}
   </div>;
 }
 /** An icon button whose label shows as a tooltip (and is its accessible name). */
@@ -227,9 +227,8 @@ export function IconBtn({ icon, label, onClick, pressed, badge, cls, size = 20, 
 
 export function Slider({ id, label, value, min, max, step, fmt, onInput, hint, color, sub, danger }: { id: string; label: string; value: number; min: number; max: number; step: number; fmt: (v: number) => string; onInput: (v: number) => void; hint?: string; color?: string; sub?: string; danger?: boolean }) {
   const c = danger ? 'var(--red)' : color || 'var(--brass)', f = (value - min) / (max - min) * 100;
-  return <label class={`slider ${danger ? 'danger' : ''}`} for={id} title={hint}><span class="sl-top"><span class="sl-l">{color && <i class="chip-dot" style={{ background: color }} />}{label}</span><b class="num">{fmt(value)}</b></span>
-    <input id={id} type="range" min={min} max={max} step={step} value={value} style={{ '--c': c, '--f': `${f}%` }} onInput={e => onInput(+(e.target as HTMLInputElement).value)} />
-    {sub && <small class="sl-sub">{sub}</small>}</label>;
+  return <label class={`slider ${danger ? 'danger' : ''}`} for={id} title={hint}><span class="sl-top"><span class="sl-l">{color && <i class="chip-dot" style={{ background: color }} />}{label}</span>{sub && <small class="sl-sub">{sub}</small>}<b class="num">{fmt(value)}</b></span>
+    <input id={id} type="range" min={min} max={max} step={step} value={value} style={{ '--c': c, '--f': `${f}%` }} onInput={e => onInput(+(e.target as HTMLInputElement).value)} /></label>;
 }
 /** Segmented control (text or icons). */
 export function Seg<T extends string | number>({ value, options, onPick, label }: { value: T; options: { v: T; label: string; icon?: string; title?: string }[]; onPick: (v: T) => void; label: string }) {

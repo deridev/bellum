@@ -39,11 +39,9 @@ export function WarPanel({ g, id }: { g: Game; id: number }) {
       {pair(Math.min(1, war.exhaustion[si]), Math.min(1, war.exhaustion[oi]), pct, t('war.exhaustion'), 'trendDown', true)}
       {transit > 0 && <small class="muted">{t('war.onTheWay', { n: transit })}</small>}
     </div>
-    <Block title={t('war.posture')} icon="hold">
+    <Block title={t('war.orders')} icon="hold" aside={<span class="muted">{t('war.commitment')} <b class="num">{pct(commitShare(w, war, me))}</b></span>}>
       <div class="big-toggles" role="group" aria-label={t('war.posture')}>{POSTURES.map(p => <button key={p.id} aria-pressed={posture.id === p.id} data-tip={t('posture.' + p.id + '.hint')} onClick={() => { war.aggr[si] = p.aggr; g.bump(); g.sound('click'); }}><Icon name={p.id} size={22} /><span>{t('posture.' + p.id)}</span></button>)}</div>
-    </Block>
-    <Block title={t('war.commitment')} icon="manpower" aside={<b class="num">{pct(commitShare(w, war, me))}</b>}>
-      <div class="steps" role="group" aria-label={t('war.commitment')}>{COMMIT.map((c, i) => { const cur = commit === undefined ? 'normal' : COMMIT.find(x => x.v === commit)?.id || 'normal', ci = COMMIT.findIndex(x => x.id === cur);
+      <div class="steps commit" role="group" aria-label={t('war.commitment')}>{COMMIT.map((c, i) => { const cur = commit === undefined ? 'normal' : COMMIT.find(x => x.v === commit)?.id || 'normal', ci = COMMIT.findIndex(x => x.id === cur);
         return <button key={c.id} aria-pressed={cur === c.id} class={ci >= i ? 'on' : ''} data-tip={t('war.commitHint', { p: pct(c.v < 0 ? commitShare(w, { ...war, commit: {} }, me) : c.v) })} onClick={() => { war.commit ||= {}; if (c.v < 0) delete war.commit[me]; else war.commit[me] = c.v; g.bump(); }}><i style={{ height: `${8 + i * 6}px` }} /><span>{t('commit.' + c.id)}</span></button>; })}</div>
     </Block>
     <Block title={t('war.offensives')} icon="offensive" aside={<b class="num">{offs.length}/3</b>}>
@@ -109,10 +107,10 @@ export function AgendaCards({ g, slim }: { g: Game; slim?: boolean }) {
     ? <section class={`agenda-card plate k-${a.kind}`} key={a.id} role="dialog" aria-label={say(g.w, a.title)}>
       <div class="cable-head"><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={18} /></span><span class="eyebrow">{t('agenda.' + a.kind)}</span><time class="mono">{fmtDate(g.w, a.day, 'short')}</time><button class="x" aria-label={t('agenda.fold')} onClick={() => setOpen(null)}><Icon name="down" size={12} /></button></div>
       <div class="h3 plain">{say(g.w, a.title)}</div><p>{say(g.w, a.text)}</p>
-      <div class="opts">{a.options.map((o, i) => <button key={i} class={i === 0 ? 'primary' : ''} onClick={() => decide(a.id, i)}><span>{say(g.w, o.label)}</span>{o.hint && <small>{say(g.w, o.hint)}</small>}</button>)}</div>
+      <div class="opts">{a.options.map((o, i) => <button key={i} onClick={() => decide(a.id, i)}><span>{say(g.w, o.label)}</span>{o.hint && <small>{say(g.w, o.hint)}</small>}</button>)}</div>
     </section>
     : <div class={`agenda-slip plate k-${a.kind}`} key={a.id}><button class="slip-open" onClick={() => setOpen(a.id)}><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={16} /></span><span class="slip-t">{say(g.w, a.title)}</span></button>
-      {a.options.length === 2 && <><button class="slip-yes" aria-label={say(g.w, a.options[0].label)} data-tip={say(g.w, a.options[0].label)} onClick={() => decide(a.id, 0)}><Icon name="check" size={16} /></button><button class="slip-no" aria-label={say(g.w, a.options[1].label)} data-tip={say(g.w, a.options[1].label)} onClick={() => decide(a.id, 1)}><Icon name="cross" size={16} /></button></>}</div>)}
+      {a.kind === 'peace' ? <button class="slip-review" onClick={() => setOpen(a.id)}>{t('agenda.review')}</button> : a.options.length === 2 && <><button class="slip-yes" aria-label={say(g.w, a.options[0].label)} data-tip={say(g.w, a.options[0].label)} onClick={() => decide(a.id, 0)}><Icon name="check" size={16} /></button><button class="slip-no" aria-label={say(g.w, a.options[1].label)} data-tip={say(g.w, a.options[1].label)} onClick={() => decide(a.id, 1)}><Icon name="cross" size={16} /></button></>}</div>)}
     {items.length > shown.length && <small class="slip-more">{t('agenda.more', { n: items.length - shown.length })}</small>}
   </div>;
 }

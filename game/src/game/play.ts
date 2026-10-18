@@ -32,7 +32,7 @@ export class Game {
   acc = 0; private lastUi = 0; private mapSeen = ''; private now = 0; private dt = 0; private lastAssign = 0;
   layer: TheaterLayer; fx: WarFx;
   /** monthly snapshots of who holds each province, for the timelapse */
-  history: { day: number; ctrl: Uint16Array; me: { gdp: number; treasury: number; stability: number; manpower: number; warSupport: number; divisions: number; casualties: number }; all: Float32Array }[] = [];
+  history: { day: number; ctrl: Uint16Array; me: { gdp: number; treasury: number; stability: number; manpower: number; warSupport: number; divisions: number; casualties: number; debt: number }; all: Float32Array }[] = [];
   startProvinces = 0;
   private snapshot: number | null = null;
 
@@ -131,7 +131,7 @@ export class Game {
     for (const d of w.divisions) all[d.country * 4 + 1]++;
     for (const p of w.provinces) { all[p.owner * 4 + 2]++; all[p.owner * 4 + 3] += p.pop; }
     this.history.push({ day: w.day, ctrl: Uint16Array.from(w.provinces, p => p.controller), all,
-      me: { gdp: c.gdp, treasury: c.treasury, stability: c.stability, manpower: c.manpower, warSupport: c.warSupport, divisions: all[c.id * 4 + 1], casualties: c.stats.casualties } });
+      me: { gdp: c.gdp, treasury: c.treasury, stability: c.stability, manpower: c.manpower, warSupport: c.warSupport, divisions: all[c.id * 4 + 1], casualties: c.stats.casualties, debt: c.debt } });
   }
   /** a recorded statistic of the player's nation, month by month */
   series(k: keyof Game['history'][number]['me']) { return this.history.map(h => h.me[k]); }

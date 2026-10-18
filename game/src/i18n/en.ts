@@ -159,4 +159,7 @@ export const en: Record<string, Entry> = {
   'group.want.military': 'Wants a big military budget', 'group.want.industry': 'Wants low taxes and investment', 'group.want.labor': 'Wants welfare and growth', 'group.want.rural': 'Wants low taxes and calm',
   'ui.more': 'More', 'led.unchanged': 'unchanged since start', 'led.noHistory': 'Charts fill in month by month. Come back after a few months of play.',
   'agenda.fold': 'Fold away',
+  'war.orders': 'Orders',
+  'agenda.review': 'Review', 'hud.pts': '{n} pt',
+  'led.moved': 'Places gained or lost since the start', 'led.tip.gdp': 'Size of the economy', 'led.tip.pop': 'People living in the provinces held', 'led.tip.divisions': 'Divisions under arms', 'led.tip.provinces': 'Provinces owned', 'led.tip.tech': 'Technology level, raised by research spending', 'led.tip.stability': 'How settled the country is',
 };
