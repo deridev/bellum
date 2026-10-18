@@ -103,7 +103,7 @@ function CommandStrip({ g, onDecisions }: { g: Game; onDecisions: () => void }) 
       <IconBtn icon="menu" label={t('menu.title')} onClick={() => g.st.set({ menu: true, paused: true })} size={20} />
     </div>
   </div></header>
-  {war && <WarBanner g={g} war={war} more={wars.length - 1} />}</>;
+  {war && st.panel?.kind !== 'war' && <WarBanner g={g} war={war} more={wars.length - 1} />}</>;
 }
 /** The war you are fighting, always in view under the strip: both sides, the tug of war and the score. */
 function WarBanner({ g, war, more }: { g: Game; war: War; more: number }) {
@@ -147,7 +147,7 @@ function Toasts({ g }: { g: Game }) {
   useEffect(() => {
     const id = setInterval(() => {
       if (w.log.length < seen.current) seen.current = w.log.length;
-      const fresh = w.log.slice(seen.current).filter(l => l.who?.includes(me) || l.big || l.kind === 'war' || l.kind === 'peace'); seen.current = w.log.length;
+      const fresh = w.log.slice(seen.current).filter(l => (l.who?.includes(me) || l.big || l.kind === 'war' || l.kind === 'peace') && l.msg.k !== 'log.peaceOffer'); // a peace offer already waits as a decision seen.current = w.log.length;
       const now = Date.now();
       setItems(list => { const next = [...list.filter(x => now - x.t0 < 7000), ...fresh.map(e => ({ e, t0: now }))]; return next.length === list.length && !fresh.length ? list : next.slice(-3); });
     }, 300);
@@ -201,7 +201,7 @@ function EconomyPanel({ g }: { g: Game }) {
   return <NationSheet g={g} kind="economy" fig={<RibbonFig label={t('ledger.monthly')} v={(bal >= 0 ? '+' : '−') + fmtMoney(Math.abs(bal))} tone={bal < 0 ? 'bad' : 'good'} />}>
     <div class="figures three">
       <Figure icon="gdp" label={t('led.col.gdp')} value={fmtMoney(c.gdp)} spark={g.series('gdp')} sub={<span class={c.growth < 0 ? 'bad' : 'good'}><Icon name={c.growth < 0 ? 'trendDown' : 'trend'} size={13} /> {t('eco.perYear', { v: pct(c.growth) })}</span>} />
-      <Figure icon="treasury" label={t('ledger.treasury')} value={fmtMoney(c.treasury)} tone={c.treasury <= 0 ? 'bad' : ''} spark={g.series('treasury')} sub={<span class={bal < 0 ? 'bad' : 'good'}>{t('eco.perMonth', { v: (bal >= 0 ? '+' : '−') + fmtMoney(Math.abs(bal)) })}</span>} />
+      <Figure icon="treasury" label={t('ledger.treasury')} value={fmtMoney(c.treasury)} tone={c.treasury <= 0 ? 'bad' : ''} spark={g.series('treasury')} sub={<span class="muted">{t('eco.revenueIs', { v: t('eco.perMonth', { v: fmtMoney(c.income) }) })}</span>} />
       <Figure icon="trendDown" label={t('eco.debt')} value={pct(debt)} tone={debt > 0.8 ? 'bad' : ''} sub={<span class="muted">{fmtMoney(c.debt)}</span>} />
     </div>
     {(debt > 0.8 || (bal < 0 && c.treasury <= 0)) && <div class={`debt-row ${debt > 0.8 ? 'danger' : 'warn'}`} data-tip={t('eco.borrowHint')}><Icon name="coup" size={20} /><small>{t(debt > 1.2 ? 'eco.debtHigh' : bal < 0 && c.treasury <= 0 ? 'eco.debtBorrowing' : 'eco.debtMid', { v: fmtMoney(-bal) })}</small></div>}
@@ -219,13 +219,13 @@ function EconomyPanel({ g }: { g: Game }) {
 function PoliticsPanel({ g }: { g: Game }) {
   const c = g.me, target = stabilityTarget(g.w, c), mood = groupMood(g.w, c), [ex, au] = c.ideology;
   const initials = c.leader.name.split(' ').map(x => x[0]).slice(0, 2).join('');
-  return <NationSheet g={g} kind="politics" fig={<RibbonFig label={t('ledger.stability')} v={pct(c.stability)} tone={c.stability < 0.35 ? 'bad' : ''} />}>
+  return <NationSheet g={g} kind="politics" fig={c.gov === 'democracy' && c.nextElection >= 0 ? <RibbonFig label={t('pol.election')} v={fmtDate(g.w, c.nextElection, 'month')} /> : <RibbonFig label={t('pol.government')} v={t('gov.' + c.gov)} />}>
     <div class="leader-row">
       <div class="leader-card">
         <span class="monogram" style={{ borderColor: c.color }}>{initials}</span>
         <div><div class="eyebrow">{t('title.' + c.leader.title)} · {t('gov.' + c.gov)}</div><div class="h3 plain">{c.leader.name}</div>
           <div class="traits">{c.leader.traits.map(x => <span class="trait" key={x}>{t('trait.' + x)}</span>)}</div>
-          {c.gov === 'democracy' && c.nextElection >= 0 && <small class="muted elect"><Icon name="ballot" size={13} /> {t('pol.nextElection', { d: fmtDate(g.w, c.nextElection) })}</small>}</div>
+</div>
       </div>
       <div class="compass" data-tip={t('pol.ideology')}><svg viewBox="-110 -110 220 220" role="img" aria-label={t('pol.ideology')}>
         <rect x="-100" y="-100" width="200" height="200" class="cmp-bg" /><line x1="-100" y1="0" x2="100" y2="0" class="cmp-ax" /><line x1="0" y1="-100" x2="0" y2="100" class="cmp-ax" />
@@ -256,31 +256,27 @@ function MilitaryPanel({ g }: { g: Game }) {
   const men = divs.reduce((a, d) => a + d.str, 0), front = divs.filter(d => d.theater >= 0).length;
   const free = Math.max(0, c.spending * c.budget.military - c.upkeep), pop = popOf(g.w, c.id);
   const laws: Conscription[] = ['volunteer', 'limited', 'extensive', 'total'];
-  return <NationSheet g={g} kind="military" fig={<RibbonFig label={t('mil.divisions')} v={fmtInt(divs.length)} />}>
-    <div class="figures three">
-      <Figure label={t('mil.atFront')} value={`${fmtInt(front)}/${fmtInt(divs.length)}`} />
-      <Figure label={t('mil.men')} value={fmtBig(men)} />
-      <Figure label={t('ledger.manpower')} value={fmtBig(c.manpower)} spark={g.series('manpower')} />
-    </div>
-    <Block title={t('mil.forces')} icon="military" aside={<span class={free <= 0 ? 'bad' : 'muted'} data-tip={t('mil.funds')}>{t('mil.fundsShort')} {t('eco.perMonth', { v: fmtMoney(free) })}</span>}>
+  return <NationSheet g={g} kind="military" fig={<RibbonFig label={t('mil.funds')} v={t('eco.perMonth', { v: fmtMoney(free) })} tone={free <= 0 ? 'bad' : ''} />}>
+    <Block title={t('mil.forces')} icon="military" aside={<span class="muted">{t('mil.atFront')} <b class="num">{fmtInt(front)}/{fmtInt(divs.length)}</b> · {fmtBig(men)}</span>}>
       <div class="forces">{(Object.keys(UNIT_SPEC) as UnitType[]).map(k => { const s = UNIT_SPEC[k], queued = c.production.filter(p => p.type === k).length;
-        return <div key={k} class={`force u-${k}`}><UnitSymbol type={k} size={40} /><span class="f-t"><b class="num">{byType[k] || 0}{queued > 0 && <small class="f-q">+{queued}</small>}</b><span>{t('unitShort.' + k)}</span><small class="num">{fmtMoney(c.unitCost * s.costMul)} · {s.days}d</small></span>
+        return <div key={k} class={`force u-${k}`}><UnitSymbol type={k} size={36} /><span class="f-t"><b class="num">{byType[k] || 0}{queued > 0 && <small class="f-q">+{queued}</small>}</b><span>{t('unitShort.' + k)}</span><small class="num">{fmtMoney(c.unitCost * s.costMul)} · {s.days}d</small></span>
           <button class="f-build" aria-label={t('mil.buildOne', { u: t('unitShort.' + k) })} data-tip={t('mil.cost', { v: fmtMoney(c.unitCost * s.costMul), d: s.days, m: fmtBig(s.men) })} disabled={c.manpower < s.men} onClick={() => { const e = queueUnit(g.w, c, k); setNote(e ? t('mil.noManpower') : t('mil.queued', { u: t('unitShort.' + k) })); upd(); g.sound('click'); }}><Icon name="improve" size={14} />{t('mil.build')}</button></div>; })}</div>
       {note && <small class="muted" role="status">{note}</small>}
       {c.production.length > 0 && <ol class="queue">{c.production.map(p => <li key={p.id}><UnitSymbol type={p.type} size={22} /><Bar v={p.progress / p.cost} tone="amber" /><button class="x" aria-label={t('ui.cancel')} onClick={() => { cancelUnit(g.w, c, p.id); upd(); }}><Icon name="x" size={12} /></button></li>)}</ol>}
       {c.production.length > 0 && free <= 0 && <small class="bad">{t('mil.noFunds')}</small>}
     </Block>
     <Block title={t('mil.conscription')} icon="manpower">
-      <div class="steps" role="group" aria-label={t('mil.conscription')}>{laws.map((l, i) => <button key={l} aria-pressed={c.conscription === l} class={laws.indexOf(c.conscription) >= i ? 'on' : ''} data-tip={t('mil.lawHint', { p: pct(CONSCRIPTION_RATE[l]), n: fmtBig(pop * CONSCRIPTION_RATE[l]) })} onClick={() => {
+      <div class="steps commit" role="group" aria-label={t('mil.conscription')}>{laws.map((l, i) => <button key={l} aria-pressed={c.conscription === l} class={laws.indexOf(c.conscription) >= i ? 'on' : ''} data-tip={t('mil.lawHint', { p: pct(CONSCRIPTION_RATE[l]), n: fmtBig(pop * CONSCRIPTION_RATE[l]) })} onClick={() => {
         if (l === c.conscription) return; const cost = 25 * Math.abs(laws.indexOf(l) - laws.indexOf(c.conscription));
         if (c.polCap < cost) { setNote(t('mil.needInfluence', { n: cost })); return; }
         c.polCap -= cost; const harsher = laws.indexOf(l) > laws.indexOf(c.conscription); c.conscription = l; if (harsher) c.stability = Math.max(0, c.stability - (atWar(g.w, c.id) ? 0.02 : 0.08)); setNote(t('mil.lawSet', { l: t('law.' + l) })); upd();
       }}><i style={{ height: `${8 + i * 5}px` }} /><span>{t('law.' + l)}</span></button>)}</div>
-      <small class="muted">{t('mil.lawCost')}</small>
+
     </Block>
     <Block title={t('mil.armies')} icon="military">
-      <ul class="armies">{g.w.armies.filter(a => a.country === c.id).map(a => { const n = divs.filter(d => d.army === a.id).length; return <li key={a.id} data-tip={a.general.traits.map(x => t('gtrait.' + x)).join(', ')}>
+      <ul class="armies">{g.w.armies.filter(a => a.country === c.id).sort((a, b) => divs.filter(d => d.army === b.id).length - divs.filter(d => d.army === a.id).length).slice(0, 4).map(a => { const n = divs.filter(d => d.army === a.id).length; return <li key={a.id} data-tip={a.general.traits.map(x => t('gtrait.' + x)).join(', ')}>
         <span class="monogram sm">{a.general.name.split(' ').map(x => x[0]).slice(0, 2).join('')}</span><span><b>{armyName(a.num)}</b><small>{a.general.name}</small></span><span class="num stars">{'★'.repeat(a.general.skill)}</span><b class="num">{n}</b></li>; })}</ul>
+      {g.w.armies.filter(a => a.country === c.id).length > 4 && <small class="muted">{t('prov.more', { n: g.w.armies.filter(a => a.country === c.id).length - 4 })}</small>}
     </Block>
     <div class="tech-row" data-tip={t('eco.resHint', { n: c.tech })}><Icon name="target" size={14} /> {t('mil.tech')} <b class="num">{c.tech}</b></div>
   </NationSheet>;

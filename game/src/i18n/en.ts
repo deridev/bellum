@@ -166,4 +166,5 @@ export const en: Record<string, Entry> = {
   'dip.atWar': 'At war with', 'dip.treaties': 'Your treaties', 'dip.noTreaties': 'No treaties yet. Open a nation on the map to propose one.',
   'fx.endsWar': 'Ends the war', 'fx.provinces': { one: '−{n} province', other: '−{n} provinces' }, 'fx.noLand': 'No land changes hands', 'fx.warGoesOn': 'The war goes on', 'war.commitWhat': 'share of your army sent here',
   'ideo.la': 'Socialist state', 'ideo.ca': 'Nationalist', 'ideo.ra': 'Corporatist', 'ideo.lc': 'Social democrat', 'ideo.cc': 'Centrist', 'ideo.rc': 'Conservative', 'ideo.ll': 'Libertarian left', 'ideo.cl': 'Liberal', 'ideo.rl': 'Libertarian',
+  'pol.election': 'Next election', 'pol.government': 'Government',
 };

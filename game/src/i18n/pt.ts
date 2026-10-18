@@ -172,4 +172,5 @@ export const pt: Record<string, Entry> = {
   'dip.atWar': 'Em guerra com', 'dip.treaties': 'Seus tratados', 'dip.noTreaties': 'Nenhum tratado ainda. Abra uma nação no mapa para propor um.',
   'fx.endsWar': 'Encerra a guerra', 'fx.provinces': { one: '−{n} província', other: '−{n} províncias' }, 'fx.noLand': 'Nenhuma terra muda de mãos', 'fx.warGoesOn': 'A guerra continua', 'war.commitWhat': 'parcela do exército enviada',
   'ideo.la': 'Estado socialista', 'ideo.ca': 'Nacionalista', 'ideo.ra': 'Corporativista', 'ideo.lc': 'Social-democrata', 'ideo.cc': 'Centrista', 'ideo.rc': 'Conservador', 'ideo.ll': 'Esquerda libertária', 'ideo.cl': 'Liberal', 'ideo.rl': 'Libertário',
+  'pol.election': 'Próxima eleição', 'pol.government': 'Governo',
 };

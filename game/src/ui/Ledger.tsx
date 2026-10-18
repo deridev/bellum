@@ -57,7 +57,7 @@ function Overview({ g }: { g: Game }) {
   const chart = (k: 'gdp' | 'debt' | 'manpower' | 'casualties' | 'stability' | 'warSupport', label: string) => {
     const v = g.series(k), last = v[v.length - 1] ?? 0, d = last - (v[0] ?? last), share = k === 'stability' || k === 'warSupport', worse = k === 'casualties' || k === 'debt', bad = worse ? d > 0 : d < 0;
     return <figure class="cell"><figcaption><span>{label}</span><span class="cap-v"><Delta v={d} invert={worse} fmt={share ? (x: number) => `${Math.round(x * 100)}` : FMT[k]} /><b class="num">{FMT[k](last)}</b></span></figcaption>
-      <LineChart series={[{ id: k, label, color: Math.abs(d) < 1e-9 ? SLOTS[0] : bad ? FALL : RISE, values: v }]} xs={xs} fmtX={monthX(g)} fmtY={FMT[k]} height={136} zero={worse} marks={marks} /></figure>;
+      <LineChart series={[{ id: k, label, color: Math.abs(d) < 1e-9 ? SLOTS[0] : bad ? FALL : RISE, values: v }]} xs={xs} fmtX={monthX(g)} fmtY={FMT[k]} height={158} zero={worse} marks={marks} /></figure>;
   };
   return <>
     <div class="kpis">
@@ -88,8 +88,7 @@ const COL_ICON: Record<string, string> = { gdp: 'gdp', pop: 'population', divisi
 function Rankings({ g }: { g: Game }) {
   const [by, setBy] = useState<typeof COLS[number]>('gdp');
   const rows = table(g).sort((a, b) => b[by] - a[by]), top = rows[0]?.[by] || 1, me = g.player;
-  // bars on a log scale so mid-table nations still show a bar next to a giant
-  const lo = Math.max(1e-9, rows[rows.length - 1]?.[by] || 1e-9), bar = (v: number) => by === 'stability' || by === 'tech' ? v / top : Math.log(Math.max(v, lo) / lo) / Math.log(top / lo || 2);
+  const bar = (v: number) => by === 'stability' || by === 'tech' ? v / top : Math.sqrt(Math.max(0, v) / top); // square root: giants do not flatten everyone else
   // places gained since the first recorded month (for measures recorded per nation)
   const j = ({ gdp: 0, divisions: 1, provinces: 2, pop: 3 } as Record<string, number>)[by], h0 = g.history[0];
   const order0 = j === undefined || !h0 ? null : rows.map(r => r.id).sort((a, b) => h0.all[b * 4 + j] - h0.all[a * 4 + j]);
@@ -128,7 +127,7 @@ function Compare({ g }: { g: Game }) {
     </div>
     <figure class="cell wide"><figcaption><span>{t(growth ? 'led.growthOf' : 'led.col.' + metric, { m: t('led.col.' + metric) })}</span>
         <span class="legend">{ids.map((id, i) => <span key={id}><svg width="22" height="6" aria-hidden="true"><line x1="1" x2="21" y1="3" y2="3" stroke={SLOTS[i]} stroke-width={i === 0 ? 3 : 2} stroke-dasharray={dashOf(i)} /></svg>{countryName(w, id)}</span>)}</span></figcaption>
-      <LineChart series={series} xs={xs} fmtX={monthX(g)} fmtY={growth ? signedPct : FMT[metric]} height={200} zero={!growth && metric !== 'gdp'} /></figure>
+      <LineChart series={series} xs={xs} fmtX={monthX(g)} fmtY={growth ? signedPct : FMT[metric]} height={250} zero={!growth && metric !== 'gdp'} /></figure>
     <table class="h2h">
       <thead><tr><th />{ids.map((id, i) => <th key={id}><span class="cmp-key" style={{ background: SLOTS[i] }} /><Flag s={g.s} code={w.countries[id].code} h={14} /> {countryName(w, id)}</th>)}</tr></thead>
       <tbody>{COLS.filter(k => k !== 'tech').map(k => { const vals = ids.map(id => row(id)?.[k] ?? 0), best = Math.max(...vals) || 1;

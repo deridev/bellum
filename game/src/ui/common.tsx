@@ -30,8 +30,10 @@ export function Sheet({ title, onClose, children, eyebrow, icon, head }: { title
 /** Whether a scroll box has more below; the footer strip shows it without covering content. */
 export function useMore() {
   const body = useRef<HTMLDivElement>(null), [more, setMore] = useState(false);
-  const check = () => { const b = body.current; if (b) setMore(b.scrollHeight - b.scrollTop - b.clientHeight > 24); };
+  // the footer takes room itself, so it stays only if the content would still overflow without it
+  const check = () => { const b = body.current; if (!b) return; const f = b.nextElementSibling as HTMLElement | null, foot = f?.classList.contains('more-foot') ? f.offsetHeight : 0; setMore(b.scrollHeight - b.scrollTop - b.clientHeight - foot > 8); };
   useEffect(check);
+  useEffect(() => { const id = setInterval(check, 500); return () => clearInterval(id); }, []); // cheap, and catches every late layout change
   return [body, more, check] as const;
 }
 export function MoreFooter({ body, more }: { body: { current: HTMLDivElement | null }; more: boolean }) {
@@ -81,17 +83,9 @@ export function Tug({ v, left, right }: { v: number; left: any; right: any }) {
   return <div class="tug"><span class="tug-end">{left}</span><div class="tug-bar"><i class="tug-us" style={{ width: `${x}%` }} /><i class="tug-mark" style={{ left: `${x}%` }} /></div><span class="tug-end">{right}</span></div>;
 }
 
-/** Military map symbols (NATO style) for the unit types; the modifier marks are drawn bold so the types tell apart at a glance. */
+/** A unit type as a tinted chip with its own silhouette (rifleman, tank, carrier, anchor, parachute). */
 export function UnitSymbol({ type, size = 28 }: { type: string; size?: number }) {
-  const w = size, h = Math.round(size * 0.68), inner = [];
-  const X = <path d={`M2 2L${w - 2} ${h - 2}M${w - 2} 2L2 ${h - 2}`} class="u-x" />;
-  const oval = <ellipse cx={w / 2} cy={h / 2} rx={w * 0.3} ry={h * 0.27} />;
-  if (type === 'infantry') inner.push(X);
-  if (type === 'armor') inner.push(<ellipse cx={w / 2} cy={h / 2} rx={w * 0.32} ry={h * 0.28} class="u-solid" />);
-  if (type === 'mechanized') { inner.push(X); inner.push(oval); }
-  if (type === 'marines') { inner.push(X); inner.push(<path d={`M2 ${h * 0.7}q${(w - 4) / 8} -${h * 0.16} ${(w - 4) / 4} 0t${(w - 4) / 4} 0t${(w - 4) / 4} 0t${(w - 4) / 4} 0V${h - 2}H2z`} class="u-solid" />); }
-  if (type === 'airborne') { inner.push(X); inner.push(<path d={`M${w * 0.28} ${h * 0.86}a${w * 0.11} ${h * 0.2} 0 0 1 ${w * 0.22} 0a${w * 0.11} ${h * 0.2} 0 0 1 ${w * 0.22} 0z`} class="u-solid" />); }
-  return <svg class={`unit-sym u-${type}`} width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true"><rect x="1" y="1" width={w - 2} height={h - 2} rx="1" class="unit-frame" /><g class="unit-mark">{inner}</g></svg>;
+  return <span class={`unit-chip u-${type}`} style={{ width: size, height: size }} aria-hidden="true"><Icon name={'u_' + type} size={Math.round(size * 0.66)} /></span>;
 }
 
 // Icons on a 24-unit grid: a 2px outline, and closed shapes get a tinted fill (duotone) so they read at a glance.
@@ -148,10 +142,16 @@ const P: Record<string, string> = {
   check: 'M5 12.5l4.5 4.5L19 7.5', cross: 'M7 7l10 10M17 7L7 17', save: 'M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6',
   settings: 'M12 15a3 3 0 1 0 0-6a3 3 0 1 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
   gdp: 'M3 20h18M6 17V11M10 17V7M14 17v-4M18 17V5', divisions: 'M3 7h18v10H3zM3 7l18 10M21 7L3 17', calendar: 'M4 6h16v14H4zM4 10h16M8 3v5M16 3v5',
-  flat: 'M6 12h12', up: 'M12 5l7 9H5z', down: 'M12 19l7-9H5z',
+  flat: 'M6 12h12', up: 'M12 5l7 9H5z',
+  // unit types
+  u_infantry: 'M12 3.5a2.6 2.6 0 1 0 0 5.2a2.6 2.6 0 1 0 0-5.2M7.5 21v-6.5a4.5 4.5 0 0 1 9 0V21zM15.5 11.5L20 3',
+  u_armor: 'M2.5 15h19v2.5a2.5 2.5 0 0 1-2.5 2.5H5a2.5 2.5 0 0 1-2.5-2.5zM5.5 15l1.5-4h9l1.5 4zM9.5 11V8.5h4V11M13.5 9.5H22',
+  u_mechanized: 'M2.5 16l2-6h11l3.5 3h2.5v3zM4 18.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0M10 18.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0M16 18.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0',
+  u_marines: 'M10 5a2 2 0 1 0 4 0a2 2 0 1 0-4 0M12 7v14M8 10.5h8M4.5 13.5a7.5 7.5 0 0 0 15 0M4.5 13.5L3 15M19.5 13.5L21 15',
+  u_airborne: 'M3 11a9 7 0 0 1 18 0zM3 11l9 9 9-9M8.5 11l3.5 9 3.5-9M12 20v1.5', down: 'M12 19l7-9H5z',
 };
 const FILLED = new Set(['play', 'pause', 'up', 'down']);
-const DUO = new Set(['treasury', 'manpower', 'stability', 'warSupport', 'influence', 'economy', 'politics', 'military', 'ledger', 'chronicle', 'timelapse', 'political', 'terrain', 'population', 'city', 'peace', 'ballot', 'coup', 'alliance', 'nap', 'guarantee', 'hold', 'g_military', 'g_industry', 'g_labor', 'save', 'calendar', 'divisions', 'denounce', 'treaty']);
+const DUO = new Set(['treasury', 'manpower', 'stability', 'warSupport', 'influence', 'economy', 'politics', 'military', 'ledger', 'chronicle', 'timelapse', 'political', 'terrain', 'population', 'city', 'peace', 'ballot', 'coup', 'alliance', 'nap', 'guarantee', 'hold', 'g_military', 'g_industry', 'g_labor', 'save', 'calendar', 'divisions', 'denounce', 'treaty', 'u_infantry', 'u_armor', 'u_mechanized', 'u_airborne']);
 export function Icon({ name, size = 18 }: { name: string; size?: number }) {
   const d = P[name] || P.target, fill = FILLED.has(name);
   return <svg class="icon" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
@@ -203,14 +203,15 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
   for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 20) ends[i].y = ends[i - 1].y + 20;
   const path = (v: number[]) => smooth(v.map((y, i) => [X(i), Y(y)]));
   // event pins: the month each event fell in
-  const pins = marks.map(m => ({ ...m, i: Math.max(0, xs.findIndex((x, j) => j === n - 1 || xs[j + 1] > m.x)) })).filter(m => m.x >= xs[0]);
+  const pins0 = marks.map(m => ({ ...m, i: Math.max(0, xs.findIndex((x, j) => j === n - 1 || xs[j + 1] > m.x)) }));
+  const pins = pins0.filter((m, k) => pins0.findIndex(q => q.i === m.i) === k).map(m => ({ ...m, label: pins0.filter(q => q.i === m.i).map(q => q.label).join(' · '), px: Math.max(L + 10, X(m.i)) }));
   const move = (e: PointerEvent) => { const r = (e.currentTarget as SVGElement).getBoundingClientRect(); const i = Math.round((e.clientX - r.left - L) / w * (n - 1)); setHi(i >= 0 && i < n ? i : null); };
   const hx = hi === null ? 0 : X(hi);
   return <div ref={ref} class="chart">
     <svg width={W} height={height} onPointerMove={move} onPointerLeave={() => setHi(null)} role="img" aria-label={series.map(s => `${s.label} ${fmtY(s.values[n - 1])}`).join(', ')}>
       {tk.map(v => <g key={v}><line x1={L} x2={L + w} y1={Y(v)} y2={Y(v)} class="grid" /><text x={L - 8} y={Y(v) + 4} class="axis" text-anchor="end">{fmtY(v)}</text></g>)}
       <text x={L} y={height - 6} class="axis">{fmtX(xs[0])}</text><text x={L + w} y={height - 6} class="axis" text-anchor="end">{fmtX(xs[n - 1])}</text>
-      {pins.map((m, k) => <g key={k} class="pin"><line x1={X(m.i)} x2={X(m.i)} y1={T + 8} y2={T + h} /><path d={`M${X(m.i)} ${T - 7}l8 8-8 8-8-8z`} /><text x={X(m.i)} y={T + 5} text-anchor="middle">{m.n}</text></g>)}
+      {pins.map((m, k) => <g key={k} class="pin"><line x1={m.px} x2={m.px} y1={T + 8} y2={T + h} /><path d={`M${m.px} ${T - 7}l8 8-8 8-8-8z`} /><text x={m.px} y={T + 5} text-anchor="middle">{m.n}</text></g>)}
       {!labels && <path d={`${path(series[0].values)}L${X(n - 1)},${T + h}L${X(0)},${T + h}Z`} fill={series[0].color} opacity="0.16" />}
       {series.map((s, i) => <path key={s.id} d={path(s.values)} fill="none" stroke={s.color} stroke-width={i === 0 ? 3 : 2} stroke-dasharray={DASH[i % DASH.length]} stroke-linejoin="round" stroke-linecap="round" />)}
       {series.map(s => <circle key={s.id} cx={X(n - 1)} cy={Y(s.values[n - 1])} r="4" fill={s.color} class="end-dot" />)}
