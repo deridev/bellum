@@ -5,7 +5,6 @@ const html = fs.readFileSync('dist/index.html', 'utf8');
 const js = [...html.matchAll(/<script[^>]*src="([^"]+)"[^>]*><\/script>/g)].map(m => m[1]);
 const css = [...html.matchAll(/<link[^>]*rel="stylesheet"[^>]*href="(\.\/assets[^"]+)"[^>]*>/g)].map(m => m[1]);
 const page = `<title>Bellum</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;1,800&family=Barlow:wght@400;500;600;700&display=swap">
