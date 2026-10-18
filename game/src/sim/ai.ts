@@ -1,11 +1,12 @@
 // Country AI outside battle: budget and production, diplomacy, and when to start a war.
-import { atWar, queueUnit } from './economy';
+import { atWar, demobilize, queueUnit } from './economy';
 import { DIPLO, diploOdds, doDiplo, hasTreaty, power, type DiploAction } from './diplomacy';
 import { nextRand } from './rng';
 import type { Country, MapStatic, UnitType, World } from './types';
 import { msg } from './types';
 import { rel } from './world';
-import { activeWars, allied, declareWar, defendersOf, enemies, inTruce, warCost } from './war/war';
+import { aiPolicies } from './policies';
+import { activeWars, allied, declareWar, defendersOf, enemies, inTruce, overlordOf, sideOf, warCost, warsOf } from './war/war';
 
 /** Land neighbours of every country (from province adjacency). */
 export function neighbours(w: World, S: MapStatic): Set<number>[] {
@@ -20,6 +21,7 @@ export function aiMonthly(w: World, S: MapStatic) {
     if (!c.alive || c.player) continue;
     const threats = [...nb[c.id]].filter(n => enemies(w, c.id, n) || (rel(w, c.id, n) < -40 && pw[n] > pw[c.id] * 1.2));
     aiEconomy(w, c, threats.length > 0);
+    aiPolicies(w, c);
     aiDiplomacy(w, c, pw, nb, threats);
   }
   aiWars(w, S, pw, nb);
@@ -38,6 +40,8 @@ function aiEconomy(w: World, c: Country, threatened: boolean) {
   if (war && c.treasury < c.income && c.deficit < 0.5) c.deficit += 0.02; // borrow for the war
   else if (!war && debt > 1.4) c.deficit = Math.max(0, c.deficit - 0.02);
   if (debt > 2 && c.taxRate < 0.4) c.taxRate += 0.005;
+  // at peace, an army the budget cannot fund is stood down (a few reserve divisions a month)
+  if (!war && (c.readiness ?? 1) < 0.85) for (let k = 0; k < 3; k++) if (!(['infantry', 'mechanized', 'armor', 'marines', 'airborne'] as UnitType[]).some(u => demobilize(w, c, u))) break;
   // build up to what the budget sustains: a cushion in peace, everything in war
   const funds = c.spending * c.budget.military, divs = w.divisions.filter(d => d.country === c.id).length + c.production.length;
   const want = Math.floor(funds * (war ? 0.95 : threatened ? 0.85 : 0.72) / c.unitCost);
@@ -66,7 +70,7 @@ function aiDiplomacy(w: World, c: Country, pw: number[], nb: Set<number>[], thre
   const me = c.id, r = nextRand(w);
   // threatened: look for a strong friend who shares the enemy
   if (threats.length && c.polCap >= DIPLO.alliance.cost) {
-    const cands = w.countries.filter(k => k.alive && k.id !== me && !allied(w, me, k.id) && rel(w, k.id, me) > 30 && threats.some(t => rel(w, k.id, t) < -20)).sort((a, b) => pw[b.id] - pw[a.id]);
+    const cands = w.countries.filter(k => k.alive && k.id !== me && !allied(w, me, k.id) && rel(w, k.id, me) > 30 && threats.some(t => rel(w, k.id, t) < -20) && !warsOf(w, k.id).some(x => !sideOf(x, me))).sort((a, b) => pw[b.id] - pw[a.id]);
     for (const k of cands.slice(0, 4)) if (act(w, me, k.id, 'alliance')) return;
   }
   // great powers guarantee threatened friends
@@ -95,7 +99,7 @@ function aiWars(w: World, S: MapStatic, pw: number[], nb: Set<number>[]) {
   if (w.day < 120 || activeWars(w).filter(x => x.start > 0).length >= 3) return;
   for (const c of w.countries) {
     const g = GATE[c.personality];
-    if (!g || !c.alive || c.player || atWar(w, c.id) || c.stability < 0.45 || nextRand(w) > g.p) continue;
+    if (!g || !c.alive || c.player || atWar(w, c.id) || c.stability < 0.45 || overlordOf(w, c.id) || nextRand(w) > g.p) continue;
     const cost = (n: number) => warCost(w, c.id, n);
     let best = -1, bestR = 0;
     for (const n of nb[c.id]) {

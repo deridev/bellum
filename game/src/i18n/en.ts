@@ -32,7 +32,7 @@ export const en: Record<string, Entry> = {
   // ---- economy ----
   'eco.perYear': '{v} / yr', 'eco.perMonth': '{v} / mo', 'eco.growth': 'Growth', 'eco.revenue': 'Revenue', 'eco.spending': 'Spending (incl. interest)', 'eco.debt': 'Debt', 'eco.debtOf': '{v} ({p} of GDP)',
   'eco.taxes': 'Taxes and borrowing', 'eco.taxRate': 'Tax rate', 'eco.taxHint': 'Higher taxes: more revenue, slower growth, unhappy industry and farmers.',
-  'eco.borrowing': 'Borrowing', 'eco.ofRevenue': '+{p} of revenue', 'eco.borrowHint': 'Spend beyond revenue. Debt costs 4% a year, and heavy debt slows growth.',
+  'eco.borrowing': 'Borrowing', 'eco.ofRevenue': '+{p} of revenue', 'eco.borrowHint': 'Right: spend beyond revenue. Debt costs 4% a year, and heavy debt slows growth. Left: save part of revenue in the treasury, for policies and faster production.',
   'eco.budget': 'Budget', 'eco.military': 'Military', 'eco.milHint': 'Upkeep {up}/mo · production {prod}/mo', 'eco.investment': 'Investment', 'eco.invHint': 'Infrastructure and industry: drives growth.',
   'eco.welfare': 'Welfare', 'eco.welHint': 'Health, pensions, services: stability and labour support.', 'eco.research': 'Research', 'eco.resHint': 'Military technology level {n}. Each level makes units 5% stronger.',
 
@@ -181,4 +181,15 @@ export const en: Record<string, Entry> = {
   'agenda.peaceShort': 'Peace offer', 'agenda.moreIn': '+{n} more in Decisions ↑', 'led.andMore': '+{n} more', 'mil.locate': 'Show on the map',
   'mil.show': 'Show',
   'led.noChange': 'no change', 'pol.rising': 'Support rising', 'pol.falling': 'Support falling', 'pol.steady': 'Steady', 'eco.borrowingNow': '{v}/mo borrowed',
+  'log.capitulates': '{c} capitulates', 'big.capitulation': 'Capitulation', 'log.govFalls': 'The government of {c} falls over the war. {leader} replaces {old}', 'big.govFalls': 'Government falls',
+  'dip.why.notThisWar': 'They will not join your war against that enemy.',
+  'pol.stimulus': 'Stimulus', 'pol.stimulus.hint': 'Spend 4 months of revenue: +2% output now', 'pol.research': 'Research grant', 'pol.research.hint': 'Spend 3 months of revenue: most of a technology level',
+  'pol.warBonds': 'War bonds', 'pol.warBonds.hint': 'Raise 3 months of revenue now, repaid as debt with interest', 'pol.propaganda': 'Propaganda', 'pol.propaganda.hint': 'War support +12 pt',
+  'pol.concessions': 'Concessions', 'pol.concessions.hint': 'The unhappiest interest group gains support', 'pol.integrate': 'Integrate', 'pol.integrate.hint': 'Halve the unrest in conquered provinces',
+  'pol.why.treasury': 'Needs {n} months of revenue saved in the treasury.', 'pol.why.peace': 'Only in wartime.', 'pol.why.noUnrest': 'No conquered provinces to integrate.', 'pol.actions': 'Policies',
+  'mil.demobilize': 'Demobilize one reserve division', 'mil.underfunded': 'Underfunded: readiness {p}', 'eco.saving': 'Saving', 'eco.savingOf': 'saving {p} of revenue', 'declare.truce': 'A truce holds until {d}.', 'declare.ally': 'This tears up every treaty with {c} and leaves your bloc.',
+  'dip.why.joinsTheirWar': 'They accept, and you join their war.', 'dip.why.guaranteeWar': 'They are already at war. A guarantee cannot stop it.',
+  'mil.readinessHint': 'Upkeep costs more than the military budget. Divisions cannot reach full organisation. Raise the military share, borrow, or demobilize reserves.',
+  'log.independent': '{c} regains its independence from {o}', 'big.independent': 'Independence', 'declare.puppet': '{c} controls your foreign policy until {d}.',
+  'declare.truceBtn': 'Truce in force', 'declare.puppetBtn': 'Your overlord forbids it',
 };

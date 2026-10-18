@@ -336,7 +336,7 @@ function combat(w: World, t: Theater, units: Division[], wk: Work) {
     const war = w.wars.find(x => x.id === t.war); if (war) war.casualties[side > 0 ? 0 : 1] += loss;
     const country = w.countries[d.country];
     if (d.sup > 0 && d.str < d.max && country.manpower > 0) { const add = Math.min(d.max - d.str, d.max * 0.006 * d.sup, country.manpower); d.str += add; country.manpower -= add; }
-    d.org = Math.min(1, d.org + (d.sup > 0.3 ? 0.02 : -0.02));
+    d.org = Math.min(0.6 + 0.4 * (country.readiness ?? 1), d.org + (d.sup > 0.3 ? 0.02 : -0.02));
   }
 }
 

@@ -1,6 +1,6 @@
 // Diplomacy: the same actions and acceptance rules for the player and the AI.
 import { addRel, clamp01, rel, say } from './world';
-import { allied, defendersOf, enemies } from './war/war';
+import { allied, defendersOf, enemies, sideOf, warsOf } from './war/war';
 import type { Msg, TreatyType, World } from './types';
 import { msg } from './types';
 
@@ -39,14 +39,19 @@ export function diploOdds(w: World, from: number, to: number, act: DiploAction):
       if (opinion < -20) return { ok: false, why: msg('dip.why.opinion', { n: -20 }) };
       return power(w, from) >= power(w, to) * 0.8 || opinion > 30 ? { ok: true, why: msg('dip.why.napOk') } : { ok: false, why: msg('dip.why.napWeak') };
     case 'guarantee': if (hasTreaty(w, from, to, 'guarantee')) return { ok: false, why: msg('dip.why.already') };
+      if (warsOf(w, to).length) return { ok: false, why: msg('dip.why.guaranteeWar') }; // a guarantee deters a war; it cannot stop one
       return opinion > -20 ? { ok: true, why: msg('dip.why.guaranteeOk') } : { ok: false, why: msg('dip.why.opinion', { n: -20 }) };
     case 'alliance': {
       if (allied(w, from, to)) return { ok: false, why: msg('dip.why.already') };
       if (defendersOf(w, from).some(x => rel(w, to, x) < -50)) return { ok: false, why: msg('dip.why.badFriends') };
+      // allying with a country at war means joining its war: only a public ready for war, against an enemy it already hates
+      const foes = warsOf(w, from).filter(x => !sideOf(x, to)).flatMap(x => sideOf(x, from) > 0 ? x.defenders : x.attackers);
+      if (foes.length && (w.countries[to].warSupport < 0.5 || foes.some(f => allied(w, to, f) || rel(w, to, f) > -50))) return { ok: false, why: msg('dip.why.notThisWar') };
+      const joins = warsOf(w, to).some(x => !sideOf(x, from)); // proposing to a country at war: you join its war
       // shared enemies make allies; a strong partner is attractive; ideology matters
       const sharedRival = w.countries.some(x => x.alive && rel(w, to, x.id) < -40 && rel(w, from, x.id) < -40);
       const score = opinion + (sharedRival ? 25 : 0) + Math.min(20, 10 * Math.log2(Math.max(0.25, power(w, from) / Math.max(1, power(w, to))))) - 20 * ideoDist(w, from, to);
-      return score >= 60 ? { ok: true, why: msg(sharedRival ? 'dip.why.allyRival' : 'dip.why.allyOk') } : { ok: false, why: msg('dip.why.allyNo', { n: Math.round(score), need: 60 }) };
+      return score >= 60 ? { ok: true, why: msg(joins ? 'dip.why.joinsTheirWar' : sharedRival ? 'dip.why.allyRival' : 'dip.why.allyOk') } : { ok: false, why: msg('dip.why.allyNo', { n: Math.round(score), need: 60 }) };
     }
   }
 }
@@ -78,6 +83,8 @@ export function doDiplo(w: World, from: number, to: number, act: DiploAction) {
 
 /** Monthly: treaties expire, allies warm up, enemies at war grow bitter. */
 export function monthlyDiplomacy(w: World) {
+  for (const t of w.treaties) if (t.type === 'puppet' && t.until >= 0 && t.until <= w.day && w.countries[t.b].alive)
+    say(w, msg('log.independent', { c: { c: t.b }, o: { c: t.a } }), 'diplo', { who: [t.b, t.a], big: w.countries[t.b].player ? 'big.independent' : undefined });
   w.treaties = w.treaties.filter(t => t.until < 0 || t.until > w.day);
   for (const t of w.treaties) if ((t.type === 'alliance' || t.type === 'trade') && rel(w, t.a, t.b) < 80) addRel(w, t.a, t.b, 1);
   for (const war of w.wars) if (!war.ended) for (const a of war.attackers) for (const d of war.defenders) addRel(w, a, d, -2);

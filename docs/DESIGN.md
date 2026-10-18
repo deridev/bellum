@@ -390,6 +390,41 @@ The vertical slice is **one war, fought well**: if the flagship is 1950, the Kor
 5. **Art direction**: keep the prototype's satellite-relief style, or a stylised / painted map?
 6. **Sound**: the front would gain a lot from distant artillery, radio chatter and a score. In scope for the vertical slice?
 
+## 15. Core loop review (playtests, October 2026)
+
+We played the simulation headless with `npm run playtest` (`game/tests/playtest.ts`): one nation follows a scripted strategy for 3 to 6 years while the AI runs the rest. The strategies are passive, saver, diplomat and hawk. The table shows what broke, why it matters to a player, and what changed.
+
+| Found in play | Why it is a problem | Change |
+|---|---|---|
+| A losing nation never surrendered: Ukraine and Bolivia held 0 provinces for years at war score −100 | A **dead end**: the game goes on, but there is nothing left to decide | **Capitulation**: a side gives up when its leader has lost the capital and holds ≤25% of its land, holds nothing, or is fully exhausted while losing. The winners take what they hold; a rump becomes a puppet |
+| War support reached 0 and nothing happened | A meter with no consequence is noise | **Government crisis**: at ~0 the government falls (new leader, −stability, −influence). A democracy then seeks a white peace |
+| The treasury only moved with the deficit, and was empty by year 2 | **Savings were a decoy**: no reason to save, nothing to spend them on | Interest comes off the top. Borrowing goes both ways: **saving** builds a treasury, and savings speed up production. A year's revenue beyond that pays down debt |
+| Influence capped at 300; 2 to 4 decisions in 5 years of peace | **Peacetime is empty**: resources pile up with no use | **Policies** (§15.1): six one-off actions that spend influence or savings, with cooldowns. The AI uses the same rules |
+| Armies cost nothing beyond the budget share; a rump state kept a 79-division army | Size had **no trade-off** | **Readiness** = military funds ÷ upkeep. An underfunded army caps organisation at 60–100%, and **demobilizing** reserves returns their men. The AI stands down armies it cannot pay for in peacetime |
+| A player attacked an ally twice, two months after peace, and annexed freely | No friction on aggression | **Truces** are enforced for the player too. Attacking an ally tears up every treaty and leaves the bloc. Conquests carry **unrest**: half their output, a stability drag, core status after ~5 years. **Integrate** speeds that up |
+| Alliances signed mid-war did nothing; then (first fix) half of NATO joined the Russo-Ukrainian war in month 2 | A treaty must mean something, but a world war by accident is worse | A treaty signed during a war **calls the partner in**. A country only signs if its public is ready (war support ≥ 50%) and it already hates the enemy (≤ −50). Guarantees cannot be given to a country already at war |
+| A rump state kept the whole country's debt (13× GDP) | A second dead end, after defeat | Ceded land takes its **share of the debt** |
+| A puppet was only a label, and the puppet player kept declaring suicidal wars | A third dead end, with no way out | A puppet's foreign policy belongs to its overlord: **no wars**. Independence returns **after 10 years**, with a banner |
+| Readiness, once added, made a losing defender spiral (less land, less money, less readiness, less land) | **Positive feedback** decides wars too early | The readiness penalty is capped (organisation never below 60%), so it costs a war but never decides one |
+| Unit costs were calibrated on full revenue, but taxes are collected by stability and interest is paid first | Some nations (Ukraine) started underfunded | Calibration uses the same formula as the monthly economy |
+
+Across 10 years of AI-only play (seed 11), median debt fell from 0.48 to 0.30 of GDP. The worst case fell from 4.1 to 2.6. The lowest stability rose from 0.05 to 0.37. Repeat wars on the same victim stopped.
+
+### 15.1 Policies
+| Panel | Policy | Cost | Effect | Cooldown |
+|---|---|---|---|---|
+| Economy | Stimulus | 4 months of revenue | +2% output | 1 year |
+| Economy | Research grant | 3 months of revenue | most of a technology level | 1 year |
+| Economy | War bonds (war only) | none | 3 months of revenue now, +10% as debt, a little war support | 6 months |
+| Politics | Propaganda | 30 influence | war support +12 pt | 6 months |
+| Politics | Concessions | 25 influence | the unhappiest group +15 pt | 6 months |
+| Politics | Integrate (needs conquests) | 40 influence | halves unrest | 1 year |
+
+### 15.2 Known issues, not yet addressed
+- In 1939, AI-only play ends the Second World War in May 1940 with a small treaty. The scenario needs war goals that keep the great powers fighting.
+- Every scripted Ukraine strategy accepts or is forced into a cession within months. The front holds Kyiv, but peace comes too early for a war of attrition.
+- Spanish and Portuguese money formats are long, so the Economy panel scrolls a little in those languages at 1440×860.
+
 ---
 
 ## Decision log
@@ -409,3 +444,7 @@ The vertical slice is **one war, fought well**: if the flagship is 1950, the Kor
 | 12 | 2026-10-18 | **Localization: English, Brazilian Portuguese, Spanish.** The simulation emits message keys, never text; country names come from the browser's region names, historical ones from our dictionaries |
 | 13 | 2026-10-18 | **Historical scenarios reuse the modern provinces**: each is assigned to its 1914 or 1939 owner from historical-basemaps (GPL-3.0, licence to confirm before shipping); population and output come from regional period tables |
 | 14 | 2026-10-18 | **The simulation stays on the main thread** with a per-frame time budget (fronts only update near the line). A web worker would mean every panel talking to the world by message; revisit if late-game wars get slow |
+| 15 | 2026-10-18 | **No dead ends**: every losing, broke or subject state has a way forward (capitulation, debt follows land, puppets regain independence after 10 years). Found by headless playtests (§15) |
+| 16 | 2026-10-18 | **Every meter has a consequence**: war support at zero topples the government; an army beyond its budget loses readiness. Penalties that feed back on themselves are capped |
+| 17 | 2026-10-18 | **Peacetime has things to do**: savings and influence buy one-off policies with cooldowns. The AI plays by the same rules (§15.1) |
+| 18 | 2026-10-18 | **Treaties mean what they say**: allying with a nation at war joins its war, so only publics ready for that war sign; attacking an ally tears up every treaty |

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { SPEEDS, type Game, type Panel } from '../game/play';
 import { useStore, useTick } from '../game/store';
-import { atWar, popOf, UNIT_SPEC, queueUnit, cancelUnit } from '../sim/economy';
+import { atWar, popOf, UNIT_SPEC, queueUnit, cancelUnit, demobilize, reservesOf } from '../sim/economy';
+import { enactPolicy, POLICIES, policyOdds, type PolicyId } from '../sim/policies';
 import { groupMood, stabilityTarget } from '../sim/politics';
 import { DIPLO, diploOdds, type DiploAction } from '../sim/diplomacy';
 import { type Conscription, type Country, type LogEntry, type UnitType, type War } from '../sim/types';
@@ -212,8 +213,9 @@ function EconomyPanel({ g }: { g: Game }) {
     </Block>
     <Block title={t('eco.taxes')} icon="treasury">
       <Slider id="tax" label={t('eco.taxRate')} value={c.taxRate} min={0.08} max={0.55} step={0.01} fmt={pct} onInput={v => { c.taxRate = v; upd(); }} hint={t('eco.taxHint')} sub={t('eco.revenueIs', { v: t('eco.perMonth', { v: fmtMoney(c.income) }) })} />
-      <Slider id="deficit" label={t('eco.borrowing')} value={c.deficit} min={0} max={0.8} step={0.01} fmt={v => t('eco.ofRevenue', { p: pct(v) })} onInput={v => { c.deficit = v; upd(); }} hint={t('eco.borrowHint')} danger={c.deficit > 0.6} sub={c.deficit > 0.4 ? t('eco.borrowWarn') : undefined} />
+      <Slider id="deficit" label={t(c.deficit < 0 ? 'eco.saving' : 'eco.borrowing')} value={c.deficit} min={-0.3} max={0.8} step={0.01} fmt={v => v < 0 ? t('eco.savingOf', { p: pct(-v) }) : t('eco.ofRevenue', { p: pct(v) })} onInput={v => { c.deficit = Math.abs(v) < 0.005 ? 0 : v; upd(); }} hint={t('eco.borrowHint')} danger={c.deficit > 0.6} sub={c.deficit > 0.4 ? t('eco.borrowWarn') : undefined} />
     </Block>
+    <Policies g={g} panel="economy" />
   </NationSheet>;
 }
 
@@ -246,7 +248,21 @@ function PoliticsPanel({ g }: { g: Game }) {
         <b class="num g-v">{pct(gr.support)}</b>
         <span class={`g-dir ${dir > 0.02 ? 'good' : dir < -0.02 ? 'bad' : ''}`} data-tip={t(dir > 0.02 ? 'pol.rising' : dir < -0.02 ? 'pol.falling' : 'pol.steady')}>{Math.abs(dir) > 0.02 ? <Icon name={dir > 0 ? 'up' : 'down'} size={16} /> : <i class="steady" />}</span></div>; })}</div>
     </Block>
+    <Policies g={g} panel="politics" />
   </NationSheet>;
+}
+
+/** One-off national policies: spend influence or savings. The tooltip says what each does, or why it is blocked. */
+function Policies({ g, panel }: { g: Game; panel: 'economy' | 'politics' }) {
+  const c = g.me, w = g.w; const [, force] = useState(0);
+  const ids = (Object.keys(POLICIES) as PolicyId[]).filter(id => POLICIES[id].panel === panel);
+  return <Block title={t('pol.actions')} icon="improve">
+    <div class="action-grid three">{ids.map(id => { const P = POLICIES[id], o = policyOdds(w, c, id), short = (P.influence ?? 0) > c.polCap || (P.treasury ?? 0) * c.income > c.treasury;
+      const cost = P.influence ? <><Icon name="influence" size={12} />{P.influence}</> : P.treasury ? <><Icon name="treasury" size={12} />{fmtMoney(c.income * P.treasury)}</> : <><Icon name="treasury" size={12} />+{fmtMoney(c.income * 3)}</>;
+      return <button key={id} class={`act ${o.ok ? 'ok' : ''}`} aria-disabled={!o.ok} data-tip={`${t('pol.' + id)}: ${say(w, o.why)}`}
+        onClick={() => { if (enactPolicy(w, c, id)) { g.sound('click'); g.bump(); force(x => x + 1); } }}>
+        <Icon name={P.icon} size={20} /><span class="act-l">{t('pol.' + id)}</span><small class={`act-c num ${short ? 'poor' : !P.influence && !P.treasury ? 'gain' : ''}`}>{cost}</small>{!o.ok && <i class="act-s bad"><Icon name="cross" size={12} /></i>}</button>; })}</div>
+  </Block>;
 }
 
 function MilitaryPanel({ g }: { g: Game }) {
@@ -262,10 +278,12 @@ function MilitaryPanel({ g }: { g: Game }) {
     <Block title={t('mil.forces')} icon="military" aside={<span class="muted">{t('mil.atFront')} <b class="num">{fmtInt(front)}/{fmtInt(divs.length)}</b> · <span class={free <= 0 ? 'bad' : ''}>{t('mil.fundsShort')} {t('eco.perMonth', { v: fmtMoney(free) })}</span></span>}>
       <div class="forces">{(Object.keys(UNIT_SPEC) as UnitType[]).map(k => { const s = UNIT_SPEC[k], queued = c.production.filter(p => p.type === k).length;
         return <div key={k} class={`force u-${k}`}><UnitSymbol type={k} size={36} /><span class="f-t"><b class="num">{byType[k] || 0}{queued > 0 && <small class="f-q">+{queued}</small>}</b><span>{t('unitShort.' + k)}</span><small class="num">{fmtMoney(c.unitCost * s.costMul)} · {s.days}d</small></span>
+          <button class="f-dis" aria-label={t('mil.demobilize')} data-tip={t('mil.demobilize')} disabled={!reservesOf(g.w, c, k).length} onClick={() => { if (demobilize(g.w, c, k)) { upd(); g.sound('click'); } }}>−</button>
           <button class={`f-build ${free <= 0 ? 'warn' : ''}`} aria-label={t('mil.buildOne', { u: t('unitShort.' + k) })} data-tip={free <= 0 ? t('mil.noFundsWait') : t('mil.cost', { v: fmtMoney(c.unitCost * s.costMul), d: s.days, m: fmtBig(s.men) })} disabled={c.manpower < s.men} onClick={() => { const e = queueUnit(g.w, c, k); setNote(e ? t('mil.noManpower') : t('mil.queued', { u: t('unitShort.' + k) })); upd(); g.sound('click'); }}><Icon name="improve" size={14} />{t('mil.build')}</button></div>; })}</div>
       {note && <small class="muted" role="status">{note}</small>}
       {c.production.length > 0 && <ol class="queue">{c.production.map(p => <li key={p.id}><UnitSymbol type={p.type} size={22} /><Bar v={p.progress / p.cost} tone="amber" /><button class="x" aria-label={t('ui.cancel')} onClick={() => { cancelUnit(g.w, c, p.id); upd(); }}><Icon name="x" size={12} /></button></li>)}</ol>}
       {c.production.length > 0 && free <= 0 && <small class="bad">{t('mil.noFunds')}</small>}
+      {(c.readiness ?? 1) < 0.99 && <small class="bad" data-tip={t('mil.readinessHint')}>{t('mil.underfunded', { p: pct(c.readiness ?? 1) })}</small>}
     </Block>
     <Block title={t('mil.conscription')} icon="manpower">
       <div class="steps commit" role="group" aria-label={t('mil.conscription')}>{laws.map((l, i) => <button key={l} aria-pressed={c.conscription === l} class={laws.indexOf(c.conscription) >= i ? 'on' : ''} data-tip={t('mil.lawHint', { p: pct(CONSCRIPTION_RATE[l]), n: fmtBig(pop * CONSCRIPTION_RATE[l]) })} onClick={() => {

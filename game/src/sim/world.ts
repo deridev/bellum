@@ -32,7 +32,7 @@ export function createWorld(S: MapStatic, opts: { seed?: number; player?: number
     const taxRate = pc > 40000 ? 0.32 : pc > 12000 ? 0.25 : pc > 4000 ? 0.2 : 0.16;
     const milPct = (TB.milGdp[code] ?? 1.5) / 100;
     const military = Math.min(0.62, Math.max(0.04, milPct / taxRate));
-    const deficit = Math.max(0, milPct / taxRate - 0.62) + (modern && code === 'UKR' ? 0.4 : modern && code === 'USA' ? 0.2 : 0.03);
+    const deficit = Math.max(0, milPct / taxRate - 0.62) + (modern && code === 'UKR' ? 0.4 : modern && code === 'USA' ? 0.2 : 0);
     const research = 0.03 + 0.03 * rich, investment = 0.2, welfare = Math.max(0.05, 1 - military - research - investment);
     const gov: Gov = TB.gov[code] ?? (pc < 2500 && nextRand(w) < 0.25 ? 'authoritarian' : 'democracy');
     const nudge = TB.ideology[code];
@@ -65,7 +65,7 @@ export function createWorld(S: MapStatic, opts: { seed?: number; player?: number
     // ---- standing army ----
     const activeK = TB.active[code] ?? Math.max(2, Math.min(120, pop * 0.0035 / 1000 * (0.5 + rich)));
     const nDiv = Math.max(1, Math.round(activeK * 1000 / 12000));
-    const milMonthly = revenue * (1 + deficit) * military;
+    const net = revenue * (0.55 + 0.45 * c.stability), milMonthly = Math.max(0, net - Math.min(net * 0.6, c.debt * 0.04 / 12)) * (1 + deficit) * military; // as monthlyEconomy collects it
     c.unitCost = Math.max(2, milMonthly * 0.7 / nDiv);
     const coastal = provsOf[i].some(p => S.provinces[p].coastal);
     const mixOf = TB.mix?.[code] ?? (TB.mix ? [0.02, 0.03] : [0.08 + 0.12 * rich, 0.12 + 0.2 * rich]);

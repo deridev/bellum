@@ -4,6 +4,7 @@ import { nextRand } from '../rng';
 import type { Division, MapStatic, Msg, War, WarGoal, World } from '../types';
 import { msg } from '../types';
 import { addRel, clamp01, rel, say } from '../world';
+import { newLeader } from '../politics';
 import { frontAggr } from './ai';
 import { buildMasks, cellLonLat, cellOf, createTheater, stepTheater, T, work, type Theater } from './theater';
 
@@ -25,12 +26,14 @@ export function defendersOf(w: World, c: number): number[] {
   return [...out].filter(x => w.countries[x].alive);
 }
 export const allied = (w: World, a: number, b: number) => defendersOf(w, a).includes(b);
+/** A puppet's foreign policy belongs to its overlord until the treaty runs out. */
+export const overlordOf = (w: World, c: number) => w.treaties.find(t => t.type === 'puppet' && t.b === c);
 /** What declaring war would cost the attacker (shown before the player commits). */
 export function warCost(w: World, a: number, b: number) {
   const claim = w.provinces.some(p => p.owner === b && p.core.includes(a));
   const rival = rel(w, a, b) <= -50;
   const justified = claim || rival;
-  return { justified, claim, stability: justified ? 0.03 : 0.12, influence: justified ? 25 : 80, worldOpinion: justified ? -8 : -25, joiners: defendersOf(w, b).filter(x => x !== a && !allied(w, a, x)) };
+  return { justified, claim, truce: inTruce(w, a, b), ally: allied(w, a, b), overlord: overlordOf(w, a), stability: justified ? 0.03 : 0.12, influence: justified ? 25 : 80, worldOpinion: justified ? -8 : -25, joiners: defendersOf(w, b).filter(x => x !== a && !allied(w, a, x)) };
 }
 
 export function declareWar(w: World, S: MapStatic, a: number, b: number, opts: { goal?: WarGoal; silent?: boolean; name?: Msg; sides?: { attackers: number[]; defenders: number[] }; alone?: boolean } = {}): War {
@@ -42,6 +45,11 @@ export function declareWar(w: World, S: MapStatic, a: number, b: number, opts: {
     exhaustion: [0, 0], casualties: [0, 0], theaters: [], ended: 0,
   };
   w.wars.push(war);
+  // attacking a partner tears up every treaty with it, and leaves the bloc they share
+  if (!opts.silent && cost.ally) {
+    w.treaties = w.treaties.filter(t => !((t.a === a && t.b === b) || (t.a === b && t.b === a)));
+    if (A.bloc && A.bloc === B.bloc) { const bl = w.blocs[A.bloc]; bl.members = bl.members.filter(m => m !== a); A.bloc = ''; }
+  }
   // a scenario can set both coalitions at once (e.g. the July Crisis of 1914)
   if (opts.sides) { for (const c of opts.sides.attackers) if (!war.attackers.includes(c)) war.attackers.push(c); for (const c of opts.sides.defenders) if (!war.defenders.includes(c)) war.defenders.push(c); }
   // the defender's allies are called to arms (unless they are friends of the attacker)
@@ -157,7 +165,7 @@ export function stepWars(w: World, S: MapStatic) {
       if (w.day % 2 === 0) { updateOccupation(w, S, t, war); maybeExpand(w, S, t); }
       reportCities(w, t, war);
     }
-    if (w.day % 7 === 0) weeklyWar(w, war);
+    if (w.day % 7 === 0) weeklyWar(w, S, war);
   }
 }
 function cullUnits(w: World, t: Theater, units: Division[]) {
@@ -233,13 +241,53 @@ export function joinWar(w: World, S: MapStatic, war: War, c: number, side: 1 | -
   say(w, msg('log.joinsWar', { c: { c }, war: { m: war.name }, b: { c: side > 0 ? war.leadA : war.leadD } }), 'war', { who: [c] });
 }
 
-function weeklyWar(w: World, war: War) {
+function weeklyWar(w: World, S: MapStatic, war: War) {
   const sc = warScore(w, war); if (Math.abs(sc - war.score) >= 4) (war as any).lastChange = w.day; war.score = sc;
   for (const [i, side] of [[0, war.attackers], [1, war.defenders]] as const) {
     const pop = side.reduce((a, c) => a + popTotal(w, c), 0);
     war.exhaustion[i] = clamp01(war.casualties[i] / Math.max(1, pop) * 40 + Math.max(0, w.day - war.start) / 3650);
     for (const c of side) { const C = w.countries[c]; C.warSupport = clamp01(C.warSupport - war.exhaustion[i] * 0.01 - (C.gov === 'democracy' ? 0.002 : 0)); }
   }
+  for (const side of [1, -1] as const) if (!war.ended && surrenders(w, war, side)) { capitulate(w, S, war, side); return; }
+  callToArms(w, S, war);
+  for (const c of [...war.attackers, ...war.defenders]) governmentCrisis(w, S, war, c);
+}
+/** Signing an alliance (or a guarantee) with a country at war means joining its war. Older treaties were weighed at the declaration. */
+function callToArms(w: World, S: MapStatic, war: War) {
+  for (const t of w.treaties) {
+    if (t.since <= war.start || (t.type !== 'alliance' && t.type !== 'guarantee')) continue;
+    for (const [member, partner] of [[t.a, t.b], [t.b, t.a]]) {
+      if (t.type === 'guarantee' && member !== t.b) continue; // a guarantee binds only the guarantor
+      const side = sideOf(war, member); if (!side || sideOf(war, partner) || !w.countries[partner].alive) continue;
+      const foes = side > 0 ? war.defenders : war.attackers;
+      if (foes.some(f => allied(w, partner, f) || inTruce(w, partner, f))) continue;
+      joinWar(w, S, war, partner, side);
+    }
+  }
+}
+/** A side gives up when its leader has lost the capital and most of its land, or is completely exhausted. */
+function surrenders(w: World, war: War, side: 1 | -1) {
+  const lead = side > 0 ? war.leadA : war.leadD, L = w.countries[lead], foes = side > 0 ? war.defenders : war.attackers;
+  const own = w.provinces.filter(p => p.owner === lead), held = own.filter(p => p.controller === lead).length;
+  const capitalLost = foes.includes(w.provinces[L.capital].controller);
+  return (capitalLost && held <= own.length * 0.25) || held === 0 || (war.exhaustion[side > 0 ? 0 : 1] >= 1 && war.score * side < -40);
+}
+/** The winners dictate the peace: everything they hold of the leader's land, and a puppet if nothing is left to take. */
+function capitulate(w: World, S: MapStatic, war: War, side: 1 | -1) {
+  const lead = side > 0 ? war.leadA : war.leadD, win = -side as 1 | -1;
+  say(w, msg('log.capitulates', { c: { c: lead } }), 'war', { who: [...war.attackers, ...war.defenders], big: 'big.capitulation' });
+  const held = w.provinces.filter(p => sideOf(war, p.owner) === side && sideOf(war, p.controller) === win).map(p => p.id);
+  const keep = w.provinces.filter(p => p.owner === lead && !held.includes(p.id)).length;
+  makePeace(w, S, war, win, { type: 'treaty', provinces: held, puppet: keep > 0 && w.countries[lead].alive });
+}
+/** At home, a war that has lost all support brings the government down; a democracy's new government sues for peace. */
+function governmentCrisis(w: World, S: MapStatic, war: War, c: number) {
+  const C = w.countries[c]; if (C.warSupport > 0.02 || (w.cooldowns[`crisis:${c}`] ?? -1) > w.day) return;
+  w.cooldowns[`crisis:${c}`] = w.day + 365;
+  const old = C.leader.name; newLeader(w, C);
+  C.stability = clamp01(C.stability - 0.06); C.warSupport = 0.2; C.polCap = Math.max(0, C.polCap - 30);
+  say(w, msg('log.govFalls', { c: { c }, old, leader: C.leader.name }), 'politics', { who: [c], big: C.player ? 'big.govFalls' : undefined });
+  if (C.gov === 'democracy') { const side = sideOf(war, c) as 1 | -1; if (acceptsPeace(w, war, side, { type: 'white', provinces: [] }).ok) makePeace(w, S, war, side, { type: 'white', provinces: [] }); }
 }
 const popTotal = (w: World, c: number) => { let s = 0; for (const p of w.provinces) if (p.owner === c) s += p.pop; return s; };
 /** -100..100 from the attackers' view: occupied value, casualties, capitals */
@@ -292,20 +340,23 @@ export function makePeace(w: World, S: MapStatic, war: War, winnerSide: 1 | -1, 
   for (const a of war.attackers) for (const d of war.defenders) w.cooldowns[truceKey(a, d)] = w.day + 365 * 5; // a truce follows every peace
   const winners = winnerSide > 0 ? war.attackers : war.defenders, losers = winnerSide > 0 ? war.defenders : war.attackers;
   const ths = theatersOf(w, war);
+  // ceded land takes its share of the national debt with it (a rump state is not crushed by the old country's loans)
+  const output = (c: number) => w.provinces.reduce((a, p) => a + (p.owner === c ? p.gdp : 0), 0), before = losers.map(output);
   if (terms.type === 'treaty') {
     for (const id of terms.provinces) {
       const pr = w.provinces[id]; if (!losers.includes(pr.owner)) continue;
       const to = winners.includes(pr.controller) ? pr.controller : winners[0];
-      pr.owner = to; pr.controller = to; if (!pr.core.includes(to)) pr.core.push(to);
+      pr.owner = to; pr.controller = to; pr.unrest = pr.core.includes(to) ? 0 : 1; // a conquest must be integrated before it is truly yours; land returned to its people is calm
     }
-    if (terms.puppet) for (const l of losers.slice(0, 1)) w.treaties.push({ type: 'puppet', a: winners[0], b: l, since: w.day, until: -1 });
+    if (terms.puppet) for (const l of losers.slice(0, 1)) w.treaties.push({ type: 'puppet', a: winners[0], b: l, since: w.day, until: w.day + 365 * 10 });
     if (terms.reparations) for (const l of losers) { const L = w.countries[l]; const amount = L.gdp * 0.05; L.debt += amount; w.countries[winners[0]].treasury += amount; }
   }
   if (terms.type === 'ceasefire') {
     // the line of contact becomes the border: provinces go to whoever holds them; the front freezes as a DMZ
-    for (const pr of w.provinces) if (sideOf(war, pr.owner) && sideOf(war, pr.controller) && sideOf(war, pr.owner) !== sideOf(war, pr.controller)) { pr.owner = pr.controller; }
+    for (const pr of w.provinces) if (sideOf(war, pr.owner) && sideOf(war, pr.controller) && sideOf(war, pr.owner) !== sideOf(war, pr.controller)) { pr.owner = pr.controller; pr.unrest = pr.core.includes(pr.owner) ? 0 : 1; }
     for (const t of ths) { t.frozen = true; t.dmz = t.c.slice(); }
   }
+  losers.forEach((l, i) => { if (before[i] > 0) w.countries[l].debt *= output(l) / before[i]; });
   // everything else returns to its owner
   for (const pr of w.provinces) if (sideOf(war, pr.owner) || sideOf(war, pr.controller)) { if (pr.controller !== pr.owner && (sideOf(war, pr.controller) || !w.countries[pr.controller].alive)) pr.controller = pr.owner; }
   for (const d of w.divisions) if (ths.some(t => t.id === d.theater)) { withdraw(d); if (w.provinces[d.prov].owner !== d.country) d.prov = w.countries[d.country].capital; }

@@ -32,7 +32,7 @@ export const pt: Record<string, Entry> = {
   // ---- economia ----
   'eco.perYear': '{v} / ano', 'eco.perMonth': '{v} / mês', 'eco.growth': 'Crescimento', 'eco.revenue': 'Receita', 'eco.spending': 'Gastos (com juros)', 'eco.debt': 'Dívida', 'eco.debtOf': '{v} ({p} do PIB)',
   'eco.taxes': 'Impostos e empréstimos', 'eco.taxRate': 'Alíquota', 'eco.taxHint': 'Impostos mais altos: mais receita, crescimento mais lento, indústria e agricultores insatisfeitos.',
-  'eco.borrowing': 'Empréstimos', 'eco.ofRevenue': '+{p} da receita', 'eco.borrowHint': 'Gaste além da receita. A dívida custa 4% ao ano, e dívida alta freia o crescimento.',
+  'eco.borrowing': 'Empréstimos', 'eco.ofRevenue': '+{p} da receita', 'eco.borrowHint': 'Direita: gaste além da receita. A dívida custa 4% ao ano, e dívida alta freia o crescimento. Esquerda: guarde parte da receita no tesouro, para políticas e produção mais rápida.',
   'eco.budget': 'Orçamento', 'eco.military': 'Militar', 'eco.milHint': 'Manutenção {up}/mês · produção {prod}/mês', 'eco.investment': 'Investimento', 'eco.invHint': 'Infraestrutura e indústria: impulsionam o crescimento.',
   'eco.welfare': 'Bem-estar social', 'eco.welHint': 'Saúde, aposentadorias, serviços: estabilidade e apoio dos trabalhadores.', 'eco.research': 'Pesquisa', 'eco.resHint': 'Tecnologia militar nível {n}. Cada nível deixa as unidades 5% mais fortes.',
 
@@ -188,4 +188,15 @@ export const pt: Record<string, Entry> = {
   'mil.show': 'Ver',
   'led.noChange': 'sem mudança', 'pol.rising': 'Apoio subindo', 'pol.falling': 'Apoio caindo', 'pol.steady': 'Estável', 'eco.borrowingNow': '{v}/mês emprestados',
   'dock.military': 'Militar', 'dock.ledger': 'Dados',
+  'log.capitulates': '{c} capitula', 'big.capitulation': 'Capitulação', 'log.govFalls': 'O governo de {c} cai por causa da guerra. {leader} substitui {old}', 'big.govFalls': 'Governo cai',
+  'dip.why.notThisWar': 'Não entrarão na sua guerra contra esse inimigo.',
+  'pol.stimulus': 'Estímulo', 'pol.stimulus.hint': 'Gasta 4 meses de receita: +2% de produção agora', 'pol.research': 'Verba de pesquisa', 'pol.research.hint': 'Gasta 3 meses de receita: quase um nível de tecnologia',
+  'pol.warBonds': 'Títulos de guerra', 'pol.warBonds.hint': 'Levanta 3 meses de receita agora, pagos como dívida com juros', 'pol.propaganda': 'Propaganda', 'pol.propaganda.hint': 'Apoio à guerra +12 pt',
+  'pol.concessions': 'Concessões', 'pol.concessions.hint': 'O grupo mais insatisfeito ganha apoio', 'pol.integrate': 'Integrar', 'pol.integrate.hint': 'Reduz à metade a agitação nas províncias conquistadas',
+  'pol.why.treasury': 'Precisa de {n} meses de receita guardados no tesouro.', 'pol.why.peace': 'Só em tempo de guerra.', 'pol.why.noUnrest': 'Nenhuma província conquistada para integrar.', 'pol.actions': 'Políticas',
+  'mil.demobilize': 'Desmobilizar uma divisão da reserva', 'mil.underfunded': 'Sem verba: prontidão {p}', 'eco.saving': 'Poupança', 'eco.savingOf': 'poupando {p} da receita', 'declare.truce': 'Há uma trégua até {d}.', 'declare.ally': 'Isso rasga todos os tratados com {c} e tira você do bloco.',
+  'dip.why.joinsTheirWar': 'Aceitam, e você entra na guerra deles.', 'dip.why.guaranteeWar': 'Já estão em guerra. Uma garantia não pode impedi-la.',
+  'mil.readinessHint': 'A manutenção custa mais que o orçamento militar. As divisões não alcançam organização total. Aumente a fatia militar, tome empréstimos ou desmobilize reservas.',
+  'log.independent': '{c} recupera a independência de {o}', 'big.independent': 'Independência', 'declare.puppet': '{c} controla sua política externa até {d}.',
+  'declare.truceBtn': 'Trégua em vigor', 'declare.puppetBtn': 'Seu suserano proíbe',
 };

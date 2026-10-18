@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Game } from '../game/play';
 import { resolveAgenda } from '../sim/agenda';
 import { commitShare } from '../sim/war/ai';
-import { acceptsPeace, heldDemand, sideOf, theatersOf, warCost, warsOf, type PeaceTerms } from '../sim/war/war';
+import { acceptsPeace, heldDemand, sideOf, theatersOf, truceKey, warCost, warsOf, type PeaceTerms } from '../sim/war/war';
 import type { War } from '../sim/types';
 import { armyName, countryName, fmtDate, say, t } from '../i18n';
 import { Block, Flag, Icon, Sheet, Tug } from './common';
@@ -80,8 +80,11 @@ export function DeclareDialog({ g, target }: { g: Game; target: number }) {
           <dt>{t('ledger.influence')}</dt><dd class={short ? 'bad' : ''}>{t('declare.influence', { n: cost.influence, have: fmtInt(me.polCap) })}</dd>
           <dt>{t('declare.opinion')}</dt><dd class="bad">{cost.worldOpinion}</dd>
         </dl>
+        {cost.overlord && <p class="bad">{t('declare.puppet', { c: countryName(w, cost.overlord.a), d: fmtDate(w, cost.overlord.until) })}</p>}
+        {cost.truce && <p class="bad">{t('declare.truce', { d: fmtDate(w, w.cooldowns[truceKey(me.id, target)]) })}</p>}
+        {cost.ally && <p class="bad">{t('declare.ally', { c: name })}</p>}
         {cost.joiners.length > 0 ? <><h3 class="h3">{t('declare.defenders')}</h3><div class="flags wrap">{cost.joiners.map(c => <span class="joiner" key={c}><Flag s={g.s} code={w.countries[c].code} h={14} /> {countryName(w, c)}</span>)}</div></> : <small class="muted">{t('declare.alone')}</small>}
-        <button class="primary danger" disabled={short} onClick={() => { g.declareWar(target); close(); }}>{short ? t('declare.short') : t('war.declare')}</button>
+        <button class="primary danger" disabled={short || cost.truce || !!cost.overlord} onClick={() => { g.declareWar(target); close(); }}>{cost.overlord ? t('declare.puppetBtn') : cost.truce ? t('declare.truceBtn') : short ? t('declare.short') : t('war.declare')}</button>
         <button onClick={close}>{t('ui.cancel')}</button>
       </div>
     </section>

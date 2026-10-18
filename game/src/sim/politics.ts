@@ -21,9 +21,10 @@ export function groupMood(w: World, c: Country) {
 export function stabilityTarget(w: World, c: Country) {
   const mood = groupMood(w, c);
   const groupsScore = c.groups.reduce((a, g) => a + (mood[g.id] - 0.5) * g.power, 0);
-  const occupied = w.provinces.filter(p => p.owner === c.id && p.controller !== c.id).length / Math.max(1, w.provinces.filter(p => p.owner === c.id).length);
+  const own = w.provinces.filter(p => p.owner === c.id), occupied = own.filter(p => p.controller !== c.id).length / Math.max(1, own.length);
+  const unrest = own.reduce((a, p) => a + p.unrest, 0) / Math.max(1, own.length); // unintegrated conquests
   const debtRatio = c.debt / Math.max(1, c.gdp);
-  let t = BASE[c.gov] + groupsScore * 0.5 + (c.budget.welfare - 0.45) * 0.25 - (c.taxRate - 0.25) * 0.4 + c.growth * 1.5 - occupied * 0.6 - Math.max(0, debtRatio - 1.5) * 0.08;
+  let t = BASE[c.gov] + groupsScore * 0.5 + (c.budget.welfare - 0.45) * 0.25 - (c.taxRate - 0.25) * 0.4 + c.growth * 1.5 - occupied * 0.6 - unrest * 0.5 - Math.max(0, debtRatio - 1.5) * 0.08;
   if (c.leader.traits.includes('Charismatic')) t += 0.04; if (c.leader.traits.includes('Corrupt')) t -= 0.04;
   return Math.min(0.95, clamp01(t));
 }

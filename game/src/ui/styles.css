@@ -320,7 +320,7 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 .build { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 6px; }
 .build button { display: grid; justify-items: start; gap: 6px; padding: 10px; } .build b { font: 700 15px/1 var(--display); letter-spacing: 0.02em; } .build small { color: var(--mute); font-weight: 600; font-size: 12px; }
 .forces { display: grid; gap: 4px; }
-.force { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 4px 8px 4px 4px; border-radius: 4px; background: var(--raise); }
+.force { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 4px 8px 4px 4px; border-radius: 4px; background: var(--raise); }
 .f-t { display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; align-items: baseline; } .f-t b { font: 700 22px/1 var(--display); grid-row: 1 / 3; min-width: 30px; } .f-t > span { font: 700 15px/1.1 var(--display); letter-spacing: 0.02em; } .f-t small { color: var(--mute); font-size: 12px; }
 .f-q { font: 700 12px/1 var(--display); color: var(--brass-hi); margin-left: 2px; } .f-build { padding: 8px 10px; gap: 5px; font-size: 13px; } .f-build .icon { color: var(--brass-hi); }
 .treaty-list { display: grid; gap: 8px; } .treaty-row { display: grid; grid-template-columns: 128px 1fr; gap: 8px; align-items: start; } .tr-k { display: flex; gap: 6px; align-items: center; font-size: 13px; font-weight: 600; color: var(--mute); padding-top: 6px; } .tr-k .icon { color: var(--steel); }
@@ -533,3 +533,14 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
   .pair { grid-template-columns: 104px 44px 1fr 44px; }
 }
 @media (max-width: 480px) { .groups .group { grid-template-columns: 34px minmax(0, 1fr) 60px 38px 12px; }  }
+
+/* policies: three to a row; demobilize sits beside build */
+.action-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.action-grid.three .act { position: relative; grid-template-columns: 20px minmax(0, 1fr); padding-right: 16px; }
+.action-grid.three .act-s { position: absolute; top: 5px; right: 5px; }
+.act-c.gain { color: var(--green); }
+.action-grid.three .act { align-content: start; row-gap: 5px; } .action-grid.three .act-c { grid-column: 1 / -1; white-space: nowrap; }
+/* the treasury's net line wraps under its figure instead of running into the next one */
+.fig-sub > .tr-sub { flex-wrap: wrap; white-space: normal; column-gap: 4px; } .tr-sub > * { white-space: nowrap; }
+.f-dis { width: 32px; height: 32px; padding: 0; justify-content: center; font: 700 18px/1 var(--display); color: var(--mute); }
+.f-dis:disabled { opacity: 0.35; }

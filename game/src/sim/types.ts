@@ -22,7 +22,7 @@ export interface Country {
   income: number; spending: number; upkeep: number; // last month
   unitCost: number; // monthly upkeep of one division (calibrated per economy)
   manpower: number; conscription: Conscription;
-  polCap: number; research: number; tech: number;
+  polCap: number; research: number; tech: number; readiness?: number; // 0..1, military funds over upkeep
   // politics
   gov: Gov; ideology: [number, number]; // [economy: -1 collective .. 1 market, authority: -1 liberty .. 1 order]
   stability: number; warSupport: number; groups: Group[]; leader: Leader; nextElection: number;

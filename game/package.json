@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build && node tools/artifact.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "playtest": "vite-node tests/playtest.ts --",
     "mapgen": "node tools/mapgen/build.mjs && node tools/mapgen/flags.mjs && node tools/mapgen/history.mjs"
   },
   "dependencies": {

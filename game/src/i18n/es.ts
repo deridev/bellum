@@ -32,7 +32,7 @@ export const es: Record<string, Entry> = {
   // ---- economía ----
   'eco.perYear': '{v}/año', 'eco.perMonth': '{v}/mes', 'eco.growth': 'Crecimiento', 'eco.revenue': 'Ingresos', 'eco.spending': 'Gastos (incl. intereses)', 'eco.debt': 'Deuda', 'eco.debtOf': '{v} ({p} del PIB)',
   'eco.taxes': 'Impuestos y endeudamiento', 'eco.taxRate': 'Nivel de impuestos', 'eco.taxHint': 'Más impuestos: más ingresos, menos crecimiento y descontento en la industria y el campo.',
-  'eco.borrowing': 'Endeudamiento', 'eco.ofRevenue': '+{p} de los ingresos', 'eco.borrowHint': 'Gasta por encima de tus ingresos. La deuda cuesta un 4 % anual y una deuda elevada frena el crecimiento.',
+  'eco.borrowing': 'Endeudamiento', 'eco.ofRevenue': '+{p} de los ingresos', 'eco.borrowHint': 'Derecha: gasta por encima de tus ingresos. La deuda cuesta un 4 % anual y una deuda elevada frena el crecimiento. Izquierda: ahorra parte de los ingresos en el tesoro, para políticas y producción más rápida.',
   'eco.budget': 'Presupuesto', 'eco.military': 'Defensa', 'eco.milHint': 'Mantenimiento {up}/mes · producción {prod}/mes', 'eco.investment': 'Inversión', 'eco.invHint': 'Infraestructura e industria: impulsa el crecimiento.',
   'eco.welfare': 'Gasto social', 'eco.welHint': 'Sanidad, pensiones, servicios: estabilidad y apoyo de los trabajadores.', 'eco.research': 'Investigación', 'eco.resHint': 'Nivel de tecnología militar {n}. Cada nivel hace las unidades un 5 % más fuertes.',
 
@@ -188,4 +188,15 @@ export const es: Record<string, Entry> = {
   'mil.show': 'Ver',
   'led.noChange': 'sin cambios', 'pol.rising': 'Apoyo al alza', 'pol.falling': 'Apoyo a la baja', 'pol.steady': 'Estable', 'eco.borrowingNow': '{v}/mes prestados',
   'dock.ledger': 'Datos',
+  'log.capitulates': '{c} capitula', 'big.capitulation': 'Capitulación', 'log.govFalls': 'El gobierno de {c} cae por la guerra. {leader} sustituye a {old}', 'big.govFalls': 'Cae el gobierno',
+  'dip.why.notThisWar': 'No entrarán en tu guerra contra ese enemigo.',
+  'pol.stimulus': 'Estímulo', 'pol.stimulus.hint': 'Gasta 4 meses de ingresos: +2% de producción ahora', 'pol.research': 'Fondos de investigación', 'pol.research.hint': 'Gasta 3 meses de ingresos: casi un nivel de tecnología',
+  'pol.warBonds': 'Bonos de guerra', 'pol.warBonds.hint': 'Recauda 3 meses de ingresos ahora, pagados como deuda con intereses', 'pol.propaganda': 'Propaganda', 'pol.propaganda.hint': 'Apoyo a la guerra +12 pt',
+  'pol.concessions': 'Concesiones', 'pol.concessions.hint': 'El grupo más descontento gana apoyo', 'pol.integrate': 'Integrar', 'pol.integrate.hint': 'Reduce a la mitad el malestar en las provincias conquistadas',
+  'pol.why.treasury': 'Necesita {n} meses de ingresos ahorrados en el tesoro.', 'pol.why.peace': 'Solo en tiempo de guerra.', 'pol.why.noUnrest': 'No hay provincias conquistadas que integrar.', 'pol.actions': 'Políticas',
+  'mil.demobilize': 'Desmovilizar una división de reserva', 'mil.underfunded': 'Sin fondos: preparación {p}', 'eco.saving': 'Ahorro', 'eco.savingOf': 'ahorrando {p} de los ingresos', 'declare.truce': 'Hay una tregua hasta {d}.', 'declare.ally': 'Esto rompe todos los tratados con {c} y te saca del bloque.',
+  'dip.why.joinsTheirWar': 'Aceptan, y entras en su guerra.', 'dip.why.guaranteeWar': 'Ya están en guerra. Una garantía no puede impedirla.',
+  'mil.readinessHint': 'El mantenimiento cuesta más que el presupuesto militar. Las divisiones no alcanzan organización completa. Sube la parte militar, endéudate o desmoviliza reservas.',
+  'log.independent': '{c} recupera su independencia de {o}', 'big.independent': 'Independencia', 'declare.puppet': '{c} controla tu política exterior hasta {d}.',
+  'declare.truceBtn': 'Tregua vigente', 'declare.puppetBtn': 'Tu señor lo prohíbe',
 };
