@@ -91,11 +91,11 @@ export function DeclareDialog({ g, target }: { g: Game; target: number }) {
 
 /** Decisions waiting for the player: peace offers, proposals, events. The newest is open, the rest wait as one-line slips. */
 const AGENDA_ICON: Record<string, string> = { peace: 'peace', diplo: 'diplomacy', event: 'chronicle' };
-export function AgendaCards({ g }: { g: Game }) {
+export function AgendaCards({ g, slim }: { g: Game; slim?: boolean }) {
   const items = g.w.agenda.filter(a => a.country === g.player);
   if (!items.length) return null;
   const decide = (id: number, i: number) => { resolveAgenda(g.w, g.S, id, i); g.afterOrder(); g.sound('click'); };
-  return <div class="ui agenda">{items.slice(0, 3).map((a, n) => n === 0
+  return <div class="ui agenda">{items.slice(0, slim ? 1 : 2).map((a, n) => n === 0
     ? <section class={`agenda-card plate k-${a.kind}`} key={a.id} role="dialog" aria-label={say(g.w, a.title)}>
       <div class="cable-head"><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={18} /></span><span class="eyebrow">{t('agenda.' + a.kind)}</span><time class="mono">{fmtDate(g.w, a.day, 'short')}</time></div>
       <div class="h3 plain">{say(g.w, a.title)}</div><p>{say(g.w, a.text)}</p>
@@ -103,7 +103,7 @@ export function AgendaCards({ g }: { g: Game }) {
     </section>
     : <div class={`agenda-slip plate k-${a.kind}`} key={a.id}><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={16} /></span><span class="slip-t">{say(g.w, a.title)}</span>
       {a.options.length === 2 && <><button class="slip-yes" aria-label={say(g.w, a.options[0].label)} data-tip={say(g.w, a.options[0].label)} onClick={() => decide(a.id, 0)}><Icon name="check" size={16} /></button><button class="slip-no" aria-label={say(g.w, a.options[1].label)} data-tip={say(g.w, a.options[1].label)} onClick={() => decide(a.id, 1)}><Icon name="cross" size={16} /></button></>}</div>)}
-    {items.length > 3 && <small class="slip-more">{t('agenda.more', { n: items.length - 3 })}</small>}
+    {items.length > (slim ? 1 : 2) && <small class="slip-more">{t('agenda.more', { n: items.length - (slim ? 1 : 2) })}</small>}
   </div>;
 }
 

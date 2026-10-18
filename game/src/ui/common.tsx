@@ -15,14 +15,19 @@ function flagUrl(s: Session) { if (_flagUrl) return _flagUrl; const c = document
 /** The dossier on the right edge. Escape closes it. */
 export function Sheet({ title, onClose, children, eyebrow, icon, head }: { title: any; onClose: () => void; children: any; eyebrow?: any; icon?: string; head?: any }) {
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
-  return <section class="ui sheet plate ui-scroll">
+  // a cue at the bottom while there is more to scroll to
+  const body = useRef<HTMLDivElement>(null), [more, setMore] = useState(false);
+  const check = () => { const b = body.current; if (b) setMore(b.scrollHeight - b.scrollTop - b.clientHeight > 6); };
+  useEffect(check);
+  return <section class={`ui sheet plate d-${icon || 'none'}`}>
     <header class="sheet-head">
-      {icon && <span class="sheet-icon"><Icon name={icon} size={18} /></span>}
+      {icon && <span class="sheet-icon"><Icon name={icon} size={20} /></span>}
       <div class="sheet-title">{eyebrow && <div class="eyebrow">{eyebrow}</div>}{title}</div>
       <button class="x" aria-label={t('ui.close')} onClick={onClose}><Icon name="x" /></button>
     </header>
     {head}
-    <div class="sheet-body">{children}</div>
+    <div class="sheet-body" ref={body} onScroll={check}>{children}</div>
+    {more && <button class="more-cue" aria-label={t('ui.more')} onClick={() => body.current?.scrollBy({ top: body.current.clientHeight * 0.7, behavior: 'smooth' })}><Icon name="down" size={12} />{t('ui.more')}</button>}
   </section>;
 }
 /** A titled block inside a sheet. */
@@ -153,6 +158,16 @@ export function Delta({ v, fmt, invert }: { v: number; fmt: (v: number) => strin
   return <span class={`delta ${good ? 'good' : 'bad'}`}><Icon name={v > 0 ? 'up' : 'down'} size={9} />{fmt(Math.abs(v))}</span>;
 }
 
+/** A smooth line through points that never overshoots between them (monotone cubic). */
+function smooth(p: number[][]) {
+  if (p.length < 3) return 'M' + p.map(q => q.join(',')).join('L');
+  const n = p.length, d: number[] = [], m: number[] = [];
+  for (let i = 0; i < n - 1; i++) d.push((p[i + 1][1] - p[i][1]) / (p[i + 1][0] - p[i][0] || 1));
+  m.push(d[0]); for (let i = 1; i < n - 1; i++) m.push(d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2); m.push(d[n - 2]);
+  let s = `M${p[0][0]},${p[0][1]}`;
+  for (let i = 0; i < n - 1; i++) { const dx = (p[i + 1][0] - p[i][0]) / 3; s += `C${p[i][0] + dx},${p[i][1] + m[i] * dx} ${p[i + 1][0] - dx},${p[i + 1][1] - m[i + 1] * dx} ${p[i + 1][0]},${p[i + 1][1]}`; }
+  return s;
+}
 /** Round numbers for an axis between lo and hi. */
 function ticks(lo: number, hi: number, n = 4) {
   if (hi - lo < 1e-9) { hi = lo + 1; }
@@ -166,7 +181,7 @@ const DASH = ['', '7 4', '2 4', '10 4 2 4'];
 export const dashOf = (i: number) => DASH[i % DASH.length];
 export type Series = { id: string | number; label: string; color: string; values: number[] };
 /** Line chart over months: one y axis, recessive grid, direct labels at the line ends, a crosshair on hover. */
-export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero }: { series: Series[]; xs: number[]; fmtX: (x: number) => string; fmtY: (v: number) => string; height?: number; zero?: boolean }) {
+export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = [] }: { series: Series[]; xs: number[]; fmtX: (x: number) => string; fmtY: (v: number) => string; height?: number; zero?: boolean; marks?: { x: number; label: string }[] }) {
   const ref = useRef<HTMLDivElement>(null), [W, setW] = useState(480), [hi, setHi] = useState<number | null>(null);
   useEffect(() => { const el = ref.current; if (!el) return; const ro = new ResizeObserver(() => setW(el.clientWidth || 480)); ro.observe(el); return () => ro.disconnect(); }, []);
   const n = xs.length;
@@ -178,20 +193,24 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero }: { seri
   const y0 = tk0[0], y1 = tk0[tk0.length - 1], X = (i: number) => L + i / (n - 1) * w, Y = (v: number) => T + h - (v - y0) / (y1 - y0 || 1) * h;
   // direct labels, nudged apart so they never collide
   const ends = series.map(s => ({ s, y: Y(s.values[n - 1]) })).sort((a, b) => a.y - b.y);
-  for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 15) ends[i].y = ends[i - 1].y + 15;
+  for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 18) ends[i].y = ends[i - 1].y + 18;
+  const path = (v: number[]) => smooth(v.map((y, i) => [X(i), Y(y)]));
+  // event pins: the month each event fell in
+  const pins = marks.map(m => ({ ...m, i: Math.max(0, xs.findIndex((x, j) => j === n - 1 || xs[j + 1] > m.x)) })).filter(m => m.x >= xs[0]);
   const move = (e: PointerEvent) => { const r = (e.currentTarget as SVGElement).getBoundingClientRect(); const i = Math.round((e.clientX - r.left - L) / w * (n - 1)); setHi(i >= 0 && i < n ? i : null); };
   const hx = hi === null ? 0 : X(hi);
   return <div ref={ref} class="chart">
     <svg width={W} height={height} onPointerMove={move} onPointerLeave={() => setHi(null)} role="img" aria-label={series.map(s => `${s.label} ${fmtY(s.values[n - 1])}`).join(', ')}>
       {tk.map(v => <g key={v}><line x1={L} x2={L + w} y1={Y(v)} y2={Y(v)} class="grid" /><text x={L - 8} y={Y(v) + 4} class="axis" text-anchor="end">{fmtY(v)}</text></g>)}
       <text x={L} y={height - 6} class="axis">{fmtX(xs[0])}</text><text x={L + w} y={height - 6} class="axis" text-anchor="end">{fmtX(xs[n - 1])}</text>
-      {!labels && <polygon points={`${X(0)},${T + h} ${series[0].values.map((v, i) => `${X(i)},${Y(v)}`).join(' ')} ${X(n - 1)},${T + h}`} fill={series[0].color} opacity="0.16" />}
-      {series.map((s, i) => <polyline key={s.id} points={s.values.map((v, i) => `${X(i)},${Y(v)}`).join(' ')} fill="none" stroke={s.color} stroke-width={i === 0 ? 3 : 2} stroke-dasharray={DASH[i % DASH.length]} stroke-linejoin="round" stroke-linecap="round" />)}
+      {pins.map((m, k) => <g key={k} class="pin"><line x1={X(m.i)} x2={X(m.i)} y1={T} y2={T + h} /><path d={`M${X(m.i)} ${T - 2}l4 4-4 4-4-4z`} /></g>)}
+      {!labels && <path d={`${path(series[0].values)}L${X(n - 1)},${T + h}L${X(0)},${T + h}Z`} fill={series[0].color} opacity="0.16" />}
+      {series.map((s, i) => <path key={s.id} d={path(s.values)} fill="none" stroke={s.color} stroke-width={i === 0 ? 3 : 2} stroke-dasharray={DASH[i % DASH.length]} stroke-linejoin="round" stroke-linecap="round" />)}
       {series.map(s => <circle key={s.id} cx={X(n - 1)} cy={Y(s.values[n - 1])} r="4" fill={s.color} class="end-dot" />)}
       {labels && ends.map(({ s, y }) => <g key={s.id}><line x1={L + w + 4} x2={L + w + 9} y1={Y(s.values[n - 1])} y2={y} stroke={s.color} stroke-width="1.5" /><text x={L + w + 12} y={y + 4} class="end-label">{s.label}</text></g>)}
       {hi !== null && <g><line x1={hx} x2={hx} y1={T} y2={T + h} class="cross" />{series.map(s => <circle key={s.id} cx={hx} cy={Y(s.values[hi])} r="4" fill={s.color} class="end-dot" />)}</g>}
     </svg>
-    {hi !== null && <div class={`chart-tip ${hx > W / 2 ? 'left' : ''}`} style={{ left: hx }}><b>{fmtX(xs[hi])}</b>{series.slice().sort((a, b) => b.values[hi] - a.values[hi]).map(s => <span key={s.id}><i style={{ background: s.color }} />{s.label}<b class="num">{fmtY(s.values[hi])}</b></span>)}</div>}
+    {hi !== null && <div class={`chart-tip ${hx > W / 2 ? 'left' : ''}`} style={{ left: hx }}><b>{fmtX(xs[hi])}</b>{pins.filter(m => m.i === hi).map((m, k) => <em key={k}>◆ {m.label}</em>)}{series.slice().sort((a, b) => b.values[hi] - a.values[hi]).map(s => <span key={s.id}><i style={{ background: s.color }} />{s.label}<b class="num">{fmtY(s.values[hi])}</b></span>)}</div>}
   </div>;
 }
 /** An icon button whose label shows as a tooltip (and is its accessible name). */

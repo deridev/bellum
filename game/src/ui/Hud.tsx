@@ -26,7 +26,6 @@ export function Hud({ g }: { g: Game }) {
   useShortcuts(g);
   return <>
     <CommandStrip g={g} onDecisions={() => setAgenda(!agenda)} />
-    <Dock g={g} />
     <Toasts g={g} />
     <HoverTip s={g.s} />
     <Banner g={g} />
@@ -40,8 +39,8 @@ export function Hud({ g }: { g: Game }) {
     {p?.kind === 'chronicle' && <ChroniclePanel g={g} />}
     {p?.kind === 'timelapse' && <TimelapsePanel g={g} />}
     {p?.kind === 'ledger' && <LedgerScreen g={g} />}
-    <LensBar g={g} />
-    {p?.kind !== 'ledger' && agenda && <AgendaCards g={g} />}
+    <Dock g={g} />
+    {p?.kind !== 'ledger' && agenda && <AgendaCards g={g} slim={!!p} />}
     <ToolHint g={g} />
     {st.declare >= 0 && <DeclareDialog g={g} target={st.declare} />}
     {st.menu && <Menu g={g} />}
@@ -113,16 +112,12 @@ function Res({ icon, k, v, tone, gauge, sub, danger, onClick }: { icon: string; 
 
 // ---------------------------------------------------------------- the dock and the map lenses
 function Dock({ g }: { g: Game }) {
-  const p = g.st.get().panel, wars = warsOf(g.w, g.player).length;
+  const p = g.st.get().panel, wars = warsOf(g.w, g.player).length, lens = useStore(g.s.ui, u => u.mapMode);
   return <nav class="ui dock plate" aria-label={t('hud.panels')}>
-    {panelOrder(g).map((kind, i) => <button key={kind} class={`dock-btn ${kind === 'war' ? 'war' : ''}`} aria-pressed={p?.kind === kind} data-tip={`${t('panel.' + kind)}  ·  ${i + 1}`} onClick={() => togglePanel(g, kind)}>
-      <Icon name={kind} size={24} /><span>{t('panel.' + kind)}</span><kbd>{i + 1}</kbd>{kind === 'war' && <i class="badge">{wars}</i>}</button>)}
-  </nav>;
-}
-function LensBar({ g }: { g: Game }) {
-  const lens = useStore(g.s.ui, u => u.mapMode);
-  return <nav class="ui lensbar plate" aria-label={t('modes.label')}><span class="lens-k">{t('hud.map')}</span>
-    {LENSES.map(l => <button key={l.id} class="lens-btn" aria-pressed={lens === l.id} data-tip={t('modes.' + l.id)} aria-label={t('modes.' + l.id)} onClick={() => g.s.setMapMode(l.id)}><Icon name={l.icon} size={20} /><span>{t('modes.' + l.id)}</span></button>)}
+    {panelOrder(g).map((kind, i) => <button key={kind} class={`dock-btn d-${kind}`} aria-pressed={p?.kind === kind} data-tip={`${t('panel.' + kind)}  ·  ${i + 1}`} onClick={() => togglePanel(g, kind)}>
+      <Icon name={kind} size={26} /><span>{t('panel.' + kind)}</span><kbd>{i + 1}</kbd>{kind === 'war' && <i class="badge">{wars}</i>}</button>)}
+    <span class="dock-sep" aria-hidden="true"><span>{t('hud.map')}</span></span>
+    <span class="lenses" role="group" aria-label={t('modes.label')}>{LENSES.map(l => <button key={l.id} class="lens-btn" aria-pressed={lens === l.id} data-tip={t('modes.' + l.id)} aria-label={t('modes.' + l.id)} onClick={() => g.s.setMapMode(l.id)}><Icon name={l.icon} size={20} /><span>{t('modes.' + l.id)}</span></button>)}</span>
   </nav>;
 }
 
@@ -136,7 +131,7 @@ function Toasts({ g }: { g: Game }) {
       if (w.log.length < seen.current) seen.current = w.log.length;
       const fresh = w.log.slice(seen.current).filter(l => l.who?.includes(me) || l.big || l.kind === 'war' || l.kind === 'peace'); seen.current = w.log.length;
       const now = Date.now();
-      setItems(list => { const next = [...list.filter(x => now - x.t0 < 9000), ...fresh.map(e => ({ e, t0: now }))]; return next.length === list.length && !fresh.length ? list : next.slice(-4); });
+      setItems(list => { const next = [...list.filter(x => now - x.t0 < 7000), ...fresh.map(e => ({ e, t0: now }))]; return next.length === list.length && !fresh.length ? list : next.slice(-3); });
     }, 300);
     return () => clearInterval(id);
   }, [w]);

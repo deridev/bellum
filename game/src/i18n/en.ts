@@ -157,4 +157,5 @@ export const en: Record<string, Entry> = {
   'led.rankOf': 'World rank out of {n} nations',
   'eco.debtBorrowing': 'Treasury empty: {v}/mo is being borrowed', 'dip.costOf': '{n} of {have}',
   'group.want.military': 'Wants a big military budget', 'group.want.industry': 'Wants low taxes and investment', 'group.want.labor': 'Wants welfare and growth', 'group.want.rural': 'Wants low taxes and calm',
+  'ui.more': 'More', 'led.unchanged': 'unchanged since start', 'led.noHistory': 'Charts fill in month by month. Come back after a few months of play.',
 };

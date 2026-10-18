@@ -163,4 +163,5 @@ export const es: Record<string, Entry> = {
   'led.rankOf': 'Puesto mundial entre {n} naciones',
   'eco.debtBorrowing': 'Tesoro vacío: se piden prestados {v}/mes', 'dip.costOf': '{n} de {have}',
   'group.want.military': 'Quiere un gran presupuesto militar', 'group.want.industry': 'Quiere impuestos bajos e inversión', 'group.want.labor': 'Quiere bienestar y crecimiento', 'group.want.rural': 'Quiere impuestos bajos y calma',
+  'ui.more': 'Más', 'led.unchanged': 'sin cambios desde el inicio', 'led.noHistory': 'Los gráficos se llenan mes a mes. Vuelve tras unos meses de juego.',
 };

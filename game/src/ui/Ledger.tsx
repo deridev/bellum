@@ -3,13 +3,14 @@ import { useEffect, useState } from 'preact/hooks';
 import type { Game, NationStat } from '../game/play';
 import { rel } from '../sim/world';
 import { allied, enemies } from '../sim/war/war';
-import { countryName, fmtDate, t } from '../i18n';
+import { countryName, fmtDate, say, t } from '../i18n';
 import { dashOf, Delta, Flag, Icon, LineChart, type Series } from './common';
 import { fmtBig, fmtInt, fmtMoney, pct } from './format';
 
 type Tab = 'overview' | 'rankings' | 'compare';
 /** Categorical slots for compared nations (validated for the dark surface); you are always the first. */
-const SLOTS = ['#3987e5', '#d95926', '#199e70', '#c98500'];
+const SLOTS = ['#2a78d6', '#d4502a', '#14946a', '#b97d00']; // validated on the parchment surface
+const RISE = '#2f8a3c', FALL = '#c2412f';
 const FMT: Record<string, (v: number) => string> = { gdp: fmtMoney, divisions: fmtInt, provinces: fmtInt, pop: fmtBig, tech: fmtInt, stability: pct, treasury: fmtMoney, manpower: fmtBig, warSupport: pct };
 
 export function LedgerScreen({ g }: { g: Game }) {
@@ -39,11 +40,13 @@ function Overview({ g }: { g: Game }) {
   const provs = g.nationSeries(c.id, 'provinces'), bal = c.income - c.spending;
   const rows = table(g), rank = (k: typeof COLS[number]) => rows.slice().sort((a, b) => b[k] - a[k]).findIndex(r => r.id === c.id) + 1;
   const kpi = (icon: string, label: string, value: string, sub: any, r?: number) => <div class="kpi"><span class="kpi-l"><Icon name={icon} size={16} />{label}{r ? <i class="kpi-rank" data-tip={t('led.rankOf', { n: rows.length })}>#{r}</i> : null}</span><b class="kpi-v num">{value}</b><span class="kpi-s">{sub}</span></div>;
-  const since = (now: number, then: number | undefined, fmt: (v: number) => string) => then === undefined ? null : <><Delta v={now - then} fmt={fmt} /><small>{t('led.sinceStart')}</small></>;
+  const since = (now: number, then: number | undefined, fmt: (v: number) => string) => then === undefined ? null : Math.abs(now - then) < 1e-9 ? <small>{t('led.unchanged')}</small> : <><Delta v={now - then} fmt={fmt} /><small>{t('led.sinceStart')}</small></>;
+  // your big moments, pinned on the timelines
+  const marks = g.w.log.filter(e => e.who?.includes(c.id) && (e.big || e.kind === 'war' || e.kind === 'peace')).slice(-12).map(e => ({ x: e.day, label: say(g.w, e.msg) }));
   const chart = (k: 'gdp' | 'treasury' | 'manpower' | 'divisions' | 'stability' | 'warSupport', label: string) => {
     const v = g.series(k), last = v[v.length - 1] ?? 0, d = last - (v[0] ?? last), share = k === 'stability' || k === 'warSupport';
     return <figure class="cell"><figcaption><span>{label}</span><span class="cap-v"><Delta v={d} fmt={share ? (x: number) => `${Math.round(x * 100)}` : FMT[k]} /><b class="num">{FMT[k](last)}</b></span></figcaption>
-      <LineChart series={[{ id: k, label, color: SLOTS[0], values: v }]} xs={xs} fmtX={monthX(g)} fmtY={FMT[k]} height={170} /></figure>;
+      <LineChart series={[{ id: k, label, color: Math.abs(d) < 1e-9 ? SLOTS[0] : d > 0 ? RISE : FALL, values: v }]} xs={xs} fmtX={monthX(g)} fmtY={FMT[k]} height={170} zero={k === 'divisions'} marks={marks} /></figure>;
   };
   return <>
     <div class="kpis">
@@ -52,10 +55,10 @@ function Overview({ g }: { g: Game }) {
       {kpi('military', t('mil.divisions'), fmtInt(g.series('divisions').at(-1) ?? 0), since(g.series('divisions').at(-1) ?? 0, first?.divisions, fmtInt), rank('divisions'))}
       {kpi('political', t('stat.provinces'), fmtInt(provs.at(-1) ?? 0), since(provs.at(-1) ?? 0, provs[0], fmtInt), rank('provinces'))}
     </div>
-    <div class="cells">
+    {xs.length < 2 ? <p class="no-history">{t('led.noHistory')}</p> : <div class="cells">
       {chart('gdp', t('stat.gdp'))}{chart('treasury', t('ledger.treasury'))}{chart('divisions', t('mil.divisions'))}
       {chart('manpower', t('ledger.manpower'))}{chart('stability', t('ledger.stability'))}{chart('warSupport', t('ledger.warSupport'))}
-    </div>
+    </div>}
   </>;
 }
 
@@ -73,12 +76,12 @@ const COL_ICON: Record<string, string> = { gdp: 'gdp', pop: 'population', divisi
 function Rankings({ g }: { g: Game }) {
   const [by, setBy] = useState<typeof COLS[number]>('gdp');
   const rows = table(g).sort((a, b) => b[by] - a[by]), top = rows[0]?.[by] || 1, me = g.player;
-  const mine = rows.findIndex(r => r.id === me), shown = rows.slice(0, 20);
-  if (mine >= 20) shown.push(rows[mine]);
+  const mine = rows.findIndex(r => r.id === me), TOP = 12, shown = rows.slice(0, TOP);
+  if (mine >= TOP) shown.push(...rows.slice(Math.max(TOP, mine - 1), mine + 2)); // you and your neighbours in the table
   return <table class="rank">
     <thead><tr><th class="r-n">#</th><th class="r-name">{t('led.nation')}</th>{COLS.map(k => <th key={k} class={`r-col ${by === k ? 'on' : ''}`}><button onClick={() => setBy(k)} aria-pressed={by === k}><Icon name={COL_ICON[k]} size={14} />{t('led.col.' + k)}</button></th>)}</tr></thead>
     <tbody>{shown.map(r => { const i = rows.indexOf(r), war = enemies(g.w, me, r.id), ally = r.id !== me && allied(g.w, me, r.id);
-      return <tr key={r.id} class={`${r.id === me ? 'me' : ''} ${i >= 20 ? 'gap' : ''}`} onClick={() => g.openPanel(r.id === me ? { kind: 'politics' } : { kind: 'country', id: r.id })}>
+      return <tr key={r.id} class={`${r.id === me ? 'me' : ''} ${i >= TOP && rows.indexOf(shown[shown.indexOf(r) - 1]) !== i - 1 ? 'gap' : ''}`} onClick={() => g.openPanel(r.id === me ? { kind: 'politics' } : { kind: 'country', id: r.id })}>
         <td class="r-n num">{i + 1}</td>
         <td class="r-name"><span class="cellrow"><Flag s={g.s} code={g.w.countries[r.id].code} h={16} /><span>{countryName(g.w, r.id)}</span>{war && <i class="tag bad">{t('led.atWar')}</i>}{ally && <i class="tag good">{t('led.ally')}</i>}</span></td>
         {COLS.map(k => <td key={k} class={`r-col num ${by === k ? 'on' : ''}`}><span class="cellrow end">{by === k && <span class="r-bar"><i style={{ width: `${Math.max(2, r[k] / top * 100)}%` }} /></span>}<span>{FMT[k](r[k])}</span></span></td>)}
