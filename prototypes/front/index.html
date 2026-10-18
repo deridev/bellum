@@ -67,6 +67,14 @@
   #bar { height: 100%; width: 0; background: linear-gradient(90deg, var(--north), var(--amber), var(--south)); }
   .years { display: flex; justify-content: space-between; font: 600 11px/1 var(--display); letter-spacing: 0.1em; color: var(--muted); margin-top: 5px; }
 
+  /* cinematic caption for turning points */
+  #banner { position: fixed; z-index: 3; left: 50%; top: 18%; transform: translate(-50%, 0); text-align: center; pointer-events: none; opacity: 0; width: min(760px, calc(100vw - 32px)); }
+  #banner.on { animation: banner 2.8s cubic-bezier(.2,.7,.2,1) both; }
+  @keyframes banner { 0% { opacity: 0; transform: translate(-50%, 10px) scale(1.04); letter-spacing: 0.12em; } 12% { opacity: 1; transform: translate(-50%, 0) scale(1); letter-spacing: 0.04em; } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -6px); } }
+  .b-date { font: 600 13px/1 var(--display); letter-spacing: 0.3em; text-transform: uppercase; color: var(--amber); text-shadow: 0 1px 6px rgba(0,0,0,0.8); }
+  .b-title { font: italic 800 clamp(34px, 7vw, 64px)/1 var(--display); text-transform: uppercase; color: #fff; margin-top: 6px; text-shadow: 0 2px 24px rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.9); }
+  .b-text { font: 500 15px/1.35 var(--body); color: #dfe6ec; margin-top: 8px; text-shadow: 0 1px 8px rgba(0,0,0,0.9); }
+  @media (prefers-reduced-motion: reduce) { #banner.on { animation: bannerFade 2.8s linear both; } @keyframes bannerFade { 0%,100% { opacity: 0; } 10%,85% { opacity: 1; } } }
   #hint { position: fixed; z-index: 3; left: 50%; top: 18px; transform: translateX(-50%); padding: 8px 12px; font-size: 13px; }
   #fatal { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px; text-align: center; z-index: 5; background: var(--ink); font-size: 15px; }
   .help { font-size: 12px; color: var(--muted); padding: 0 2px; text-align: right; }
@@ -138,6 +146,7 @@
   <div class="years"><span>1950</span><span>1951</span><span>1952</span><span>1953</span></div>
 </div>
 
+<div id="banner" aria-live="polite"><div class="b-date"></div><div class="b-title"></div><div class="b-text"></div></div>
 <div id="hint" class="card" hidden></div>
 <div id="fatal" hidden></div>
 

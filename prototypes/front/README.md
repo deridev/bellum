@@ -19,10 +19,10 @@ Tools: add a division for either side, stage an amphibious landing, start a new 
 |---|---|
 | `sim.js` | Simulation. Territory is a control field on a 140×256 grid (≈4.4 km cells). The front is the field's zero line. Armies push the field with pressure; terrain, entrenchment, supply, momentum and halt lines decide where it moves. Pure JS, runs in Node too. |
 | `render.js` | WebGL2 renderer. Samples the coarse field with bicubic filtering plus a multi-scale warp, so the front stays a crisp organic line at any zoom. Bakes terrain relief on the GPU at startup. |
-| `app.js` | Loop, camera, unit tokens, troop totals, HUD. |
+| `app.js` | Loop, camera, unit tokens, troop totals, HUD, and the effects: smooth Catmull-Rom motion, artillery flashes, offensive arrows, banners, city ripples, surrender markers, adaptive resolution. |
 | `region.js` | Natural Earth 1:10m coastlines (public domain), clipped to the region. |
 | `tools/headless.js` | Runs the whole war in Node and prints the front's position every N days: `node tools/headless.js 1130 30 [seed]` |
-| `tools/score-seeds.js` | Scores seeds against historical checkpoints (Pusan Perimeter, Inchon, Chinese offensive, stalemate). Seed 7 is the default replay. |
+| `tools/score-seeds.js` | Scores seeds against historical checkpoints (Pusan Perimeter, Inchon, Chinese offensive, stalemate). Seed 50 is the default replay. |
 
 The script only adds forces and sets each side's posture and halt line ("attack south until the 35th parallel"). Where the front goes, pockets, and who surrenders all come out of the simulation, so other seeds can tell a different war.
 

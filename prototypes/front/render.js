@@ -45,7 +45,7 @@
   precision highp float;
   uniform vec2 uRes, uCenter; uniform float uUpp, uDpr, uMix, uTime, uDmzOn, uGrid;
   uniform vec4 uLandBox, uGridBox; uniform vec2 uGridSize, uLandSize;
-  uniform sampler2D tLand, tHeight, tF0, tF1, tPocket, tDmz;
+  uniform sampler2D tLand, tHeight, tF0, tF1, tF2, tF3, tPocket, tDmz, tX1, tX2;
   uniform vec3 uNorth, uSouth;
   out vec4 o;
 
@@ -78,6 +78,16 @@
     return w;
   }
   float edgeNoise(vec2 p){ return 0.0; }
+  // a living edge: where fighting is heavy the front boils slightly
+  vec2 warpLive(vec2 p, float heat){
+    vec2 w = vec2(0.0); float a = 0.012, f = 22.0, t = uTime;
+    for (int k=0;k<3;k++){ float fade = smoothstep(uUpp*3.0, uUpp*10.0, 1.0/f); float sp = 0.7*float(k+1);
+      w += (vec2(vn(p*f + vec2(t*sp, 3.0)), vn(p*f + vec2(7.0, -t*sp))) - 0.5) * a * fade; f *= 2.4; a *= 0.5; }
+    return w*heat;
+  }
+  // Catmull-Rom through four daily snapshots: smooth motion with no speed jerks between days
+  float cr4(float p0, float p1, float p2, float p3, float t){
+    return 0.5*((2.0*p1) + (-p0+p2)*t + (2.0*p0-5.0*p1+4.0*p2-p3)*t*t + (-p0+3.0*p1-3.0*p2+p3)*t*t*t); }
   float aaStep(float v){ float w = max(fwidth(v), 1e-5); return smoothstep(-w, w, v); }
 
   void main(){
@@ -122,14 +132,16 @@
     col = mix(col, col*0.85 + vec3(0.06,0.08,0.09), japan*0.5);
 
     // ---- control field ----
-    vec2 gp = p + warp(p);
     vec2 guvRaw = (p - uGridBox.xy) / uGridBox.zw;
+    vec2 fx = mix(bicubic(tX1, guvRaw, uGridSize).rg, bicubic(tX2, guvRaw, uGridSize).rg, uMix);
+    float heat = clamp(fx.r, 0.0, 1.0)*korea, wake = clamp(fx.g, 0.0, 1.0);
+    vec2 gp = p + warp(p) + warpLive(p, heat);
     vec2 guv = (gp - uGridBox.xy) / uGridBox.zw;
-    float c0 = bicubic(tF0, guv, uGridSize).r, c1 = bicubic(tF1, guv, uGridSize).r;
-    float cr = mix(c0, c1, uMix)*2.0 - 1.0;
+    float c0 = bicubic(tF0, guv, uGridSize).r, c1 = bicubic(tF1, guv, uGridSize).r, c2 = bicubic(tF2, guv, uGridSize).r, c3 = bicubic(tF3, guv, uGridSize).r;
+    float cr = cr4(c0, c1, c2, c3, uMix)*2.0 - 1.0;
     float c = cr + edgeNoise(p);
     if (uGrid > 0.5) { // debug: what the simulation actually sees
-      vec2 gi = floor(guvRaw*uGridSize); float raw = texelFetch(tF1, ivec2(clamp(gi, vec2(0), uGridSize-1.0)), 0).r*2.0-1.0;
+      vec2 gi = floor(guvRaw*uGridSize); float raw = texelFetch(tF2, ivec2(clamp(gi, vec2(0), uGridSize-1.0)), 0).r*2.0-1.0;
       c = raw; vec2 gf = fract(guvRaw*uGridSize); float gl = step(0.92, max(gf.x, gf.y));
       col = mix(col, vec3(0.0), gl*0.35*korea*smoothstep(0.004, 0.0015, uUpp));
     }
@@ -137,6 +149,10 @@
     vec3 side = mix(uSouth, uNorth, north);
     float sl = dot(col, vec3(0.33));
     col = mix(col, side*(0.35 + 1.25*sl), 0.6*korea);
+    // freshly taken ground shines in the winner's colour, then settles
+    col = mix(col, side*1.3 + 0.06, wake*wake*0.38*korea);
+    // battle haze over the contact zone
+    col = mix(col, col*0.82 + vec3(0.30,0.16,0.08)*0.25, heat*0.35*vn(p*38.0 + vec2(uTime*0.35, 0.0)));
 
     // pockets: hatched
     float pk = bicubic(tPocket, guv, uGridSize).r;
@@ -145,9 +161,12 @@
 
     // front line: constant pixel width at every zoom
     float w = max(fwidth(c), 1e-5); float dpx = abs(c)/w / uDpr;
-    float core = exp(-dpx*dpx*0.7), glow = exp(-dpx/5.0);
+    float core = exp(-dpx*dpx*0.7), glow = exp(-dpx/(4.0 + 5.0*heat));
+    float flick = 0.72 + 0.28*sin(uTime*11.0 + vn(p*30.0)*6.28);
+    float hh = heat*flick;
     vec3 glowCol = mix(vec3(0.35,0.7,1.0), vec3(1.0,0.3,0.35), north);
-    col += (vec3(1.0,0.93,0.92)*core*0.85 + glowCol*glow*0.28) * korea;
+    vec3 coreCol = mix(vec3(1.0,0.94,0.93), vec3(1.0,0.84,0.58), hh);
+    col += (coreCol*core*(0.7 + 0.55*hh) + mix(glowCol, vec3(1.0,0.55,0.25), hh*0.6)*glow*(0.16 + 0.6*hh)) * korea;
 
     // 38th parallel (dashed)
     float d38 = abs(p.y - 8.0)/uUpp/uDpr;
@@ -190,7 +209,7 @@
   function tex(gl, w, h, fmt, data, opts) {
     const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-    const f = fmt === 'r8' ? [gl.R8, gl.RED] : [gl.RGBA8, gl.RGBA];
+    const f = fmt === 'r8' ? [gl.R8, gl.RED] : fmt === 'rg8' ? [gl.RG8, gl.RG] : [gl.RGBA8, gl.RGBA];
     gl.texImage2D(gl.TEXTURE_2D, 0, f[0], w, h, 0, f[1], gl.UNSIGNED_BYTE, data);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, opts && opts.mip ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -230,17 +249,19 @@
     this.tLand = tex(gl, LTW, LTH, 'rgba', rasterLand(region), { mip: true });
     this.tHeight = this.bakeHeight();
     this.fieldBuf = new Uint8Array(N);
-    this.tF = [tex(gl, GW, GH, 'r8', null), tex(gl, GW, GH, 'r8', null)];
+    this.tF = [0, 1, 2, 3].map(() => tex(gl, GW, GH, 'r8', null));
+    this.tX = [0, 1, 2, 3].map(() => tex(gl, GW, GH, 'rg8', null));
+    this.fxBuf = new Uint8Array(N * 2);
     this.tPocket = tex(gl, GW, GH, 'r8', null);
     this.tDmz = tex(gl, GW, GH, 'r8', null);
-    this.cur = 0;
+    this.head = 0;
     // nearest Korean cell for every grid cell, so sampling near coasts doesn't invent a front
     this.near = new Int32Array(N).fill(-1);
     { const q = new Int32Array(N); let h = 0, t = 0;
       for (let k = 0; k < N; k++) if (sim.kor[k]) { this.near[k] = k; q[t++] = k; }
       while (h < t) { const k = q[h++], i = k % GW;
         for (const n of [i > 0 ? k - 1 : -1, i < GW - 1 ? k + 1 : -1, k - GW, k + GW]) if (n >= 0 && n < N && this.near[n] < 0) { this.near[n] = this.near[k]; q[t++] = n; } } }
-    this.uploadField(); this.uploadField();
+    this.primeField();
   }
   const R = Renderer.prototype;
   R.bakeHeight = function () {
@@ -263,22 +284,29 @@
     return R0.map(r => { const a = proj(r[0], r[1]), b = proj(r[2], r[3]); return [a[0], a[1], b[0], b[1], r[4], r[5]]; });
   }
   R.fill = function (arr, fn) { const b = this.fieldBuf, nr = this.near; for (let k = 0; k < N; k++) { const s = nr[k]; b[k] = s < 0 ? 128 : fn(arr, s); } return b; };
-  R.put = function (t, data) { const gl = this.gl; gl.bindTexture(gl.TEXTURE_2D, t); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, GW, GH, gl.RED, gl.UNSIGNED_BYTE, data); };
-  // call after every sim day: the newest field goes into the "next" texture, the old one becomes "prev"
+  R.put = function (t, data, fmt) { const gl = this.gl; gl.bindTexture(gl.TEXTURE_2D, t); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1); gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, GW, GH, fmt || gl.RED, gl.UNSIGNED_BYTE, data); };
+  // Call after every sim day. Snapshots go into a ring of four; the map is drawn
+  // between the 2nd and 3rd newest with Catmull-Rom, so motion lags the sim by a day or two.
   R.uploadField = function () {
-    this.cur ^= 1;
+    this.head = (this.head + 1) % 4;
     const enc = (a, s) => Math.max(0, Math.min(255, Math.round((a[s] + 1) * 127.5)));
-    this.put(this.tF[this.cur], this.fill(this.sim.c, enc));
+    this.put(this.tF[this.head], this.fill(this.sim.c, enc));
+    const b = this.fxBuf, nr = this.near, sim = this.sim;
+    for (let k = 0; k < N; k++) { const s = nr[k]; if (s < 0) { b[2 * k] = 0; b[2 * k + 1] = 0; continue; }
+      b[2 * k] = Math.min(255, sim.heat[s] * 255) | 0; b[2 * k + 1] = Math.max(0, 255 - sim.flipAge[s] * 24) | 0; }
+    this.put(this.tX[this.head], b, this.gl.RG);
     this.put(this.tPocket, this.fill(this.sim.pocket, (a, s) => a[s] ? 255 : 0));
     if (this.sim.dmz && !this.dmzDone) { this.put(this.tDmz, this.fill(this.sim.dmz, enc)); this.dmzDone = true; }
   };
-  R.setSim = function (sim) { this.sim = sim; this.dmzDone = false; this.uploadField(); this.uploadField(); };
+  R.primeField = function () { for (let i = 0; i < 4; i++) this.uploadField(); };
+  R.setSim = function (sim) { this.sim = sim; this.dmzDone = false; this.primeField(); };
 
   R.draw = function (view, mix, time, opts) {
     const gl = this.gl, c = this.canvas, u = this.map.u;
     gl.viewport(0, 0, c.width, c.height); gl.useProgram(this.map.p);
     gl.uniform2f(u.uRes, c.width, c.height); gl.uniform2f(u.uCenter, view.x, view.y);
-    gl.uniform1f(u.uUpp, view.upp / view.dpr); gl.uniform1f(u.uDpr, view.dpr);
+    const px = c.width / view.w; // device pixels per CSS pixel (includes adaptive scaling)
+    gl.uniform1f(u.uUpp, view.upp / px); gl.uniform1f(u.uDpr, px);
     gl.uniform1f(u.uMix, mix); gl.uniform1f(u.uTime, time);
     gl.uniform1f(u.uDmzOn, this.sim.dmz ? 1 : 0); gl.uniform1f(u.uGrid, opts.grid ? 1 : 0);
     gl.uniform4f(u.uLandBox, LB.x, LB.y, LB.w, LB.h); gl.uniform2f(u.uLandSize, LTW, LTH);
@@ -286,8 +314,10 @@
     gl.uniform3f(u.uNorth, 0.86, 0.13, 0.20); gl.uniform3f(u.uSouth, 0.13, 0.50, 0.86);
     const bind = (t, unit, name) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); gl.uniform1i(u[name], unit); };
     bind(this.tLand, 0, 'tLand'); bind(this.tHeight, 1, 'tHeight');
-    bind(this.tF[this.cur ^ 1], 2, 'tF0'); bind(this.tF[this.cur], 3, 'tF1');
-    bind(this.tPocket, 4, 'tPocket'); bind(this.tDmz, 5, 'tDmz');
+    const h = this.head, at = i => (h + 1 + i) % 4; // at(0) oldest … at(3) newest
+    bind(this.tF[at(0)], 2, 'tF0'); bind(this.tF[at(1)], 3, 'tF1'); bind(this.tF[at(2)], 4, 'tF2'); bind(this.tF[at(3)], 5, 'tF3');
+    bind(this.tPocket, 6, 'tPocket'); bind(this.tDmz, 7, 'tDmz');
+    bind(this.tX[at(1)], 8, 'tX1'); bind(this.tX[at(2)], 9, 'tX2');
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   };
 

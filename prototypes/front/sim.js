@@ -183,6 +183,8 @@
     }
     this.F = new Float32Array(N);
     this.ent = new Float32Array(N); this.sgn = new Int8Array(N);
+    this.flipAge = new Uint8Array(N).fill(255); this.heat = new Float32Array(N);
+    this.hot = []; this.advances = []; this.removed = [];
     this.P = [new Float32Array(N), new Float32Array(N)];
     this.tmp = new Float32Array(N);
     this.eff = [new Float32Array(N), new Float32Array(N)];
@@ -231,7 +233,7 @@
     }
     return side === undefined ? k0 : -1;
   };
-  P.say = function (text, kind) { this.log.push({ day: this.day, text, kind: kind || 'event' }); if (this.log.length > 200) this.log.shift(); };
+  P.say = function (text, kind, extra) { this.log.push(Object.assign({ day: this.day, text, kind: kind || 'event' }, extra || {})); if (this.log.length > 200) this.log.shift(); };
 
   // ---------- units ----------
   P.addUnit = function (fac, type, k, str) {
@@ -348,13 +350,20 @@
     const Es = this.P[1][k] * (holder === 1 ? def : as);
     return [En, Es];
   };
+  // Local luck and friction: the push varies in space (~35 km) and drifts over ~a week,
+  // so fronts surge in some places and stick in others instead of moving as one sheet.
+  P.friction = function (k) {
+    const x = (k % GW) / 8, y = Math.floor(k / GW) / 8, t = this.day / 6, ti = Math.floor(t), tf = t - ti, u = tf * tf * (3 - 2 * tf);
+    const a = vnoise(x + 31.7 * ti, y), b = vnoise(x + 31.7 * (ti + 1), y);
+    return 0.55 + 0.9 * (a + (b - a) * u);
+  };
   P.computeForcing = function () {
     const F = this.F, mo = monthOf(this.day), winter = (mo === 11 || mo <= 1) ? 0.7 : (mo === 6 || mo === 7) ? 0.85 : 1;
     for (let k = 0; k < N; k++) {
       if (!this.kor[k]) { F[k] = 0; continue; }
       const [En, Es] = this.balanceAt(k);
       const bal = (En - Es) / (En + Es + T.P0);
-      let f = T.FMAX * bal * (1 - 0.55 * this.mtn[k]) * winter;
+      let f = T.FMAX * bal * (1 - 0.55 * this.mtn[k]) * winter * this.friction(k);
       if (this.pocket[k] === 1) f -= T.COLLAPSE; else if (this.pocket[k] === 2) f += T.COLLAPSE;
       F[k] = f;
     }
@@ -447,7 +456,7 @@
     return best;
   };
   P.combat = function () {
-    const keep = [], inten = 0.55 + 0.45 * Math.max(this.atk[0], this.atk[1]);
+    const keep = [], inten = 0.55 + 0.45 * Math.max(this.atk[0], this.atk[1]); this.removed = [];
     for (const u of this.units) {
       const k = this.cellAt(u.x, u.y);
       u.sup = k >= 0 ? this.supplyNear(k, u.side) : 0;
@@ -464,6 +473,7 @@
       if (u.str < 0.12 * u.max) { this.stats.cas[u.side] += u.str; u.gone = 'destroyed'; this.rebuild.push({ day: this.day + T.rebuildDays, fac: u.fac, type: u.type, max: u.max }); continue; }
       keep.push(u);
     }
+    for (const u of this.units) if (u.gone) this.removed.push(u);
     const lost = this.units.length - keep.length;
     if (lost) {
       const cap = this.units.filter(u => u.gone === 'captured');
@@ -477,7 +487,7 @@
       const o = this.c[ct.k] >= 0 ? 0 : 1;
       if (o !== ct.owner) {
         ct.owner = o;
-        if (ct.tier <= 2 && this.day - ct.lastLog > 6) { this.say(ct.name + ' falls to the ' + SIDE_NAME[o], 'city'); ct.lastLog = this.day; }
+        if (ct.tier <= 2 && this.day - ct.lastLog > 6) { this.say(ct.name + ' falls to the ' + SIDE_NAME[o], 'city', { lon: ct.lon, lat: ct.lat, side: o, tier: ct.tier }); ct.lastLog = this.day; }
       }
     }
   };
@@ -491,7 +501,7 @@
       const e = this.events[this.evIdx++];
       if (this.sandbox && e.scripted !== false && e.day > 0 && !e.always) continue;
       e.run(this);
-      if (e.text) { this.say(e.text, e.kind || 'event'); this.caption = e.caption || this.caption; }
+      if (e.text) { this.say(e.text, e.kind || 'event', e.caption ? { big: e.caption } : null); this.caption = e.caption || this.caption; }
     }
   };
 
@@ -499,7 +509,7 @@
     const c = this.c, e = this.ent, g = this.sgn;
     for (let k = 0; k < N; k++) {
       if (!this.kor[k]) continue; const s = c[k] >= 0 ? 1 : -1;
-      if (s === g[k]) { if (e[k] < T.entMax) e[k] += T.entRate; } else { e[k] = 0; g[k] = s; }
+      if (s === g[k]) { if (e[k] < T.entMax) e[k] += T.entRate; if (this.flipAge[k] < 255) this.flipAge[k]++; } else { e[k] = 0; g[k] = s; this.flipAge[k] = 0; }
     }
   };
   P.momentum = function () {
@@ -533,9 +543,46 @@
     for (let s = 0; s < T.substeps; s++) this.fieldStep();
     this.entrench();
     this.computeDist();
+    this.computeHeat();
+    this.computeAdvances();
     this.moveUnits();
     this.trackCities();
     this.tally();
+  };
+
+  // Combat heat: where both sides are in contact and the front is moving. Drives
+  // the glow, the artillery flashes and the wobble in the renderer.
+  P.computeHeat = function () {
+    const h = this.heat, d = this.distF, P0 = this.P[0], P1 = this.P[1], F = this.F; this.hot = [];
+    for (let k = 0; k < N; k++) {
+      let v = h[k] * 0.8;
+      if (this.kor[k] && d[k] >= 0 && d[k] <= 3) {
+        const contact = Math.min(1, Math.min(P0[k], P1[k]) / 45000);
+        v = Math.max(v, contact * (0.35 + 0.65 * Math.min(1, Math.abs(F[k]) / 0.1)));
+      }
+      if (this.flipAge[k] === 0) v = Math.max(v, 0.6);
+      h[k] = v; if (v > 0.15) this.hot.push(k);
+    }
+  };
+  // Recent gains, grouped into blobs, become offensive arrows on the map.
+  P.computeAdvances = function () {
+    const seen = this.dtmp, q = this.q, c = this.c, fa = this.flipAge; seen.fill(0); this.advances = [];
+    for (let s0 = 0; s0 < N; s0++) {
+      if (seen[s0] || !this.main[s0] || fa[s0] > 6) continue;
+      const side = c[s0] >= 0 ? 0 : 1, sg = side === 0 ? 1 : -1;
+      let h = 0, t = 0, sx = 0, sy = 0, gx = 0, gy = 0; q[t++] = s0; seen[s0] = 1;
+      while (h < t) {
+        const k = q[h++], i = k % GW, j = (k - i) / GW;
+        sx += i; sy += j;
+        const cx = (i < GW - 1 ? c[k + 1] : c[k]) - (i > 0 ? c[k - 1] : c[k]), cy = (j < GH - 1 ? c[k + GW] : c[k]) - (j > 0 ? c[k - GW] : c[k]);
+        gx -= sg * cx; gy -= sg * cy;
+        for (const n of [i > 0 ? k - 1 : -1, i < GW - 1 ? k + 1 : -1, k - GW, k + GW])
+          if (n >= 0 && n < N && !seen[n] && this.main[n] && fa[n] <= 6 && (c[n] >= 0) === (side === 0)) { seen[n] = 1; q[t++] = n; }
+      }
+      if (t < 30) continue;
+      const gl = Math.hypot(gx, gy); if (gl < 1e-6) continue;
+      this.advances.push({ side, x: GX0 + (sx / t + 0.5) * CELL, y: GY0 + (sy / t + 0.5) * CELL, dx: gx / gl, dy: gy / gl, size: t });
+    }
   };
 
   // ---------- player actions (sandbox tools) ----------

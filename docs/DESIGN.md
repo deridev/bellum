@@ -1,6 +1,6 @@
 # BELLUM — Game Design Document
 
-> Status: **v0.3 draft**. We're iterating on this together. Anything marked **[OPEN]** is undecided.
+> Status: **v0.4 draft**. We're iterating on this together. Anything marked **[OPEN]** is undecided.
 > Anything marked **[REC]** is a recommendation waiting for a yes or no. See the Decision log at the bottom.
 
 ---
@@ -133,6 +133,18 @@ The sim core resolves "a set of orders → next state." Sequential mode is the s
 - **Map modes**: Political · Terrain · Supply · Industry · Ideology · Stability · Diplomacy (blocs).
 - UI style: clean, modern, military-briefing feel: map pins, arrows, stencil numbers. Flat, sharp and readable.
 
+### 4.6 Motion and feedback ("juice")
+**Rule: every change in a number has a visible cause on the map.** Proven in the front prototype:
+- **Smooth motion**: the map and units are drawn through the last four daily states with Catmull-Rom curves, so speed changes are smooth (no stepping between days). Playback runs a day or two behind the simulation to make this possible.
+- **Uneven advances**: local friction varies across the map and drifts over about a week, so fronts surge in places and stick in others, like a real front.
+- **Heat**: where both sides are in contact and the line is moving, the front glows hotter, flickers, gets battle haze, and its edge moves slightly. Quiet fronts stay calm and thin.
+- **Artillery flashes and smoke** along hot stretches of front.
+- **Fresh ground** shines in the winner's colour for about ten days, so you can read where the war just moved.
+- **Offensive arrows** are drawn automatically from where the front is advancing (history-map style), and fade when the push stops.
+- **Turning points** get a cinematic banner and a small camera shake. **Cities changing hands** ripple in the new owner's colour. **Surrendering divisions** leave a white flag; broken ones a cross.
+- **Troop totals** pulse when they change fast.
+- Respect *reduced motion*: no shake, simpler banners. Adaptive resolution keeps the map smooth on weaker GPUs.
+
 ---
 
 ## 5. War (the heart of the game)
@@ -166,7 +178,12 @@ How it works (proven in `prototypes/front/`):
 - **Fronts stabilise for real reasons.** Defenders get a base bonus, terrain bonuses and **entrenchment** that grows while a stretch of front stays still. Attackers have **offensive momentum** that drains while they attack and recovers when they pause, so offensives culminate on their own (as Chinese offensives did after a week or two).
 - **"Infinite resolution" rendering.** The simulation grid is coarse. The renderer samples it smoothly (bicubic) and adds a multi-scale warp, so the front is a crisp, organic line at every zoom level, and new detail appears as you zoom in. Turn on **Sim grid** in the prototype to see the 4.4 km squares underneath.
 
-**Provinces still matter** for the economy and names. A province's output is split by how much of it each side controls, and its city or capital decides who administers it. Peace treaties can draw **any line**: the current front (a ceasefire line, like the DMZ), a river, or snapped to province borders [OPEN].
+**Provinces still matter** for the economy and names. During a war, a province's output is split by how much of it each side controls, and its city or capital decides who administers it.
+
+**Borders after a war (decided): they adapt realistically.** Most provinces come through a war unchanged; a few get cut.
+- **Peace treaty**: each province goes to whoever holds most of it and its main city. Only provinces the final line really cuts through are split, and the new border follows a natural feature near the front (river, ridge, road) rather than the raw front.
+- **Armistice without a treaty**: the exact front freezes as a ceasefire line or DMZ (a frozen conflict that can flare up again).
+- **Afterwards**: split provinces can be reorganised into new ones over the years (an administrative-reform event), so the map slowly absorbs the war.
 
 ### 5.4 Orders on a continuous front
 You don't push pixels. Each army gets:
@@ -202,7 +219,8 @@ The map shows summed troop totals per side on each side of the front (*1,635,267
 - **Historical mode**: real leaders and parties at the start.
 - **Fictional mode**: generated leaders, parties and ideology names on the same real map.
 
-History is the starting point either way; politics come from the game. Fictional mode is the safe default where store rules restrict real-world extremist imagery. Living present-day leaders need care: default to fictional in 2026 and let players opt in. [OPEN]
+History is the starting point either way; politics come from the game. Fictional mode is the safe default where store rules restrict real-world extremist imagery.
+- **Present day (decided)**: fictional leaders by default, because real leaders change all the time. Real leaders come as an optional data pack that can be updated without patching the game.
 
 ### 6.1 Ideology (two axes)
 - **Economy**: Collective ↔ Market.
@@ -355,13 +373,12 @@ The vertical slice is **one war, fought well**: if the flagship is 1950, the Kor
 
 ## 14. Open questions (iterating)
 
-1. **Front feel**: does the prototype's front match what you meant by "infinite resolution painting"? More jagged, more fluid, faster or slower?
-2. **Post-war borders**: keep the exact ceasefire line (any shape, like the DMZ) or snap to province borders at peace?
-3. **Living leaders in 2026**: fictional by default with an opt-in for real ones?
-4. **Naval and air depth**: abstracted (recommended) or more hands-on?
-5. **Nukes**: in or out, and from which era?
-6. **Platform**: browser first, Steam (desktop) later, mobile ever?
-7. **Art direction**: the prototype's satellite-relief style, or a stylised / painted map?
+1. **Next step**: another prototype round (provinces plus the peace settlement on Korea, or player-drawn offensive arrows), or start the real TypeScript foundation (M1 map: world provinces and rendering)?
+2. **Naval and air depth**: abstracted (recommended) or more hands-on?
+3. **Nukes**: in or out, and from which era?
+4. **Platform**: browser first, Steam (desktop) later, mobile ever?
+5. **Art direction**: keep the prototype's satellite-relief style, or a stylised / painted map?
+6. **Sound**: the front would gain a lot from distant artillery, radio chatter and a score. In scope for the vertical slice?
 
 ---
 
@@ -376,3 +393,6 @@ The vertical slice is **one war, fought well**: if the flagship is 1950, the Kor
 | 6 | 2026-10-18 | **Leaders: real and fictional, selectable per game** (§6) |
 | 7 | 2026-10-18 | **Medieval: not now, but systems stay modular (era packs)** (§12) |
 | 8 | 2026-10-18 | **Fronts are continuous**, not province-based: control field + zero-line rendering (§5.3). Proven in `prototypes/front/` |
+| 9 | 2026-10-18 | **Post-war borders adapt realistically**: most provinces survive intact, only those cut by the final line split; armistice freezes the front as a DMZ (§5.3) |
+| 10 | 2026-10-18 | **Present day defaults to fictional leaders**; real leaders as an updatable opt-in pack (§6) |
+| 11 | 2026-10-18 | **Motion and feedback rules** (§4.6), proven in the front prototype |
