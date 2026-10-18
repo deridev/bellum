@@ -15,10 +15,7 @@ function flagUrl(s: Session) { if (_flagUrl) return _flagUrl; const c = document
 /** The dossier on the right edge. Escape closes it. */
 export function Sheet({ title, onClose, children, eyebrow, icon, head }: { title: any; onClose: () => void; children: any; eyebrow?: any; icon?: string; head?: any }) {
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
-  // a cue at the bottom while there is more to scroll to
-  const body = useRef<HTMLDivElement>(null), [more, setMore] = useState(false);
-  const check = () => { const b = body.current; if (b) setMore(b.scrollHeight - b.scrollTop - b.clientHeight > 6); };
-  useEffect(check);
+  const [body, more, check] = useMore();
   return <section class={`ui sheet plate d-${icon || 'none'}`}>
     <header class="sheet-head">
       {icon && <span class="sheet-icon"><Icon name={icon} size={20} /></span>}
@@ -27,8 +24,18 @@ export function Sheet({ title, onClose, children, eyebrow, icon, head }: { title
     </header>
     {head}
     <div class="sheet-body" ref={body} onScroll={check}>{children}</div>
-    {more && <button class="more-cue" aria-label={t('ui.more')} onClick={() => body.current?.scrollBy({ top: body.current.clientHeight * 0.7, behavior: 'smooth' })}><Icon name="down" size={12} />{t('ui.more')}</button>}
+    <MoreFooter body={body} more={more} />
   </section>;
+}
+/** Whether a scroll box has more below; the footer strip shows it without covering content. */
+export function useMore() {
+  const body = useRef<HTMLDivElement>(null), [more, setMore] = useState(false);
+  const check = () => { const b = body.current; if (b) setMore(b.scrollHeight - b.scrollTop - b.clientHeight > 6); };
+  useEffect(check);
+  return [body, more, check] as const;
+}
+export function MoreFooter({ body, more }: { body: { current: HTMLDivElement | null }; more: boolean }) {
+  return more ? <footer class="more-foot"><button class="more-cue" onClick={() => body.current?.scrollBy({ top: body.current.clientHeight * 0.7, behavior: 'smooth' })}><Icon name="down" size={12} />{t('ui.more')}</button></footer> : null;
 }
 /** A titled block inside a sheet. */
 export function Block({ title, icon, aside, children }: { title?: string; icon?: string; aside?: any; children: any }) {
@@ -84,7 +91,7 @@ export function UnitSymbol({ type, size = 28 }: { type: string; size?: number })
   if (type === 'mechanized') { inner.push(X); inner.push(oval); }
   if (type === 'marines') { inner.push(X); inner.push(<path d={`M2 ${h * 0.7}q${(w - 4) / 8} -${h * 0.16} ${(w - 4) / 4} 0t${(w - 4) / 4} 0t${(w - 4) / 4} 0t${(w - 4) / 4} 0V${h - 2}H2z`} class="u-solid" />); }
   if (type === 'airborne') { inner.push(X); inner.push(<path d={`M${w * 0.28} ${h * 0.86}a${w * 0.11} ${h * 0.2} 0 0 1 ${w * 0.22} 0a${w * 0.11} ${h * 0.2} 0 0 1 ${w * 0.22} 0z`} class="u-solid" />); }
-  return <svg class="unit-sym" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true"><rect x="1" y="1" width={w - 2} height={h - 2} rx="1" class="unit-frame" /><g class="unit-mark">{inner}</g></svg>;
+  return <svg class={`unit-sym u-${type}`} width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true"><rect x="1" y="1" width={w - 2} height={h - 2} rx="1" class="unit-frame" /><g class="unit-mark">{inner}</g></svg>;
 }
 
 // Icons on a 24-unit grid: a 2px outline, and closed shapes get a tinted fill (duotone) so they read at a glance.
@@ -193,7 +200,7 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
   const y0 = tk0[0], y1 = tk0[tk0.length - 1], X = (i: number) => L + i / (n - 1) * w, Y = (v: number) => T + h - (v - y0) / (y1 - y0 || 1) * h;
   // direct labels, nudged apart so they never collide
   const ends = series.map(s => ({ s, y: Y(s.values[n - 1]) })).sort((a, b) => a.y - b.y);
-  for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 18) ends[i].y = ends[i - 1].y + 18;
+  for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 20) ends[i].y = ends[i - 1].y + 20;
   const path = (v: number[]) => smooth(v.map((y, i) => [X(i), Y(y)]));
   // event pins: the month each event fell in
   const pins = marks.map(m => ({ ...m, i: Math.max(0, xs.findIndex((x, j) => j === n - 1 || xs[j + 1] > m.x)) })).filter(m => m.x >= xs[0]);
@@ -207,7 +214,7 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
       {!labels && <path d={`${path(series[0].values)}L${X(n - 1)},${T + h}L${X(0)},${T + h}Z`} fill={series[0].color} opacity="0.16" />}
       {series.map((s, i) => <path key={s.id} d={path(s.values)} fill="none" stroke={s.color} stroke-width={i === 0 ? 3 : 2} stroke-dasharray={DASH[i % DASH.length]} stroke-linejoin="round" stroke-linecap="round" />)}
       {series.map(s => <circle key={s.id} cx={X(n - 1)} cy={Y(s.values[n - 1])} r="4" fill={s.color} class="end-dot" />)}
-      {labels && ends.map(({ s, y }) => <g key={s.id}><line x1={L + w + 4} x2={L + w + 9} y1={Y(s.values[n - 1])} y2={y} stroke={s.color} stroke-width="1.5" /><text x={L + w + 12} y={y + 4} class="end-label">{s.label}</text></g>)}
+      {labels && ends.map(({ s, y }) => <g key={s.id}>{Math.abs(y - Y(s.values[n - 1])) > 3 && <line x1={L + w + 4} x2={L + w + 9} y1={Y(s.values[n - 1])} y2={y} stroke={s.color} stroke-width="1.5" />}<text x={L + w + 12} y={y + 4} class="end-label">{s.label}</text></g>)}
       {hi !== null && <g><line x1={hx} x2={hx} y1={T} y2={T + h} class="cross" />{series.map(s => <circle key={s.id} cx={hx} cy={Y(s.values[hi])} r="4" fill={s.color} class="end-dot" />)}</g>}
     </svg>
     {hi !== null && <div class={`chart-tip ${hx > W / 2 ? 'left' : ''}`} style={{ left: hx }}><b>{fmtX(xs[hi])}</b>{pins.filter(m => m.i === hi).map((m, k) => <em key={k}>◆ {m.label}</em>)}{series.slice().sort((a, b) => b.values[hi] - a.values[hi]).map(s => <span key={s.id}><i style={{ background: s.color }} />{s.label}<b class="num">{fmtY(s.values[hi])}</b></span>)}</div>}

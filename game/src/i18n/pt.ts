@@ -164,4 +164,5 @@ export const pt: Record<string, Entry> = {
   'eco.debtBorrowing': 'Tesouro vazio: {v}/mês sendo emprestado', 'dip.costOf': '{n} de {have}',
   'group.want.military': 'Quer um orçamento militar grande', 'group.want.industry': 'Quer impostos baixos e investimento', 'group.want.labor': 'Quer bem-estar e crescimento', 'group.want.rural': 'Quer impostos baixos e calma',
   'ui.more': 'Mais', 'led.unchanged': 'sem mudança desde o início', 'led.noHistory': 'Os gráficos se preenchem mês a mês. Volte depois de alguns meses de jogo.',
+  'agenda.fold': 'Recolher',
 };

@@ -40,6 +40,7 @@ export function Hud({ g }: { g: Game }) {
     {p?.kind === 'timelapse' && <TimelapsePanel g={g} />}
     {p?.kind === 'ledger' && <LedgerScreen g={g} />}
     <Dock g={g} />
+    <LensRail g={g} />
     {p?.kind !== 'ledger' && agenda && <AgendaCards g={g} slim={!!p} />}
     <ToolHint g={g} />
     {st.declare >= 0 && <DeclareDialog g={g} target={st.declare} />}
@@ -106,7 +107,7 @@ function CommandStrip({ g, onDecisions }: { g: Game; onDecisions: () => void }) 
 }
 function Res({ icon, k, v, tone, gauge, sub, danger, onClick }: { icon: string; k: string; v: string; tone: string; gauge?: number; sub?: any; danger?: boolean; onClick: () => void }) {
   return <button class={`res-cell t-${tone} ${danger ? 'danger' : ''}`} aria-label={`${t('ledger.' + k)} ${v}`} data-tip={`${t('ledger.' + k)} — ${t('ledger.' + k + '.hint')}`} onClick={onClick}>
-    {gauge !== undefined ? <Ring v={gauge} size={38} tone="currentColor"><Icon name={icon} size={18} /></Ring> : <span class="res-badge"><Icon name={icon} size={20} /></span>}
+    {gauge !== undefined ? <Ring v={gauge} size={42} tone="currentColor"><Icon name={icon} size={20} /></Ring> : <span class="res-badge"><Icon name={icon} size={20} /></span>}
     <span class="res-txt"><span class="res-top"><b class="res-v num">{v}</b>{sub}</span><span class="res-k">{t('ledger.' + k)}</span></span></button>;
 }
 
@@ -119,6 +120,12 @@ function Dock({ g }: { g: Game }) {
     <span class="dock-sep" aria-hidden="true"><span>{t('hud.map')}</span></span>
     <span class="lenses" role="group" aria-label={t('modes.label')}>{LENSES.map(l => <button key={l.id} class="lens-btn" aria-pressed={lens === l.id} data-tip={t('modes.' + l.id)} aria-label={t('modes.' + l.id)} onClick={() => g.s.setMapMode(l.id)}><Icon name={l.icon} size={20} /><span>{t('modes.' + l.id)}</span></button>)}</span>
   </nav>;
+}
+
+/** On phones the map lenses get their own rail on the right, since the dock has no room. */
+function LensRail({ g }: { g: Game }) {
+  const lens = useStore(g.s.ui, u => u.mapMode);
+  return <nav class="ui lens-rail plate" aria-label={t('modes.label')}>{LENSES.map(l => <button key={l.id} class="lens-btn" aria-pressed={lens === l.id} aria-label={t('modes.' + l.id)} onClick={() => g.s.setMapMode(l.id)}><Icon name={l.icon} size={20} /></button>)}</nav>;
 }
 
 // ---------------------------------------------------------------- news: short-lived dispatches with an icon each
@@ -185,7 +192,7 @@ function EconomyPanel({ g }: { g: Game }) {
       <Figure label={t('stat.gdp')} value={fmtMoney(c.gdp)} spark={g.series('gdp')} sub={<span class={c.growth < 0 ? 'bad' : 'good'}><Icon name={c.growth < 0 ? 'trendDown' : 'trend'} size={12} /> {pct(c.growth)}</span>} />
       <Figure label={t('ledger.treasury')} value={fmtMoney(c.treasury)} spark={g.series('treasury')} sub={<span class={bal < 0 ? 'bad' : 'good'}>{t('eco.perMonth', { v: (bal >= 0 ? '+' : '') + fmtMoney(bal) })}</span>} />
     </div>
-    <div class={`debt-row ${debt > 1.2 ? 'danger' : bal < 0 && c.treasury <= 0 ? 'warn' : ''}`} data-tip={t('eco.borrowHint')}><Ring v={Math.min(1, debt / 2)} size={44} tone={debt > 1.2 ? 'var(--red)' : debt > 0.8 ? 'var(--brass)' : 'var(--green)'}><b class="num">{Math.round(debt * 100)}%</b></Ring><div><b>{t('eco.debt')} · {fmtMoney(c.debt)}</b><small>{t(debt > 1.2 ? 'eco.debtHigh' : bal < 0 && c.treasury <= 0 ? 'eco.debtBorrowing' : debt > 0.8 ? 'eco.debtMid' : 'eco.debtLow', { v: fmtMoney(-bal) })}</small></div></div>
+    <div class={`debt-row ${debt > 0.8 ? 'danger' : bal < 0 && c.treasury <= 0 ? 'warn' : ''}`} data-tip={t('eco.borrowHint')}><Ring v={Math.min(1, debt / 2)} size={44} tone={debt > 0.8 ? 'var(--red)' : debt > 0.5 ? 'var(--brass)' : 'var(--green)'}><b class="num">{Math.round(debt * 100)}%</b></Ring><div><b>{t('eco.debt')} · {fmtMoney(c.debt)}</b><small>{t(debt > 1.2 ? 'eco.debtHigh' : bal < 0 && c.treasury <= 0 ? 'eco.debtBorrowing' : debt > 0.5 ? 'eco.debtMid' : 'eco.debtLow', { v: fmtMoney(-bal) })}</small></div></div>
     <Block title={t('eco.budget')} icon="economy">
       <StackBar parts={BUDGET.map(b => ({ v: c.budget[b.k], color: b.color, label: t('eco.' + b.k) }))} />
       {BUDGET.map(b => <Slider key={b.k} id={'b-' + b.k} color={b.color} label={t('eco.' + b.k)} value={c.budget[b.k]} min={b.k === 'research' ? 0 : 0.02} max={b.k === 'research' ? 0.3 : 0.8} step={0.01} fmt={pct} onInput={v => setShare(b.k, v)} hint={hints[b.k]} sub={t('eco.perMonth', { v: fmtMoney(c.spending * c.budget[b.k]) })} />)}

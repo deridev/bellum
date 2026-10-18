@@ -1,4 +1,4 @@
-import { useEffect } from 'preact/hooks';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Game } from '../game/play';
 import { resolveAgenda } from '../sim/agenda';
 import { commitShare } from '../sim/war/ai';
@@ -93,17 +93,27 @@ export function DeclareDialog({ g, target }: { g: Game; target: number }) {
 const AGENDA_ICON: Record<string, string> = { peace: 'peace', diplo: 'diplomacy', event: 'chronicle' };
 export function AgendaCards({ g, slim }: { g: Game; slim?: boolean }) {
   const items = g.w.agenda.filter(a => a.country === g.player);
+  // a new decision opens for a few seconds, then folds into a one-line slip; a click on a slip opens it again
+  const [open, setOpen] = useState<number | null>(null), seen = useRef(new Set<number>()), hover = useRef(false);
+  useEffect(() => {
+    const fresh = items.find(a => !seen.current.has(a.id)); items.forEach(a => seen.current.add(a.id));
+    if (!fresh) return;
+    setOpen(fresh.id); const id = setTimeout(() => { if (!hover.current) setOpen(o => o === fresh.id ? null : o); }, 6000);
+    return () => clearTimeout(id);
+  }, [items.map(a => a.id).join()]);
   if (!items.length) return null;
   const decide = (id: number, i: number) => { resolveAgenda(g.w, g.S, id, i); g.afterOrder(); g.sound('click'); };
-  return <div class="ui agenda">{items.slice(0, slim ? 1 : 2).map((a, n) => n === 0
+  const shown = items.slice(0, slim ? 1 : 2), cur = items.find(a => a.id === open);
+  if (cur && !shown.includes(cur)) shown[0] = cur;
+  return <div class="ui agenda" onMouseEnter={() => (hover.current = true)} onMouseLeave={() => (hover.current = false)}>{shown.map(a => a.id === open
     ? <section class={`agenda-card plate k-${a.kind}`} key={a.id} role="dialog" aria-label={say(g.w, a.title)}>
-      <div class="cable-head"><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={18} /></span><span class="eyebrow">{t('agenda.' + a.kind)}</span><time class="mono">{fmtDate(g.w, a.day, 'short')}</time></div>
+      <div class="cable-head"><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={18} /></span><span class="eyebrow">{t('agenda.' + a.kind)}</span><time class="mono">{fmtDate(g.w, a.day, 'short')}</time><button class="x" aria-label={t('agenda.fold')} onClick={() => setOpen(null)}><Icon name="down" size={12} /></button></div>
       <div class="h3 plain">{say(g.w, a.title)}</div><p>{say(g.w, a.text)}</p>
       <div class="opts">{a.options.map((o, i) => <button key={i} class={i === 0 ? 'primary' : ''} onClick={() => decide(a.id, i)}><span>{say(g.w, o.label)}</span>{o.hint && <small>{say(g.w, o.hint)}</small>}</button>)}</div>
     </section>
-    : <div class={`agenda-slip plate k-${a.kind}`} key={a.id}><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={16} /></span><span class="slip-t">{say(g.w, a.title)}</span>
+    : <div class={`agenda-slip plate k-${a.kind}`} key={a.id}><button class="slip-open" onClick={() => setOpen(a.id)}><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={16} /></span><span class="slip-t">{say(g.w, a.title)}</span></button>
       {a.options.length === 2 && <><button class="slip-yes" aria-label={say(g.w, a.options[0].label)} data-tip={say(g.w, a.options[0].label)} onClick={() => decide(a.id, 0)}><Icon name="check" size={16} /></button><button class="slip-no" aria-label={say(g.w, a.options[1].label)} data-tip={say(g.w, a.options[1].label)} onClick={() => decide(a.id, 1)}><Icon name="cross" size={16} /></button></>}</div>)}
-    {items.length > (slim ? 1 : 2) && <small class="slip-more">{t('agenda.more', { n: items.length - (slim ? 1 : 2) })}</small>}
+    {items.length > shown.length && <small class="slip-more">{t('agenda.more', { n: items.length - shown.length })}</small>}
   </div>;
 }
 
