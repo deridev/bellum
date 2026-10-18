@@ -1,4 +1,5 @@
 import type { AgendaItem, MapStatic, World } from './types';
+import { chooseCrisis } from './crises';
 import { msg } from './types';
 import { makePeace } from './war/war';
 import { addRel, say } from './world';
@@ -16,6 +17,7 @@ export function resolveAgenda(w: World, S: MapStatic, id: number, option: number
   else if (eff === 'diplo.accept') { const { from, act } = item.data; doDiplo(w, from, item.country, act, S); w.countries[from].polCap += DIPLO[act as DiploAction].cost; }
   else if (eff === 'diplo.decline') addRel(w, item.data.from, item.country, -5, false);
   else if (eff?.startsWith('event.')) applyEvent(w, item, option);
+  else if (eff === 'crisis.choose') chooseCrisis(w, w.countries[item.country], option as 0 | 1);
 }
 export function expireAgenda(w: World) {
   for (const a of w.agenda) if (a.expires >= 0 && a.expires < w.day && a.data?.act === 'demand') resolveDemand(w, a.data.from, a.country, a.data.prov, false); // ignoring an ultimatum is refusing it

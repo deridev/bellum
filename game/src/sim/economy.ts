@@ -2,6 +2,7 @@ import { CONSCRIPTION_GROWTH, CONSCRIPTION_RATE, clamp01, newDivision, say } fro
 import type { Army, Country, MapStatic, ProdItem, UnitType, World } from './types';
 import { makeGeneral } from './names';
 import { joinArmy } from './war/armies';
+import { crisisGrowth } from './crises';
 import { msg } from './types';
 import { tradeBonus } from './diplomacy';
 import { researchNeed } from './policies';
@@ -46,7 +47,7 @@ export function monthlyEconomy(w: World, S: MapStatic) {
     let g = 0.004 + 0.08 * (c.budget.investment - 0.18) + (c.stability - 0.6) * 0.04 - (c.taxRate - 0.25) * 0.05 + 0.016 * (1 - Math.min(1, pc / 40000));
     if (debtRatio > 1.2) g -= 0.01 * (debtRatio - 1.2);
     if (atWar(w, c.id)) g -= 0.02;
-    g += tradeBonus(w, c.id) + CONSCRIPTION_GROWTH[c.conscription];
+    g += tradeBonus(w, c.id) + CONSCRIPTION_GROWTH[c.conscription] + crisisGrowth(w, c);
     g += (nextNoise(w, c.id) - 0.5) * 0.01;
     c.growth = g = Math.max(-0.25, Math.min(0.12, g)); // a collapsed economy shrinks, it does not explode
     const f = Math.pow(1 + g, 1 / 12);

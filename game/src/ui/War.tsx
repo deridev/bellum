@@ -107,11 +107,11 @@ function peaceFx(a: { data?: any }, i: number): [string, string][] {
   const n = a.data?.terms?.provinces?.length ?? 0;
   return i === 0 ? [[t('fx.endsWar'), 'good'], n ? [t('fx.provinces', { n }), 'bad'] : [t('fx.noLand'), '']] : [[t('fx.warGoesOn'), 'bad']];
 }
-const AGENDA_ICON: Record<string, string> = { peace: 'peace', diplo: 'diplomacy', event: 'chronicle' };
+const AGENDA_ICON: Record<string, string> = { peace: 'peace', diplo: 'diplomacy', event: 'chronicle', crisis: 'trendDown' };
 /** The rail shows the single most urgent decision; the strip's Decisions button opens the drawer with all of them. */
 export function AgendaCards({ g, slim, drawer, onDrawer }: { g: Game; slim?: boolean; drawer?: boolean; onDrawer: (open: boolean) => void }) {
   // highest stakes first: peace, then proposals, then reports
-  const RANK: Record<string, number> = { peace: 0, diplo: 1, event: 2 };
+  const RANK: Record<string, number> = { peace: 0, crisis: 1, diplo: 2, event: 3 };
   const items = g.w.agenda.filter(a => a.country === g.player).sort((a, b) => (RANK[a.kind] ?? 3) - (RANK[b.kind] ?? 3));
   // a new decision opens for a few seconds, then folds into a one-line slip; a click on a slip opens it again
   const [open, setOpen] = useState<number | null>(null), [asked, setAsked] = useState<number | null>(null), seen = useRef(new Set<number>());

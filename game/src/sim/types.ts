@@ -94,6 +94,7 @@ export interface World {
   cooldowns: Record<string, number>; // diplomacy and event cooldowns: key -> day it ends
   settings: { turnMode: 'continuous' | 'monthly'; difficulty: number };
   goalWar?: number; // the scenario's great war, whose outcome is a goal (1914, 1939)
+  crisis?: { id: string; start: number; until: number; choice: Record<number, 0 | 1> }; // the world crisis under way, and how each nation met it
   landings?: { id: number; country: number; army: number; war: number; theater: number; at: [number, number]; prov: number; day: number; p: number }[]; // armies at sea, landing on `day` with chance `p`
   outcome?: { kind: 'victory' | 'defeat' | 'end'; reason: string; day: number; rank?: number; playOn?: boolean }; // how the game ended for the player
 }
