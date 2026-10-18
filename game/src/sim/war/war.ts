@@ -171,7 +171,7 @@ export function sendToTheater(w: World, S: MapStatic, d: Division, t: Theater, f
   const [x, y] = cellLonLat(t, best); placeUnit(w, t, d, x, y, w.day + days);
   return true;
 }
-export function withdraw(d: Division) { d.theater = -1; d.arrive = 0; d.op = 0; d.goal = undefined; }
+export function withdraw(d: Division) { d.theater = -1; d.arrive = 0; d.op = 0; d.goal = undefined; d.sup = 1; } // at home a division is fully supplied
 
 /** Daily war step: theaters, occupation, score, exhaustion. */
 export function stepWars(w: World, S: MapStatic) {

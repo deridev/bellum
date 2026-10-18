@@ -311,6 +311,8 @@ function Policies({ g, panel }: { g: Game; panel: 'economy' | 'politics' }) {
   </Block>;
 }
 
+/** supply as the desk shows it: a division at home is fully supplied (the field only tracks it at the front) */
+const supOf = (d: { sup: number; theater: number }) => d.theater < 0 ? 1 : d.sup;
 function MilitaryPanel({ g }: { g: Game }) {
   const c = g.me; const [, force] = useState(0); const upd = () => force(x => x + 1);
   const [note, setNote] = useState(''), [peek, setPeek] = useState<Conscription | null>(null);
@@ -319,7 +321,7 @@ function MilitaryPanel({ g }: { g: Game }) {
   const men = divs.reduce((a, d) => a + d.str, 0), front = divs.filter(d => d.theater >= 0).length;
   const free = Math.max(0, c.spending * c.budget.military - c.upkeep), pop = popOf(g.w, c.id);
   const laws: Conscription[] = ['volunteer', 'limited', 'extensive', 'total'];
-  return <NationSheet g={g} kind="military" fig={(() => { const sup = g.w.armies.filter(a => a.country === c.id).map(a => { const ds = divs.filter(d => d.army === a.id); return ds.length ? ds.reduce((x, d) => x + d.sup, 0) / ds.length : 1; }), lo = sup.length ? Math.min(...sup) : 1;
+  return <NationSheet g={g} kind="military" fig={(() => { const sup = g.w.armies.filter(a => a.country === c.id).map(a => { const ds = divs.filter(d => d.army === a.id); return ds.length ? ds.reduce((x, d) => x + supOf(d), 0) / ds.length : 1; }), lo = sup.length ? Math.min(...sup) : 1;
       return <RibbonFig label={t('mil.weakestSupply')} v={pct(lo)} tone={lo < 0.5 ? 'bad' : ''} />; })()} cols={[<>
     <Block title={t('mil.forces')} icon="military" aside={<span class="muted">{t('mil.atFront')} <b class="num">{fmtInt(front)}/{fmtInt(divs.length)}</b> · <span class={free <= 0 ? 'bad' : ''}>{t('mil.fundsShort')} {t('eco.perMonth', { v: fmtMoney(free) })}</span></span>}>
       <div class="forces">{(Object.keys(UNIT_SPEC) as UnitType[]).map(k => { const s = UNIT_SPEC[k], queued = c.production.filter(p => p.type === k).length;
@@ -344,7 +346,7 @@ function MilitaryPanel({ g }: { g: Game }) {
     </Block>
   </>, <>
     <Block title={t('mil.armies')} icon="military" aside={<small class="muted">{t('mil.armyCols')}</small>}>
-      {<ul class="armies compact">{g.w.armies.filter(a => a.country === c.id).map(a => ({ a, sup: (ds => ds.reduce((x, d) => x + d.sup, 0) / Math.max(1, ds.length))(divs.filter(d => d.army === a.id)) })).sort((x, y) => x.sup - y.sup).slice(0, 10).map(({ a }) => { const ds = divs.filter(d => d.army === a.id), n = ds.length, sup = ds.reduce((x, d) => x + d.sup, 0) / Math.max(1, n), atFront = ds.some(d => d.theater >= 0);
+      {<ul class="armies compact">{g.w.armies.filter(a => a.country === c.id).map(a => ({ a, sup: (ds => ds.reduce((x, d) => x + supOf(d), 0) / Math.max(1, ds.length))(divs.filter(d => d.army === a.id)) })).sort((x, y) => x.sup - y.sup).slice(0, 10).map(({ a }) => { const ds = divs.filter(d => d.army === a.id), n = ds.length, sup = ds.reduce((x, d) => x + supOf(d), 0) / Math.max(1, n), atFront = ds.some(d => d.theater >= 0);
         return <li key={a.id} data-tip={`${a.general.name} · ${a.general.traits.map(x => t('gtrait.' + x)).join(', ')} · ${t(atFront ? 'mil.armyFront' : 'mil.armyReserve')}`}><b>{armyName(a.num)}</b><b class="num">{n}</b><span class="meter"><span class={`fill ${sup < 0.5 ? 'bad' : sup < 0.8 ? 'amber' : 'good'}`} style={{ width: cssPct(sup) }} /></span><small class="num">{pct(sup)}</small><button class="locate" aria-label={t('army.select')} data-tip={t('army.hint')} disabled={!n} onClick={() => { g.openPanel(null); g.selectArmy(a.id); g.focusArmy(a.id); }}><Icon name="target" size={14} />{t('army.select')}</button></li>; })}</ul>}
       {(() => { const mine = g.w.armies.filter(a => a.country === c.id), inArmies = divs.filter(d => mine.some(a => a.id === d.army)).length, rest = mine.length - 10;
         return <small class="army-foot">{rest > 0 && t('mil.moreArmies', { n: rest })}{rest > 0 && ' · '}{t('mil.inArmies', { n: inArmies, total: divs.length })}</small>; })()}
