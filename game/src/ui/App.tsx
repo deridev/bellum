@@ -100,6 +100,7 @@ export function HoverTip({ s }: { s: Session }) {
   const hover = useStore(s.ui, u => u.hover), mouse = useStore(s.ui, u => u.mouse);
   const [, force] = useState(0); useEffect(() => { const id = setInterval(() => force(x => x + 1), 500); return () => clearInterval(id); }, []);
   if (hover < 0) return null;
+  if (document.elementFromPoint(mouse[0], mouse[1])?.closest('.ui:not(.tip)')) return null; // the pointer is over a panel, not the map
   const p = s.assets.provinces[hover], c = s.countries[s.owner[hover]], occ = s.occupier?.(hover);
   if (!c) return null;
   return <div class={`tip panel ${mouse[0] > s.cam.w - 320 ? 'flip' : ''}`} style={{ left: mouse[0], top: mouse[1] }}><b>{p.name}</b> <span>· {nameFor(c.code, c.name, c.iso2)}{occ ? <span class="bad"> · {t('tip.heldBy', { c: occ })}</span> : null} · {t('terrain.' + p.terrain)}</span></div>;

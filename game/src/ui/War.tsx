@@ -26,16 +26,18 @@ export function WarPanel({ g, id }: { g: Game; id: number }) {
   const offs = ths.flatMap(x => x.offensives.filter(o => !o.ended && o.country === me));
   const all = warsOf(w, me), commit = war.commit?.[me];
   const flags = (cs: number[]) => <span class="flags">{cs.slice(0, 4).map(c => <Flag key={c} s={g.s} code={w.countries[c].code} h={14} />)}{cs.length > 4 && <small>+{cs.length - 4}</small>}</span>;
-  const pair = (a: number, b: number, fmt: (v: number) => string, label: string, icon: string) => { const tot = a + b || 1;
-    return <div class="pair" data-tip={label}><Icon name={icon} size={14} /><b class="num">{fmt(a)}</b><span class="pair-bar"><i style={{ width: `${a / tot * 100}%` }} /></span><b class="num">{fmt(b)}</b></div>; };
+  const pair = (a: number, b: number, fmt: (v: number) => string, label: string, icon: string, lowerIsBetter?: boolean) => { const tot = a + b || 1, win = lowerIsBetter ? a < b : a > b;
+    return <div class="pair"><span class="pair-l"><Icon name={icon} size={16} />{label}</span><b class={`num ${win ? 'good' : ''}`}>{fmt(a)}</b><span class={`pair-bar ${lowerIsBetter ? 'inv' : ''}`}><i style={{ width: `${a / tot * 100}%` }} /></span><b class="num">{fmt(b)}</b></div>; };
   return <Sheet onClose={close} icon="war" eyebrow={`${t(side > 0 ? 'war.attacking' : 'war.defending')} · ${t('war.day', { n: w.day - war.start })}`} title={<div class="h2">{say(w, war.name)}</div>}>
     {all.length > 1 && <div class="seg wrap">{all.map(x => <button key={x.id} aria-pressed={x.id === id} onClick={() => g.openPanel({ kind: 'war', id: x.id })}>{say(w, x.name)}</button>)}</div>}
-    <div class="war-score" data-tip={t('war.scoreHint')}><span class="eyebrow">{t('war.score')}</span><b class={`num big ${score < -20 ? 'bad' : score > 20 ? 'good' : ''}`}>{score > 0 ? '+' : ''}{Math.round(score)}</b></div>
+    <div class="war-score" data-tip={t('war.scoreHint')}><span><span class="eyebrow">{t('war.score')}</span><small class="muted">{t(score > 20 ? 'war.winning' : score < -20 ? 'war.losing' : 'war.even')}</small></span><b class={`num big ${score < -20 ? 'bad' : score > 20 ? 'good' : ''}`}>{score > 0 ? '+' : ''}{Math.round(score)}</b></div>
     <Tug v={score} left={flags(ours)} right={flags(theirs)} />
     <div class="pairs">
-      {pair(oursD.length, theirsD.length, fmtInt, transit ? t('war.atFrontTransit', { n: transit }) : t('war.atFront'), 'military')}
-      {pair(war.casualties[si], war.casualties[oi], fmtBig, t('war.casualties'), 'manpower')}
-      {pair(Math.min(1, war.exhaustion[si]), Math.min(1, war.exhaustion[oi]), pct, t('war.exhaustion'), 'trendDown')}
+      <div class="pair head"><span /><small>{t('war.us')}</small><span /><small>{t('war.them')}</small></div>
+      {pair(oursD.length, theirsD.length, fmtInt, t('mil.divisions'), 'military')}
+      {pair(war.casualties[si], war.casualties[oi], fmtBig, t('war.casualties'), 'manpower', true)}
+      {pair(Math.min(1, war.exhaustion[si]), Math.min(1, war.exhaustion[oi]), pct, t('war.exhaustion'), 'trendDown', true)}
+      {transit > 0 && <small class="muted">{t('war.onTheWay', { n: transit })}</small>}
     </div>
     <Block title={t('war.posture')} icon="hold">
       <div class="big-toggles" role="group" aria-label={t('war.posture')}>{POSTURES.map(p => <button key={p.id} aria-pressed={posture.id === p.id} data-tip={t('posture.' + p.id + '.hint')} onClick={() => { war.aggr[si] = p.aggr; g.bump(); g.sound('click'); }}><Icon name={p.id} size={22} /><span>{t('posture.' + p.id)}</span></button>)}</div>
@@ -46,7 +48,7 @@ export function WarPanel({ g, id }: { g: Game; id: number }) {
     </Block>
     <Block title={t('war.offensives')} icon="offensive" aside={<b class="num">{offs.length}/3</b>}>
       {offs.length > 0 && <ul class="offs">{offs.map(o => { const a = w.armies.find(x => x.id === o.army); return <li key={o.id}><Icon name="advance" size={14} /><span>{a ? armyName(a.num) : t('war.army')}</span><small class="num">{t('war.day', { n: w.day - o.created })}</small><div class="meter" data-tip={t('war.momentum')}><div class="fill amber" style={{ width: pct(o.org) }} /></div></li>; })}</ul>}
-      <button class="primary" disabled={posture.id === 'hold' || offs.length >= 3} data-tip={t(posture.id === 'hold' ? 'war.planHold' : offs.length >= 3 ? 'war.planMax' : 'war.planHint')} onClick={() => g.setTool({ kind: 'offensive', war: war.id })}><Icon name="target" size={16} />{t('war.plan')}</button>
+      <button class="primary wide" disabled={posture.id === 'hold' || offs.length >= 3} data-tip={t(posture.id === 'hold' ? 'war.planHold' : offs.length >= 3 ? 'war.planMax' : 'war.planHint')} onClick={() => g.setTool({ kind: 'offensive', war: war.id })}><Icon name="target" size={16} />{t('war.plan')}</button>
     </Block>
     <Block title={t('war.peace')} icon="peace"><PeaceOptions g={g} war={war} side={side} /></Block>
   </Sheet>;
@@ -61,7 +63,7 @@ function PeaceOptions({ g, war, side }: { g: Game; war: War; side: 1 | -1 }) {
   if (demand.length) opts.push({ label: t('peace.annex', { n: demand.length }), icon: 'city', terms: { type: 'treaty', provinces: demand } });
   return <div class="peace">{opts.map(o => { const r = acceptsPeace(w, war, side, o.terms);
     return <button key={o.label} class={`peace-card ${r.ok ? 'ok' : 'no'}`} data-tip={say(w, r.why)} onClick={() => g.proposePeace(war, o.terms)}>
-      <Icon name={o.icon} size={20} /><span>{o.label}</span><span class="verdict"><Icon name={r.ok ? 'check' : 'cross'} size={16} /></span></button>; })}</div>;
+      <Icon name={o.icon} size={20} /><span>{o.label}</span><span class="verdict">{t(r.ok ? 'peace.accepts' : 'peace.refuses')}</span></button>; })}</div>;
 }
 
 export function DeclareDialog({ g, target }: { g: Game; target: number }) {
@@ -87,16 +89,22 @@ export function DeclareDialog({ g, target }: { g: Game; target: number }) {
   </div>;
 }
 
-/** Decisions waiting for the player: peace offers, proposals, events. */
+/** Decisions waiting for the player: peace offers, proposals, events. The newest is open, the rest wait as one-line slips. */
+const AGENDA_ICON: Record<string, string> = { peace: 'peace', diplo: 'diplomacy', event: 'chronicle' };
 export function AgendaCards({ g }: { g: Game }) {
-  const items = g.w.agenda.filter(a => a.country === g.player).slice(0, 2);
+  const items = g.w.agenda.filter(a => a.country === g.player);
   if (!items.length) return null;
-  return <div class="ui agenda">{items.map(a => <section class={`agenda-card plate k-${a.kind}`} key={a.id} role="dialog" aria-label={say(g.w, a.title)}>
-    <div class="cable-head"><Icon name={a.kind === 'peace' ? 'peace' : a.kind === 'diplo' ? 'diplomacy' : 'chronicle'} size={16} /><span class="eyebrow">{t('agenda.' + a.kind)}</span><time class="mono">{fmtDate(g.w, a.day)}</time></div>
-    <div class="h3 plain">{say(g.w, a.title)}</div><p>{say(g.w, a.text)}</p>
-    <div class="row">{a.options.map((o, i) => <button key={i} class={i === 0 ? 'primary' : ''} title={o.hint ? say(g.w, o.hint) : undefined} onClick={() => { resolveAgenda(g.w, g.S, a.id, i); g.afterOrder(); g.sound('click'); }}>{say(g.w, o.label)}</button>)}</div>
-    {a.options.some(o => o.hint) && <ul class="hints">{a.options.map((o, i) => o.hint ? <li key={i}><b>{say(g.w, o.label)}:</b> {say(g.w, o.hint)}</li> : null)}</ul>}
-  </section>)}</div>;
+  const decide = (id: number, i: number) => { resolveAgenda(g.w, g.S, id, i); g.afterOrder(); g.sound('click'); };
+  return <div class="ui agenda">{items.slice(0, 3).map((a, n) => n === 0
+    ? <section class={`agenda-card plate k-${a.kind}`} key={a.id} role="dialog" aria-label={say(g.w, a.title)}>
+      <div class="cable-head"><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={18} /></span><span class="eyebrow">{t('agenda.' + a.kind)}</span><time class="mono">{fmtDate(g.w, a.day, 'short')}</time></div>
+      <div class="h3 plain">{say(g.w, a.title)}</div><p>{say(g.w, a.text)}</p>
+      <div class="opts">{a.options.map((o, i) => <button key={i} class={i === 0 ? 'primary' : ''} onClick={() => decide(a.id, i)}><span>{say(g.w, o.label)}</span>{o.hint && <small>{say(g.w, o.hint)}</small>}</button>)}</div>
+    </section>
+    : <div class={`agenda-slip plate k-${a.kind}`} key={a.id}><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={16} /></span><span class="slip-t">{say(g.w, a.title)}</span>
+      {a.options.length === 2 && <><button class="slip-yes" aria-label={say(g.w, a.options[0].label)} data-tip={say(g.w, a.options[0].label)} onClick={() => decide(a.id, 0)}><Icon name="check" size={16} /></button><button class="slip-no" aria-label={say(g.w, a.options[1].label)} data-tip={say(g.w, a.options[1].label)} onClick={() => decide(a.id, 1)}><Icon name="cross" size={16} /></button></>}</div>)}
+    {items.length > 3 && <small class="slip-more">{t('agenda.more', { n: items.length - 3 })}</small>}
+  </div>;
 }
 
 export function ToolHint({ g }: { g: Game }) {

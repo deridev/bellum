@@ -15,7 +15,7 @@ export const pt: Record<string, Entry> = {
   'scenario.1914.name': 'A Grande Guerra', 'scenario.1914.blurb': 'Julho de 1914. A Áustria-Hungria ataca a Sérvia, e as alianças começam a arrastar o continente.',
   'stat.capital': 'Capital', 'stat.population': 'População', 'stat.gdp': 'Economia (PIB)', 'stat.provinces': 'Províncias', 'stat.area': 'Área', 'stat.terrain': 'Terreno',
   'terrain.forest': 'floresta', 'terrain.plains': 'planície', 'terrain.jungle': 'selva', 'terrain.mountains': 'montanhas', 'terrain.hills': 'colinas', 'terrain.desert': 'deserto', 'terrain.arctic': 'ártico',
-  'modes.label': 'Modo de mapa', 'modes.political': 'Político', 'modes.terrain': 'Terreno', 'modes.diplomacy': 'Diplomacia', 'modes.population': 'População', 'modes.economy': 'Riqueza',
+  'modes.label': 'Modo de mapa', 'modes.political': 'Político', 'modes.terrain': 'Terreno', 'modes.diplomacy': 'Relações', 'modes.population': 'População', 'modes.economy': 'Riqueza',
   'tip.heldBy': 'ocupada por {c}',
 
   // ---- HUD ----
@@ -152,4 +152,15 @@ export const pt: Record<string, Entry> = {
   'cname.Tibet': 'Tibete', 'cname.Persia': 'Pérsia', 'cname.Siam': 'Sião', 'cname.Nejd': 'Négede', 'cname.German Reich': 'Reich Alemão', 'cname.Soviet Union': 'União Soviética', 'cname.Yugoslavia': 'Iugoslávia',
   'cname.Manchukuo': 'Manchukuo', 'cname.Slovakia': 'Eslováquia', 'cname.United Kingdom': 'Reino Unido', 'cname.France': 'França', 'cname.Serbia': 'Sérvia', 'cname.Montenegro': 'Montenegro', 'cname.Belgium': 'Bélgica',
   'hud.decisions': { one: '{n} decisão aguardando', other: '{n} decisões aguardando' }, 'dip.hover': 'Aponte para uma ação para ver se eles aceitariam.',
+  'panel.ledger': 'Estatísticas', 'led.overview': 'Sua nação', 'led.rankings': 'Ranking mundial', 'led.compare': 'Comparar', 'led.empty': 'Os gráficos se preenchem mês a mês', 'led.sinceStart': 'desde o início',
+  'led.nation': 'Nação', 'led.col.gdp': 'PIB', 'led.col.pop': 'População', 'led.col.divisions': 'Divisões', 'led.col.provinces': 'Províncias', 'led.col.tech': 'Tecnologia', 'led.col.stability': 'Estabilidade',
+  'led.atWar': 'em guerra', 'led.ally': 'aliado', 'led.add': 'Adicionar nação', 'led.metric': 'Medida', 'ui.remove': 'Remover',
+  'hud.perMo': '/mês', 'hud.decisionsShort': 'Decisões', 'hud.map': 'Mapa', 'clock.paused': 'Pausado',
+  'eco.borrowWarn': 'Empréstimos pesados: a dívida vai subir rápido', 'eco.revenueIs': 'Receita {v}', 'eco.debtHigh': 'Perigosa: os juros consomem o orçamento', 'eco.debtMid': 'Administrável, mas fique de olho', 'eco.debtLow': 'Saudável',
+  'war.us': 'Nós', 'war.them': 'Eles', 'war.onTheWay': 'mais {n} divisões a caminho', 'war.winning': 'Vencendo', 'war.losing': 'Perdendo', 'war.even': 'Equilibrada',
+  'peace.accepts': 'Aceita', 'peace.refuses': 'Recusa', 'agenda.more': '+{n} aguardando',
+  'led.scale': 'Escala', 'led.growth': 'Crescimento', 'led.absolute': 'Absoluto', 'led.growthOf': '{m}: variação desde o início',
+  'led.rankOf': 'Posição mundial entre {n} nações',
+  'eco.debtBorrowing': 'Tesouro vazio: {v}/mês sendo emprestado', 'dip.costOf': '{n} de {have}',
+  'group.want.military': 'Quer um orçamento militar grande', 'group.want.industry': 'Quer impostos baixos e investimento', 'group.want.labor': 'Quer bem-estar e crescimento', 'group.want.rural': 'Quer impostos baixos e calma',
 };

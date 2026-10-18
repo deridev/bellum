@@ -15,7 +15,7 @@ export const en: Record<string, Entry> = {
   'scenario.1914.name': 'The Great War', 'scenario.1914.blurb': 'July 1914. Austria-Hungary attacks Serbia, and the alliances begin to pull.',
   'stat.capital': 'Capital', 'stat.population': 'Population', 'stat.gdp': 'Economy (GDP)', 'stat.provinces': 'Provinces', 'stat.area': 'Area', 'stat.terrain': 'Terrain',
   'terrain.forest': 'forest', 'terrain.plains': 'plains', 'terrain.jungle': 'jungle', 'terrain.mountains': 'mountains', 'terrain.hills': 'hills', 'terrain.desert': 'desert', 'terrain.arctic': 'arctic',
-  'modes.label': 'Map mode', 'modes.political': 'Political', 'modes.terrain': 'Terrain', 'modes.diplomacy': 'Diplomacy', 'modes.population': 'Population', 'modes.economy': 'Wealth',
+  'modes.label': 'Map mode', 'modes.political': 'Political', 'modes.terrain': 'Terrain', 'modes.diplomacy': 'Relations', 'modes.population': 'Population', 'modes.economy': 'Wealth',
   'tip.heldBy': 'held by {c}',
 
   // ---- HUD ----
@@ -146,4 +146,15 @@ export const en: Record<string, Entry> = {
   'ev.disaster.title': 'Disaster', 'ev.disaster.text': 'Floods and landslides devastate a region of {c}.',
   'ev.disaster.o0': 'Spend on relief', 'ev.disaster.h0': 'A month of revenue; stability up.', 'ev.disaster.o1': 'A limited response', 'ev.disaster.h1': 'Stability falls.',
   'hud.decisions': { one: '{n} decision waiting', other: '{n} decisions waiting' }, 'dip.hover': 'Point at an action to see whether they would agree.',
+  'panel.ledger': 'Ledger', 'led.overview': 'Your nation', 'led.rankings': 'World rankings', 'led.compare': 'Compare', 'led.empty': 'Charts fill in month by month', 'led.sinceStart': 'since start',
+  'led.nation': 'Nation', 'led.col.gdp': 'GDP', 'led.col.pop': 'Population', 'led.col.divisions': 'Divisions', 'led.col.provinces': 'Provinces', 'led.col.tech': 'Tech', 'led.col.stability': 'Stability',
+  'led.atWar': 'at war', 'led.ally': 'ally', 'led.add': 'Add a nation', 'led.metric': 'Measure', 'ui.remove': 'Remove',
+  'hud.perMo': '/mo', 'hud.decisionsShort': 'Decisions', 'hud.map': 'Map', 'clock.paused': 'Paused',
+  'eco.borrowWarn': 'Heavy borrowing: debt will climb fast', 'eco.revenueIs': 'Revenue {v}', 'eco.debtHigh': 'Dangerous: interest eats the budget', 'eco.debtMid': 'Manageable, but watch it', 'eco.debtLow': 'Healthy',
+  'war.us': 'Us', 'war.them': 'Them', 'war.onTheWay': '{n} more divisions on the way', 'war.winning': 'Winning', 'war.losing': 'Losing', 'war.even': 'Even',
+  'peace.accepts': 'Accepts', 'peace.refuses': 'Refuses', 'agenda.more': '+{n} more waiting',
+  'led.scale': 'Scale', 'led.growth': 'Growth', 'led.absolute': 'Absolute', 'led.growthOf': '{m}: change since the start',
+  'led.rankOf': 'World rank out of {n} nations',
+  'eco.debtBorrowing': 'Treasury empty: {v}/mo is being borrowed', 'dip.costOf': '{n} of {have}',
+  'group.want.military': 'Wants a big military budget', 'group.want.industry': 'Wants low taxes and investment', 'group.want.labor': 'Wants welfare and growth', 'group.want.rural': 'Wants low taxes and calm',
 };

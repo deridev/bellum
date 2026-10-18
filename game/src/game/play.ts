@@ -16,19 +16,23 @@ import { diploOdds, doDiplo, type DiploAction } from '../sim/diplomacy';
 import { loadScenario, staticFor } from './scenarios';
 import { audio, type Cue } from './audio';
 
-export type Panel = { kind: 'economy' | 'politics' | 'military' | 'diplomacy' | 'chronicle' | 'timelapse' } | { kind: 'province'; id: number } | { kind: 'country'; id: number } | { kind: 'war'; id: number } | null;
+export type Panel = { kind: 'economy' | 'politics' | 'military' | 'diplomacy' | 'ledger' | 'chronicle' | 'timelapse' } | { kind: 'province'; id: number } | { kind: 'country'; id: number } | { kind: 'war'; id: number } | null;
 export type Tool = { kind: 'offensive'; war: number } | null;
 export interface GameState { day: number; speed: number; paused: boolean; tick: number; panel: Panel; turnMode: World['settings']['turnMode']; menu: boolean; tool: Tool; toast: string; declare: number }
 export const SPEEDS = [0.5, 1.5, 4, 10, 25]; // days per second
 
 /** Owns the world and the clock; bridges simulation -> renderer and UI. */
+/** statistics recorded monthly for every nation (for the ledger's comparisons) */
+export const NATION_STATS = ['gdp', 'divisions', 'provinces', 'pop'] as const;
+export type NationStat = typeof NATION_STATS[number];
+
 export class Game {
   w: World; S: MapStatic; player: number;
   st = createStore<GameState>({ day: 0, speed: 1, paused: true, tick: 0, panel: null, turnMode: 'continuous', menu: false, tool: null, toast: '', declare: -1 });
   acc = 0; private lastUi = 0; private mapSeen = ''; private now = 0; private dt = 0; private lastAssign = 0;
   layer: TheaterLayer; fx: WarFx;
   /** monthly snapshots of who holds each province, for the timelapse */
-  history: { day: number; ctrl: Uint16Array; me: { gdp: number; treasury: number; stability: number; manpower: number; warSupport: number; divisions: number } }[] = [];
+  history: { day: number; ctrl: Uint16Array; me: { gdp: number; treasury: number; stability: number; manpower: number; warSupport: number; divisions: number }; all: Float32Array }[] = [];
   startProvinces = 0;
   private snapshot: number | null = null;
 
@@ -122,12 +126,17 @@ export class Game {
   /** after each simulated day: hand the new state to the war layer and effects */
   afterDay() { this.layer.record(this.w); this.fx.record(this.w); this.assignTheaters(); }
   private record() {
-    const c = this.me;
-    this.history.push({ day: this.w.day, ctrl: Uint16Array.from(this.w.provinces, p => p.controller),
-      me: { gdp: c.gdp, treasury: c.treasury, stability: c.stability, manpower: c.manpower, warSupport: c.warSupport, divisions: this.w.divisions.filter(d => d.country === c.id).length } });
+    const c = this.me, w = this.w, n = w.countries.length, all = new Float32Array(n * NATION_STATS.length);
+    w.countries.forEach((x, i) => (all[i * 4] = x.alive ? x.gdp : 0));
+    for (const d of w.divisions) all[d.country * 4 + 1]++;
+    for (const p of w.provinces) { all[p.owner * 4 + 2]++; all[p.owner * 4 + 3] += p.pop; }
+    this.history.push({ day: w.day, ctrl: Uint16Array.from(w.provinces, p => p.controller), all,
+      me: { gdp: c.gdp, treasury: c.treasury, stability: c.stability, manpower: c.manpower, warSupport: c.warSupport, divisions: all[c.id * 4 + 1] } });
   }
   /** a recorded statistic of the player's nation, month by month */
   series(k: keyof Game['history'][number]['me']) { return this.history.map(h => h.me[k]); }
+  /** a recorded statistic of any nation, month by month */
+  nationSeries(ci: number, k: NationStat) { const j = NATION_STATS.indexOf(k); return this.history.map(h => h.all[ci * 4 + j] ?? 0); }
   private assignTheaters() { const [lon, lat] = unproject(this.s.cam.x, this.s.cam.y); this.layer.assign(this.w, lon, lat); this.lastAssign = this.now; }
   /** show a timelapse frame on the map (null returns to the present) */
   showSnapshot(i: number | null) {
