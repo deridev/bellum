@@ -1,0 +1,41 @@
+import type { Entry } from '.';
+
+// English. Keys are grouped by where they appear; pt.ts and es.ts mirror these keys.
+export const en: Record<string, Entry> = {
+  // ---- simulation messages ----
+  'log.unitReady': '{unit} is ready',
+  'log.tech': 'New military technology: level {n}',
+  'log.reelected': '{leader} wins re-election in {c}',
+  'log.votedOut': '{c} votes {old} out. {leader} takes office',
+  'log.coup': 'Military coup in {c}: {old} is deposed',
+  'log.peaceRejected': '{c} rejects the peace offer',
+  'log.peaceOffer': '{c} offers peace',
+  'log.warDeclared': '{a} declares war on {b}',
+  'log.joinDefence': { one: '{cs} joins the defence', other: '{cs} join the defence' },
+  'log.surrender': '{n} encircled {c} divisions surrender',
+  'log.cityFalls': '{city} falls to {c}',
+  'log.joinsWar': '{c} joins the {war} on the side of {b}',
+  'log.gone': '{c} ceases to exist',
+  'log.peace.white': 'The {war} ends in a white peace',
+  'log.peace.ceasefire': 'The {war} ends in a ceasefire along the front',
+  'log.peace.treaty': { one: 'The {war} ends in a treaty ceding {n} province', other: 'The {war} ends in a treaty ceding {n} provinces' },
+  'war.name': '{a}–{b} War',
+  'war.name.rusukr': 'Russo-Ukrainian War',
+  'agenda.peace.title': '{c} offers peace',
+  'agenda.peace.treaty': { one: 'They demand {n} province they now hold.', other: 'They demand {n} provinces they now hold.' },
+  'agenda.peace.ceasefire': 'They propose a ceasefire along the current front.',
+  'agenda.peace.white': 'They propose a return to the borders before the war.',
+  'opt.accept': 'Accept',
+  'opt.fightOn': 'Fight on',
+  'why.white.ok': 'They are ready to stop.',
+  'why.white.no': 'They believe they are winning.',
+  'why.cease.ok': 'Both sides are worn down.',
+  'why.cease.no': 'They want a decisive result first.',
+  'why.treaty.ok': 'Your demands match the situation on the ground.',
+  'why.treaty.no': 'They will not give that up yet (needs score {cost}, you have {score}).',
+  'big.war': 'War', 'big.peace': 'Peace', 'big.annexed': 'Annexed', 'big.coup': 'Coup', 'big.electionLost': 'Election lost',
+  // ---- units ----
+  'unit.name': '{ord} {type}',
+  'army.name': '{ord} Army',
+  'unitType.infantry': 'Infantry Division', 'unitType.armor': 'Armored Division', 'unitType.mechanized': 'Mechanized Division', 'unitType.marines': 'Marine Division', 'unitType.airborne': 'Airborne Division',
+};

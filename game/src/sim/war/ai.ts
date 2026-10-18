@@ -2,6 +2,7 @@
 import { km } from '../../geo';
 import { nextRand } from '../rng';
 import type { MapStatic, War, World } from '../types';
+import { msg } from '../types';
 import { say } from '../world';
 import { acceptsPeace, activeWars, heldDemand, makePeace, sendToTheater, sideOf, theatersOf, type PeaceTerms } from './war';
 import { cellLonLat, cellOf, T, unitPower, work, type Offensive, type Theater } from './theater';
@@ -143,10 +144,10 @@ function peaceAI(w: World, S: MapStatic, war: War) {
       const res = acceptsPeace(w, war, side, terms);
       if (res.ok) { makePeace(w, S, war, side, terms); return; }
     } else if (!w.agenda.some(a => a.kind === 'peace' && a.data?.war === war.id)) {
-      const desc = terms.type === 'treaty' ? `They demand ${terms.provinces.length} province${terms.provinces.length > 1 ? 's' : ''} they now hold.` : terms.type === 'ceasefire' ? 'They propose a ceasefire along the current front.' : 'They propose a return to the borders before the war.';
-      w.agenda.push({ id: w.nextId++, country: other, day: w.day, kind: 'peace', title: `${w.countries[lead].name} offers peace`, text: desc, data: { war: war.id, side, terms }, expires: w.day + 30,
-        options: [{ label: 'Accept', effect: 'peace.accept' }, { label: 'Fight on', effect: 'peace.reject' }] });
-      say(w, `${w.countries[lead].name} offers peace`, 'diplo', { who: [other, lead] });
+      const desc = terms.type === 'treaty' ? msg('agenda.peace.treaty', { n: terms.provinces.length }) : msg(terms.type === 'ceasefire' ? 'agenda.peace.ceasefire' : 'agenda.peace.white');
+      w.agenda.push({ id: w.nextId++, country: other, day: w.day, kind: 'peace', title: msg('agenda.peace.title', { c: { c: lead } }), text: desc, data: { war: war.id, side, terms }, expires: w.day + 30,
+        options: [{ label: msg('opt.accept'), effect: 'peace.accept' }, { label: msg('opt.fightOn'), effect: 'peace.reject' }] });
+      say(w, msg('log.peaceOffer', { c: { c: lead } }), 'diplo', { who: [other, lead] });
     }
   }
 }

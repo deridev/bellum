@@ -1,4 +1,5 @@
 // 2026 scenario specifics: ongoing conflicts and claims.
+import { msg } from './types';
 import type { MapStatic, World } from './types';
 import { declareWar, theatersOf } from './war/war';
 import { cellLonLat, deployAlongFront } from './war/theater';
@@ -17,7 +18,7 @@ export function setupScenario(w: World, S: MapStatic) {
   for (const [a, b] of CLAIMS) if (ci[a] !== undefined && ci[b] !== undefined) for (const p of w.provinces) if (p.owner === ci[b] && !p.core.includes(ci[a])) p.core.push(ci[a]);
   // the Russia–Ukraine war is already under way
   const rus = ci.RUS, ukr = ci.UKR; if (rus === undefined || ukr === undefined) return;
-  const war = declareWar(w, S, rus, ukr, { silent: true, name: 'Russo-Ukrainian War' });
+  const war = declareWar(w, S, rus, ukr, { silent: true, name: msg('war.name.rusukr') });
   war.aggr = [1.04, 0.98]; (war as any).lastChange = 0;
   for (const t of theatersOf(w, war)) {
     for (let k = 0; k < t.W * t.H; k++) {

@@ -67,7 +67,7 @@ export class WarFx {
     // a city changes hands: ripple in the new holder's colour
     for (let i = w.log.length - 1; i >= 0 && i >= w.log.length - 40; i--) {
       const e = w.log[i]; if (this.seenLog.has(e)) break; this.seenLog.add(e);
-      if (e.kind === 'city' && e.at && e.who) { const [r, g, b] = hex(w.countries[e.who[0]].color); this.ripples.push({ x: e.at[0], y: e.at[1], t0: -1, rgb: `${r},${g},${b}`, big: !!this.A.cities.find(c => c.capital && e.text.startsWith(c.name + ' falls')) }); }
+      if (e.kind === 'city' && e.at && e.who) { const [r, g, b] = hex(w.countries[e.who[0]].color); this.ripples.push({ x: e.at[0], y: e.at[1], t0: -1, rgb: `${r},${g},${b}`, big: !!this.A.cities.find(c => c.capital && c.name === e.msg.a?.city) }); }
     }
   }
 

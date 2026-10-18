@@ -3,6 +3,7 @@ import { createWorld } from '../src/sim/world';
 import { stepDay } from '../src/sim/step';
 import { dateStr } from '../src/sim/types';
 import { loadStatic } from './helpers';
+import { say as logText } from '../src/i18n';
 
 describe('world', () => {
   const S = loadStatic();
@@ -21,7 +22,7 @@ describe('world', () => {
     const ms = Date.now() - t0;
     const top = ['USA', 'CHN', 'IND', 'DEU', 'RUS', 'BRA', 'NGA'].map(code => w.countries.find(c => c.code === code)!);
     console.log(dateStr(w), `${ms}ms`, top.map(c => `${c.code} gdp ${(c.gdp / 1e6).toFixed(2)}T g ${(c.growth * 100).toFixed(1)}% stab ${c.stability.toFixed(2)} debt/gdp ${(c.debt / c.gdp).toFixed(2)} ${c.leader.name}`).join('\n'));
-    console.log(w.log.slice(-8).map(l => `${dateStr(w, l.day)} ${l.text}`).join('\n'));
+    console.log(w.log.slice(-8).map(l => `${dateStr(w, l.day)} ${logText(w, l.msg)}`).join('\n'));
     for (const c of w.countries) { expect(Number.isFinite(c.gdp)).toBe(true); expect(c.gdp).toBeGreaterThan(0); }
   });
 });

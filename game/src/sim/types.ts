@@ -29,7 +29,7 @@ export interface Country {
   // military
   production: ProdItem[];
   // diplomacy / AI
-  bloc: string; personality: Personality; aiNext: number;
+  bloc: string; personality: Personality; aiNext: number; milBase: number; // peacetime military budget share the AI returns to
   stats: { casualties: number; captured: number; wars: number; peakProvinces: number };
 }
 export type Personality = 'expansionist' | 'opportunist' | 'defensive' | 'isolationist' | 'ideologue';
@@ -43,7 +43,7 @@ export interface Province {
 export interface ProdItem { id: number; type: UnitType; progress: number; cost: number; days: number; prov: number }
 
 export interface Division {
-  id: number; country: number; type: UnitType; name: string;
+  id: number; country: number; type: UnitType; num: number; // shown as e.g. 1st Infantry Division
   str: number; max: number; org: number; exp: number;
   army: number; prov: number; // where it is stationed (peace) or last province (war)
   theater: number; x: number; y: number; // position (lon/lat) when deployed in a theater, theater = -1 otherwise
@@ -51,12 +51,12 @@ export interface Division {
   arrive: number; // day it reaches its theater (in transit until then)
 }
 export interface General { name: string; skill: number; traits: string[]; born: number }
-export interface Army { id: number; country: number; name: string; general: General; theater: number; posture: Posture }
+export interface Army { id: number; country: number; num: number; general: General; theater: number; posture: Posture }
 export type Posture = 'hold' | 'advance' | 'offensive';
 
 export interface WarGoal { type: 'conquest' | 'claim' | 'liberate' | 'regime' | 'defend'; provinces: number[] }
 export interface War {
-  id: number; name: string; attackers: number[]; defenders: number[]; leadA: number; leadD: number;
+  id: number; name: Msg; attackers: number[]; defenders: number[]; leadA: number; leadD: number;
   start: number; goal: WarGoal; score: number; // -100 (defenders win) .. 100 (attackers win)
   aggr: [number, number]; // how hard each side pushes (set by AI/player postures)
   exhaustion: [number, number]; casualties: [number, number]; theaters: number[]; ended: number;
@@ -66,11 +66,17 @@ export interface Bloc { name: string; members: number[]; alliance: boolean; lead
 export interface Treaty { type: TreatyType; a: number; b: number; since: number; until: number }
 export type TreatyType = 'alliance' | 'nap' | 'guarantee' | 'access' | 'trade' | 'puppet';
 
-export interface LogEntry { day: number; text: string; kind: LogKind; who?: number[]; prov?: number; big?: string; at?: [number, number] }
+/** A message the UI renders in the player's language: a dictionary key and its arguments. */
+export interface Msg { k: string; a?: Record<string, MsgArg> }
+/** Arguments: plain values, a country ({c}), a list of countries ({cs}), a date ({d}), a nested message ({m}) or a division ({u}: type, number). */
+export type MsgArg = string | number | { c: number } | { cs: number[] } | { d: number } | { m: Msg } | { u: [string, number] };
+export const msg = (k: string, a?: Record<string, MsgArg>): Msg => (a ? { k, a } : { k });
+
+export interface LogEntry { day: number; msg: Msg; kind: LogKind; who?: number[]; prov?: number; big?: string; at?: [number, number] }
 export type LogKind = 'war' | 'peace' | 'diplo' | 'politics' | 'economy' | 'event' | 'city' | 'pocket' | 'player';
 
-export interface AgendaItem { id: number; country: number; day: number; title: string; text: string; options: AgendaOption[]; kind: string; data?: any; expires: number }
-export interface AgendaOption { label: string; effect: string; hint?: string }
+export interface AgendaItem { id: number; country: number; day: number; title: Msg; text: Msg; options: AgendaOption[]; kind: string; data?: any; expires: number }
+export interface AgendaOption { label: Msg; effect: string; hint?: Msg }
 
 export interface World {
   version: number; seed: number; rng: number; day: number; startDate: number; scenario: string;
@@ -79,6 +85,7 @@ export interface World {
   wars: War[]; theaters: Theater[]; treaties: Treaty[]; blocs: Record<string, Bloc>;
   relations: Int8Array; // N*N opinion -100..100 (row = opinion of a about b)
   log: LogEntry[]; agenda: AgendaItem[];
+  cooldowns: Record<string, number>; // diplomacy and event cooldowns: key -> day it ends
   settings: { turnMode: 'continuous' | 'monthly'; difficulty: number };
 }
 

@@ -5,12 +5,13 @@ import { initSim } from '../src/sim';
 import { setupScenario } from '../src/sim/scenario';
 import { declareWar } from '../src/sim/war/war';
 import { loadStatic } from './helpers';
+import { say as logText } from '../src/i18n';
 
 // Balance targets for the present-day scenario: wars should grind and move, not collapse in weeks.
 describe('balance', () => {
   initSim();
   const S = loadStatic();
-  const fell = (w: ReturnType<typeof createWorld>, city: string, side: string) => w.log.some(l => l.text === `${city} falls to ${side}`);
+  const fell = (w: ReturnType<typeof createWorld>, city: string, side: string) => w.log.some(l => logText(w, l.msg) === `${city} falls to ${side}`);
   for (const seed of [5, 6, 7]) it(`Russo-Ukrainian war, seed ${seed}: Kyiv holds a year, Ukraine keeps most of its land, the front moves`, () => {
     const w = createWorld(S, { seed }); setupScenario(w, S);
     const ukr = w.countries.find(c => c.code === 'UKR')!.id, t = w.theaters[0], c0 = t.c.slice();

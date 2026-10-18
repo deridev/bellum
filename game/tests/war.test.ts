@@ -6,6 +6,7 @@ import { setupScenario } from '../src/sim/scenario';
 import { declareWar, warsOf } from '../src/sim/war/war';
 import { dateStr } from '../src/sim/types';
 import { loadStatic } from './helpers';
+import { say as logText } from '../src/i18n';
 
 describe('war', () => {
   initSim();
@@ -24,7 +25,7 @@ describe('war', () => {
         console.log(dateStr(w), lines.join(' | '));
       }
     }
-    while (logI < w.log.length) { const l = w.log[logI++]; if (l.kind !== 'politics' && l.kind !== 'economy') console.log('  ', dateStr(w, l.day), l.text); }
+    while (logI < w.log.length) { const l = w.log[logI++]; if (l.kind !== 'politics' && l.kind !== 'economy') console.log('  ', dateStr(w, l.day), logText(w, l.msg)); }
     console.log('ms/day', ((Date.now() - t0) / 430).toFixed(1));
     const occ = w.provinces.filter(p => p.owner !== p.controller).length;
     console.log('occupied provinces', occ, 'theaters', w.theaters.map(t => `${t.name} ${t.W}x${t.H} ${t.cellKm.toFixed(1)}km`));

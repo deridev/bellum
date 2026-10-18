@@ -1,7 +1,7 @@
 import { ACTIVE_K, BLOCS, FRIENDS, GOV, GOV_TITLE, IDEOLOGY_NUDGE, MIL_GDP, PERSONALITY, PM_COUNTRIES, RIVALS, START_TREATIES } from './data';
-import { leaderTraits, makeGeneral, ordinal, personName, UNIT_NAMES } from './names';
+import { leaderTraits, makeGeneral, personName } from './names';
 import { nextRand } from './rng';
-import type { Army, Conscription, Country, Division, Gov, Group, MapStatic, Personality, Province, UnitType, World } from './types';
+import type { Army, Conscription, Country, Division, Gov, Group, MapStatic, Msg, Personality, Province, UnitType, World } from './types';
 import { DAY0 } from './types';
 
 export const CONSCRIPTION_RATE: Record<Conscription, number> = { volunteer: 0.004, limited: 0.012, extensive: 0.03, total: 0.06 };
@@ -16,7 +16,7 @@ export function createWorld(S: MapStatic, opts: { seed?: number; player?: number
   const w: World = {
     version: 1, seed: opts.seed ?? 2026, rng: opts.seed ?? 2026, day: 0, startDate: DAY0, scenario: '2026',
     provinces: [], countries: [], divisions: [], armies: [], nextId: 1, wars: [], theaters: [], treaties: [], blocs: {},
-    relations: new Int8Array(nC * nC), log: [], agenda: [], settings: { turnMode: 'continuous', difficulty: 1 },
+    relations: new Int8Array(nC * nC), log: [], agenda: [], cooldowns: {}, settings: { turnMode: 'continuous', difficulty: 1 },
   };
   const ci: Record<string, number> = {}; S.countries.forEach((c, i) => (ci[c.code] = i));
   w.provinces = S.provinces.map((p): Province => ({ id: p.id, owner: ci[p.country], controller: ci[p.country], pop: p.pop, gdp: p.gdp, infra: 0.5, unrest: 0, devastation: 0, core: [ci[p.country]] }));
@@ -57,7 +57,7 @@ export function createWorld(S: MapStatic, opts: { seed?: number; player?: number
       gov, ideology, stability: clamp01(stability), warSupport: code === 'UKR' ? 0.82 : code === 'RUS' ? 0.6 : code === 'ISR' ? 0.65 : 0.32,
       groups, leader: { name: personName(w, code), title, born: 1950 + Math.floor(nextRand(w) * 25), traits: leaderTraits(w), since: 0 },
       nextElection: gov === 'democracy' ? Math.floor(nextRand(w) * 365 * 4) + 30 : -1,
-      production: [], bloc, personality, aiNext: Math.floor(nextRand(w) * 30),
+      production: [], bloc, personality, aiNext: Math.floor(nextRand(w) * 30), milBase: military,
       stats: { casualties: 0, captured: 0, wars: 0, peakProvinces: provsOf[i].length },
     };
     w.countries.push(c);
@@ -75,9 +75,9 @@ export function createWorld(S: MapStatic, opts: { seed?: number; player?: number
       let type: UnitType = 'infantry'; let r = nextRand(w);
       for (const [t, share] of mix) { if (r < share) { type = t; break; } r -= share; }
       counts[type] = (counts[type] || 0) + 1;
-      if (k % 12 === 0) { const a: Army = { id: w.nextId++, country: i, name: `${ordinal(armies.length + 1)} Army`, general: makeGeneral(w, code), theater: -1, posture: 'hold' }; armies.push(a); w.armies.push(a); }
+      if (k % 12 === 0) { const a: Army = { id: w.nextId++, country: i, num: armies.length + 1, general: makeGeneral(w, code), theater: -1, posture: 'hold' }; armies.push(a); w.armies.push(a); }
       const prov = border.length && nextRand(w) < 0.55 ? border[Math.floor(nextRand(w) * border.length)] : c.capital;
-      w.divisions.push(newDivision(w, i, type, `${ordinal(counts[type])} ${UNIT_NAMES[type]}`, prov, armies[armies.length - 1].id));
+      w.divisions.push(newDivision(w, i, type, counts[type], prov, armies[armies.length - 1].id));
     }
     c.upkeep = nDiv * c.unitCost; c.spending = revenue * (1 + deficit) + c.debt * 0.04 / 12;
   }
@@ -100,9 +100,9 @@ export function createWorld(S: MapStatic, opts: { seed?: number; player?: number
   return w;
 }
 
-export function newDivision(w: World, country: number, type: UnitType, name: string, prov: number, army: number): Division {
+export function newDivision(w: World, country: number, type: UnitType, num: number, prov: number, army: number): Division {
   const max = type === 'armor' ? 10000 : type === 'airborne' || type === 'marines' ? 9000 : 12000;
-  return { id: w.nextId++, country, type, name, str: max, max, org: 1, exp: 0.1, army, prov, theater: -1, x: 0, y: 0, sup: 1, retreat: 0, arrive: 0 };
+  return { id: w.nextId++, country, type, num, str: max, max, org: 1, exp: 0.1, army, prov, theater: -1, x: 0, y: 0, sup: 1, retreat: 0, arrive: 0 };
 }
 export const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 const clampRel = (v: number) => Math.max(-100, Math.min(100, Math.round(v)));
@@ -110,8 +110,8 @@ export const rel = (w: World, a: number, b: number) => w.relations[a * w.countri
 export function addRel(w: World, a: number, b: number, d: number, both = true) {
   const n = w.countries.length; w.relations[a * n + b] = clampRel(w.relations[a * n + b] + d); if (both) w.relations[b * n + a] = clampRel(w.relations[b * n + a] + d);
 }
-export function say(w: World, text: string, kind: World['log'][number]['kind'], extra: Partial<World['log'][number]> = {}) {
-  w.log.push({ day: w.day, text, kind, ...extra }); if (w.log.length > 3000) w.log.splice(0, 500);
+export function say(w: World, m: Msg, kind: World['log'][number]['kind'], extra: Partial<World['log'][number]> = {}) {
+  w.log.push({ day: w.day, msg: m, kind, ...extra }); if (w.log.length > 3000) w.log.splice(0, 500);
 }
 export const provincesOf = (w: World, c: number) => w.provinces.filter(p => p.owner === c);
 export const divisionsOf = (w: World, c: number) => w.divisions.filter(d => d.country === c);

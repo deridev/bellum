@@ -3,6 +3,7 @@ import { nextRand } from './rng';
 import { atWar } from './economy';
 import { clamp01, say } from './world';
 import type { Country, World } from './types';
+import { msg } from './types';
 import { GOV_TITLE, PM_COUNTRIES } from './data';
 
 const BASE: Record<Country['gov'], number> = { democracy: 0.58, authoritarian: 0.55, oneparty: 0.6, junta: 0.4, monarchy: 0.58, theocracy: 0.5 };
@@ -38,11 +39,11 @@ export function monthlyPolitics(w: World) {
     // elections
     if (c.gov === 'democracy' && c.nextElection >= 0 && w.day >= c.nextElection) {
       const keep = 0.25 + c.stability * 0.55 + c.growth * 4 + (war ? 0.05 : 0) - (w.day - c.leader.since > 365 * 7 ? 0.2 : 0);
-      if (nextRand(w) < keep) say(w, `${c.leader.name} wins re-election in ${c.name}`, 'politics', { who: [c.id] });
+      if (nextRand(w) < keep) say(w, msg('log.reelected', { leader: c.leader.name, c: { c: c.id } }), 'politics', { who: [c.id] });
       else {
         const old = c.leader.name; newLeader(w, c);
         c.ideology[0] = Math.max(-1, Math.min(1, c.ideology[0] + (nextRand(w) - 0.5) * 0.6));
-        say(w, `${c.name} votes ${old} out. ${c.leader.name} takes office`, 'politics', { who: [c.id], big: c.player ? 'Election lost' : undefined });
+        say(w, msg('log.votedOut', { c: { c: c.id }, old, leader: c.leader.name }), 'politics', { who: [c.id], big: c.player ? 'big.electionLost' : undefined });
         c.stability = clamp01(c.stability + 0.05);
       }
       c.nextElection = w.day + 365 * 4;
@@ -51,7 +52,7 @@ export function monthlyPolitics(w: World) {
     const mil = c.groups.find(g => g.id === 'military')!;
     if (c.gov !== 'democracy' && c.stability < 0.3 && mil.support < 0.35 && nextRand(w) < 0.04 * mil.power * 2) {
       const old = c.leader.name; c.gov = 'junta'; newLeader(w, c); c.leader.title = GOV_TITLE.junta;
-      say(w, `Military coup in ${c.name}: ${old} is deposed`, 'politics', { who: [c.id], big: 'Coup' });
+      say(w, msg('log.coup', { c: { c: c.id }, old }), 'politics', { who: [c.id], big: 'big.coup' });
       c.stability = clamp01(c.stability + 0.1); mil.support = 0.7;
     }
   }

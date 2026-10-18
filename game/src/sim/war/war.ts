@@ -1,8 +1,8 @@
 // Wars: declaration and alliances, theaters, occupation, score, peace and border settlement.
 import { km } from '../../geo';
 import { nextRand } from '../rng';
-import type { Division, MapStatic, War, WarGoal, World } from '../types';
-import { dateStr } from '../types';
+import type { Division, MapStatic, Msg, War, WarGoal, World } from '../types';
+import { msg } from '../types';
 import { addRel, clamp01, rel, say } from '../world';
 import { buildMasks, cellLonLat, cellOf, createTheater, stepTheater, T, work, type Theater } from './theater';
 
@@ -32,11 +32,11 @@ export function warCost(w: World, a: number, b: number) {
   return { justified, claim, stability: justified ? 0.03 : 0.12, influence: justified ? 25 : 80, worldOpinion: justified ? -8 : -25, joiners: defendersOf(w, b).filter(x => x !== a && !allied(w, a, x)) };
 }
 
-export function declareWar(w: World, S: MapStatic, a: number, b: number, opts: { goal?: WarGoal; silent?: boolean; name?: string } = {}): War {
+export function declareWar(w: World, S: MapStatic, a: number, b: number, opts: { goal?: WarGoal; silent?: boolean; name?: Msg } = {}): War {
   const A = w.countries[a], B = w.countries[b];
   const cost = warCost(w, a, b);
   const war: War = {
-    id: w.nextId++, name: opts.name || `${A.name}–${B.name} War`, attackers: [a], defenders: [b], leadA: a, leadD: b,
+    id: w.nextId++, name: opts.name || msg('war.name', { a: { c: a }, b: { c: b } }), attackers: [a], defenders: [b], leadA: a, leadD: b,
     start: w.day, goal: opts.goal || { type: cost.claim ? 'claim' : 'conquest', provinces: [] }, score: 0, aggr: [1.15, 0.9],
     exhaustion: [0, 0], casualties: [0, 0], theaters: [], ended: 0,
   };
@@ -50,8 +50,8 @@ export function declareWar(w: World, S: MapStatic, a: number, b: number, opts: {
     for (const c of w.countries) if (c.alive && c.id !== a && !war.attackers.includes(c.id)) addRel(w, c.id, a, cost.worldOpinion * (war.defenders.includes(c.id) ? 2 : 1), false);
     for (const d of war.defenders) w.countries[d].warSupport = clamp01(w.countries[d].warSupport + 0.35);
     A.warSupport = clamp01(A.warSupport + (cost.justified ? 0.2 : 0.05));
-    const joined = war.defenders.length > 1 ? ` ${war.defenders.slice(1).map(d => w.countries[d].name).slice(0, 4).join(', ')}${war.defenders.length > 5 ? ' and others' : ''} join the defence.` : '';
-    say(w, `${A.name} declares war on ${B.name}.${joined}`, 'war', { who: [a, b, ...war.defenders], big: 'War' });
+    say(w, msg('log.warDeclared', { a: { c: a }, b: { c: b } }), 'war', { who: [a, b, ...war.defenders], big: 'big.war' });
+    if (war.defenders.length > 1) say(w, msg('log.joinDefence', { cs: { cs: war.defenders.slice(1, 6) }, n: war.defenders.length - 1 }), 'war', { who: war.defenders });
   }
   for (const c of [...war.attackers, ...war.defenders]) w.countries[c].stats.wars++;
   openTheaters(w, S, war);
@@ -155,7 +155,7 @@ function cullUnits(w: World, t: Theater, units: Division[]) {
   }
   if (!gone.length) return;
   const cap = gone.filter(d => d.sup === 0);
-  if (cap.length >= 2) say(w, `${cap.length} encircled ${w.countries[cap[0].country].name} divisions surrender`, 'pocket', { who: [cap[0].country] });
+  if (cap.length >= 2) say(w, msg('log.surrender', { n: cap.length, c: { c: cap[0].country } }), 'pocket', { who: [cap[0].country] });
   const ids = new Set(gone.map(d => d.id)); w.divisions = w.divisions.filter(d => !ids.has(d.id));
   (w as any)._removed = ((w as any)._removed || []).concat(gone.map(d => ({ ...d, gone: d.sup === 0 ? 'captured' : 'destroyed' })));
 }
@@ -181,7 +181,7 @@ function leaders(w: World, t: Theater): [number, number] {
 function reportCities(w: World, t: Theater, war: War) {
   for (const city of t.cities) {
     const s = t.c[city.k] >= 0 ? 1 : -1;
-    if (s !== city.side) { city.side = s; const who = s > 0 ? t.lead[0] : t.lead[1]; if (who >= 0) say(w, `${city.name} falls to ${w.countries[who].name}`, 'city', { who: [who, ...(s > 0 ? war.defenders : war.attackers)], at: cellLonLat(t, city.k) }); }
+    if (s !== city.side) { city.side = s; const who = s > 0 ? t.lead[0] : t.lead[1]; if (who >= 0) say(w, msg('log.cityFalls', { city: city.name, c: { c: who } }), 'city', { who: [who, ...(s > 0 ? war.defenders : war.attackers)], at: cellLonLat(t, city.k) }); }
   }
 }
 /** grow a theater when the front nears its edge */
@@ -210,7 +210,7 @@ export function resample(w: World, S: MapStatic, t: Theater, box: [number, numbe
 export function joinWar(w: World, S: MapStatic, war: War, c: number, side: 1 | -1) {
   if (sideOf(war, c)) return; (side > 0 ? war.attackers : war.defenders).push(c);
   for (const t of theatersOf(w, war)) { t.sideOf[c] = side; buildMasks(t, w, S, false); for (let k = 0; k < t.W * t.H; k++) if (t.land[k] && t.c[k] === 0) t.c[k] = side; deployInto(w, S, t); }
-  say(w, `${w.countries[c].name} joins the ${war.name} on the side of ${w.countries[side > 0 ? war.leadA : war.leadD].name}`, 'war', { who: [c] });
+  say(w, msg('log.joinsWar', { c: { c }, war: { m: war.name }, b: { c: side > 0 ? war.leadA : war.leadD } }), 'war', { who: [c] });
 }
 
 function weeklyWar(w: World, war: War) {
@@ -249,6 +249,8 @@ export function termsCost(w: World, war: War, side: 1 | -1, terms: PeaceTerms): 
 }
 /** Would the other side accept? (AI) */
 /** The provinces a side holds of its enemies' land, most valuable first, as many as a war score of `budget` pays for. */
+export const truceKey = (a: number, b: number) => `truce:${Math.min(a, b)}:${Math.max(a, b)}`;
+export const inTruce = (w: World, a: number, b: number) => (w.cooldowns[truceKey(a, b)] ?? -1) > w.day;
 export function heldDemand(w: World, war: War, side: 1 | -1, budget: number): number[] {
   const losers = side > 0 ? war.defenders : war.attackers, winners = side > 0 ? war.attackers : war.defenders;
   const held = w.provinces.filter(p => losers.includes(p.owner) && winners.includes(p.controller)).sort((a, b) => b.gdp - a.gdp);
@@ -256,17 +258,18 @@ export function heldDemand(w: World, war: War, side: 1 | -1, budget: number): nu
   for (const p of held) if (termsCost(w, war, side, { type: 'treaty', provinces: [...pick, p.id] }) <= budget) pick.push(p.id);
   return pick;
 }
-export function acceptsPeace(w: World, war: War, from: 1 | -1, terms: PeaceTerms): { ok: boolean; why: string } {
+export function acceptsPeace(w: World, war: War, from: 1 | -1, terms: PeaceTerms): { ok: boolean; why: Msg } {
   const myScore = war.score * from; // from proposer's view
   const theirEx = war.exhaustion[from > 0 ? 1 : 0];
-  if (terms.type === 'white') { const ok = myScore < 15 || theirEx > 0.5 || w.day - war.start > 900; return { ok, why: ok ? 'They are ready to stop.' : 'They believe they are winning.' }; }
-  if (terms.type === 'ceasefire') { const static_ = w.day - ((war as any).lastChange ?? war.start) > 180; const ok = myScore > -25 && (theirEx > 0.4 || (static_ && Math.abs(war.score) < 20)); return { ok, why: ok ? 'Both sides are worn down.' : 'They want a decisive result first.' }; }
+  if (terms.type === 'white') { const ok = myScore < 15 || theirEx > 0.5 || w.day - war.start > 900; return { ok, why: msg(ok ? 'why.white.ok' : 'why.white.no') }; }
+  if (terms.type === 'ceasefire') { const static_ = w.day - ((war as any).lastChange ?? war.start) > 180; const ok = myScore > -25 && (theirEx > 0.4 || (static_ && Math.abs(war.score) < 20)); return { ok, why: msg(ok ? 'why.cease.ok' : 'why.cease.no') }; }
   const cost = termsCost(w, war, from, terms), days = w.day - war.start;
   const ok = cost <= myScore + theirEx * 40 && (theirEx > 0.25 || myScore > 65 || days > 300);
-  return { ok, why: ok ? 'Your demands match the situation on the ground.' : `They will not give that up yet (needs score ${cost}, you have ${Math.max(0, myScore)}).` };
+  return { ok, why: ok ? msg('why.treaty.ok') : msg('why.treaty.no', { cost, score: Math.max(0, myScore) }) };
 }
 export function makePeace(w: World, S: MapStatic, war: War, winnerSide: 1 | -1, terms: PeaceTerms) {
   war.ended = w.day;
+  for (const a of war.attackers) for (const d of war.defenders) w.cooldowns[truceKey(a, d)] = w.day + 365 * 5; // a truce follows every peace
   const winners = winnerSide > 0 ? war.attackers : war.defenders, losers = winnerSide > 0 ? war.defenders : war.attackers;
   const ths = theatersOf(w, war);
   if (terms.type === 'treaty') {
@@ -288,8 +291,7 @@ export function makePeace(w: World, S: MapStatic, war: War, winnerSide: 1 | -1, 
   for (const d of w.divisions) if (ths.some(t => t.id === d.theater)) { withdraw(d); if (w.provinces[d.prov].owner !== d.country) d.prov = w.countries[d.country].capital; }
   if (terms.type !== 'ceasefire') w.theaters = w.theaters.filter(t => t.war !== war.id);
   // countries that lost everything are gone
-  for (const c of [...war.attackers, ...war.defenders]) if (!w.provinces.some(p => p.owner === c)) { w.countries[c].alive = false; say(w, `${w.countries[c].name} ceases to exist`, 'war', { who: [c], big: 'Annexed' }); }
-  const label = terms.type === 'white' ? 'a white peace' : terms.type === 'ceasefire' ? 'a ceasefire along the front' : `a treaty${terms.provinces.length ? ` ceding ${terms.provinces.length} province${terms.provinces.length > 1 ? 's' : ''}` : ''}`;
-  say(w, `The ${war.name} ends in ${label} (${dateStr(w)})`, 'peace', { who: [...war.attackers, ...war.defenders], big: 'Peace' });
+  for (const c of [...war.attackers, ...war.defenders]) if (!w.provinces.some(p => p.owner === c)) { w.countries[c].alive = false; say(w, msg('log.gone', { c: { c } }), 'war', { who: [c], big: 'big.annexed' }); }
+  say(w, msg('log.peace.' + terms.type, { war: { m: war.name }, n: terms.provinces.length }), 'peace', { who: [...war.attackers, ...war.defenders], big: 'big.peace' });
   for (const c of [...war.attackers, ...war.defenders]) { const C = w.countries[c]; C.warSupport = 0.3; C.stability = clamp01(C.stability + (winners.includes(c) ? 0.06 : -0.04)); }
 }

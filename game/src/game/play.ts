@@ -9,6 +9,7 @@ import { createStore } from './store';
 import { TheaterLayer } from '../render/theaters';
 import { WarFx } from './warfx';
 import { unproject } from '../geo';
+import { say } from '../i18n';
 import { acceptsPeace, declareWar, makePeace, sideOf, theatersOf, type PeaceTerms } from '../sim/war/war';
 import { startOffensive } from '../sim/war/ai';
 import { cellOf } from '../sim/war/theater';
@@ -67,7 +68,7 @@ export class Game {
   }
   proposePeace(war: War, terms: PeaceTerms) {
     const side = sideOf(war, this.player) as 1 | -1, r = acceptsPeace(this.w, war, side, terms);
-    if (!r.ok) { this.toast(r.why); return; }
+    if (!r.ok) { this.toast(say(this.w, r.why)); return; }
     makePeace(this.w, this.S, war, terms.type === 'treaty' ? side : (war.score * side >= 0 ? side : (-side as 1 | -1)), terms);
     this.afterOrder(); this.openPanel(null);
   }

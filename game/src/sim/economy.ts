@@ -1,6 +1,7 @@
 import { CONSCRIPTION_RATE, clamp01, newDivision, say } from './world';
-import { ordinal, UNIT_NAMES } from './names';
 import type { Country, MapStatic, ProdItem, UnitType, World } from './types';
+import { msg } from './types';
+import { tradeBonus } from './diplomacy';
 
 /** Cost of a new division: a year of its upkeep (so richer militaries pay more per unit). Days to build. */
 export const UNIT_SPEC: Record<UnitType, { costMul: number; days: number; men: number; label: string }> = {
@@ -41,6 +42,7 @@ export function monthlyEconomy(w: World, S: MapStatic) {
     let g = 0.004 + 0.08 * (c.budget.investment - 0.18) + (c.stability - 0.6) * 0.04 - (c.taxRate - 0.25) * 0.05 + 0.016 * (1 - Math.min(1, pc / 40000));
     if (debtRatio > 1.2) g -= 0.01 * (debtRatio - 1.2);
     if (atWar(w, c.id)) g -= 0.02;
+    g += tradeBonus(w, c.id);
     g += (nextNoise(w, c.id) - 0.5) * 0.01;
     c.growth = g;
     const f = Math.pow(1 + g, 1 / 12);
@@ -48,7 +50,7 @@ export function monthlyEconomy(w: World, S: MapStatic) {
     // research -> technology level (each level: +5% unit power)
     c.research += spending * c.budget.research;
     const need = c.gdpStart * 0.04 * Math.pow(1.5, c.tech); // ~2-3 years per level at a normal research share
-    if (c.research >= need) { c.research -= need; c.tech++; if (c.player) say(w, `New military technology: level ${c.tech}`, 'economy', { who: [c.id] }); }
+    if (c.research >= need) { c.research -= need; c.tech++; if (c.player) say(w, msg('log.tech', { n: c.tech }), 'economy', { who: [c.id] }); }
     // manpower and political capital
     const pop = popOf(w, c.id), max = pop * CONSCRIPTION_RATE[c.conscription];
     c.manpower = Math.min(max, c.manpower + max * 0.025);
@@ -74,9 +76,9 @@ export function dailyProduction(w: World) {
       const n = w.divisions.filter(d => d.country === c.id && d.type === item.type).length + 1;
       const army = w.armies.find(a => a.country === c.id) ?? null;
       const prov = w.provinces[item.prov]?.controller === c.id ? item.prov : c.capital;
-      const d = newDivision(w, c.id, item.type, `${ordinal(n)} ${UNIT_NAMES[item.type]}`, prov, army ? army.id : -1);
+      const d = newDivision(w, c.id, item.type, n, prov, army ? army.id : -1);
       d.exp = 0; w.divisions.push(d);
-      if (c.player) say(w, `${d.name} is ready`, 'player', { who: [c.id], prov });
+      if (c.player) say(w, msg('log.unitReady', { unit: { u: [d.type, d.num] } }), 'player', { who: [c.id], prov });
     }
   }
 }
