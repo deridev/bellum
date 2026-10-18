@@ -16,4 +16,4 @@ export function resolveAgenda(w: World, S: MapStatic, id: number, option: number
   else if (eff === 'diplo.decline') addRel(w, item.data.from, item.country, -5, false);
   else if (eff?.startsWith('event.')) applyEvent(w, item, option);
 }
-export function expireAgenda(w: World) { if (w.day % 5) return; w.agenda = w.agenda.filter((a: AgendaItem) => a.expires < 0 || a.expires >= w.day); }
+export function expireAgenda(w: World) { w.agenda = w.agenda.filter((a: AgendaItem) => a.expires < 0 || a.expires >= w.day); }

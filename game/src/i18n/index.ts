@@ -7,7 +7,7 @@ import { es } from './es';
 export type Lang = 'en' | 'pt' | 'es';
 export const LANGS: { id: Lang; label: string }[] = [{ id: 'en', label: 'English' }, { id: 'pt', label: 'Português (Brasil)' }, { id: 'es', label: 'Español' }];
 /** A dictionary entry: plain text with {placeholders}, or plural forms picked by the `n` argument. */
-export type Entry = string | { one: string; other: string };
+export type Entry = string | { zero?: string; one: string; other: string };
 const DICTS: Record<Lang, Record<string, Entry>> = { en, pt, es };
 const LOCALE: Record<Lang, string> = { en: 'en-US', pt: 'pt-BR', es: 'es-ES' };
 
@@ -27,7 +27,7 @@ export function onLang(f: () => void) { listeners.add(f); return () => listeners
 export function t(key: string, args: Record<string, string | number> = {}): string {
   let e = DICTS[lang][key] ?? en[key];
   if (e === undefined) return key;
-  if (typeof e !== 'string') e = new Intl.PluralRules(LOCALE[lang]).select(Number(args.n ?? 0)) === 'one' ? e.one : e.other;
+  if (typeof e !== 'string') e = Number(args.n ?? 0) === 0 && e.zero ? e.zero : new Intl.PluralRules(LOCALE[lang]).select(Number(args.n ?? 0)) === 'one' ? e.one : e.other;
   return e.replace(/\{(\w+)\}/g, (_, k) => k in args ? (typeof args[k] === 'number' ? fmtNum(args[k] as number) : String(args[k])) : `{${k}}`);
 }
 export const has = (key: string) => key in DICTS[lang] || key in en;

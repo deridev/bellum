@@ -15,7 +15,7 @@ import { listSaves, loadGame, saveGame, deleteSave } from '../game/save';
 import { AgendaCards, DeclareDialog, POSTURES, ToolHint, WarPanel } from './War';
 import { ChroniclePanel, TimelapsePanel } from './Chronicle';
 import { Settings } from './Settings';
-import { enemies, sideOf, warsOf } from '../sim/war/war';
+import { enemies, sideOf, warCost, warsOf } from '../sim/war/war';
 
 type PanelKind = 'economy' | 'politics' | 'military' | 'diplomacy' | 'war' | 'ledger' | 'chronicle' | 'timelapse';
 const LENSES = [{ id: 'political', icon: 'political' }, { id: 'terrain', icon: 'terrain' }, { id: 'diplomacy', icon: 'relations' }, { id: 'population', icon: 'population' }, { id: 'economy', icon: 'wealth' }] as const;
@@ -94,7 +94,7 @@ function CommandStrip({ g, onDecisions }: { g: Game; onDecisions: () => void }) 
     <div class="alerts">
       {war && <button class={`alert war phone-only ${score < -20 ? 'bad' : score > 20 ? 'good' : ''}`} onClick={() => togglePanel(g, 'war')}>
         <Icon name="war" size={20} /><span class="al-txt"><b class="num">{score > 0 ? '+' : ''}{Math.round(score)}</b><small>{t('war.score')}</small></span>{wars.length > 1 && <i class="badge">{wars.length}</i>}</button>}
-      {waiting > 0 && <button class={`alert wait ${peace ? 'urgent' : ''}`} data-tip={t('hud.decisions', { n: waiting })} onClick={onDecisions}><Icon name="ballot" size={20} /><span class="al-txt"><b class="num">{waiting}</b><small>{peace ? t('agenda.peaceIn', { n: Math.max(0, peace.expires - g.w.day) }) : t('hud.decisionsN', { n: waiting })}</small></span></button>}
+      {waiting > 0 && <button class={`alert wait ${peace ? 'urgent' : ''}`} data-tip={t('hud.decisions', { n: waiting })} onClick={onDecisions}><Icon name={peace ? 'peace' : 'ballot'} size={20} /><span class="al-txt">{peace ? <><b>{t('agenda.peaceShort')}</b><small>{t('agenda.daysLeft', { n: Math.max(0, peace.expires - g.w.day) })}</small></> : <><b class="num">{waiting}</b><small>{t('hud.decisionsN', { n: waiting })}</small></>}</span>{peace && <i class="badge">{waiting}</i>}</button>}
     </div>
     <div class="time">
       <div class="date-box"><div class="date num">{fmtDate(g.w)}</div><div class={`speed-l ${st.paused ? 'paused' : ''}`}>{st.paused ? t('clock.paused') : t('clock.speedN', { n: st.speed + 1 })}</div></div>
@@ -202,7 +202,7 @@ function EconomyPanel({ g }: { g: Game }) {
     <div class="figures three">
       <Figure icon="gdp" label={t('led.col.gdp')} value={fmtMoney(c.gdp)} spark={g.series('gdp')} sub={(() => { const s = g.series('gdp'), a = s[Math.max(0, s.length - 13)], r = a ? c.gdp / a - 1 : 0; return <span class={r < 0 ? 'bad' : 'good'}><Icon name={r < 0 ? 'trendDown' : 'trend'} size={13} /> {t('eco.perYear', { v: (r > 0 ? '+' : '') + pct(r) })}</span>; })()} />
       <Figure icon="treasury" label={t('ledger.treasury')} value={fmtMoney(c.treasury)} spark={g.series('treasury')} sub={<span class="tr-sub" data-tip={t('eco.inOut', { i: fmtMoney(c.income), o: fmtMoney(c.spending) })}><b class={bal < 0 ? 'bad' : 'good'}>{(bal >= 0 ? '+' : '−') + fmtMoney(Math.abs(bal))}{t('hud.perMo')}</b><small class="muted">{t('eco.net')}</small></span>} />
-      <Figure icon="trendDown" label={t('eco.debt')} value={pct(debt)} tone={debt > 1 ? 'bad' : ''} sub={<span class="muted">{fmtMoney(c.debt)}</span>} />
+      <Figure icon="trendDown" label={t('eco.debt')} value={pct(debt)} spark={g.series('debt')} tone={debt > 1 ? 'bad' : debt > 0.8 ? 'warn' : ''} sub={<span class="muted">{fmtMoney(c.debt)}</span>} />
     </div>
     {(debt > 0.8 || (bal < 0 && c.treasury <= 0)) && <div class={`debt-row ${debt > 0.8 ? 'danger' : 'warn'}`} data-tip={t('eco.borrowHint')}><Icon name="coup" size={20} /><small>{t(debt > 1.2 ? 'eco.debtHigh' : bal < 0 && c.treasury <= 0 ? 'eco.debtBorrowing' : 'eco.debtMid', { v: fmtMoney(-bal) })}</small>
       {c.taxRate < 0.55 && <button class="fix" onClick={() => { c.taxRate = Math.min(0.55, +(c.taxRate + 0.02).toFixed(2)); upd(); g.sound('click'); }}>{t('eco.fixTax')}</button>}</div>}
@@ -277,7 +277,7 @@ function MilitaryPanel({ g }: { g: Game }) {
     </Block>
     <Block title={t('mil.armies')} icon="military" aside={<small class="muted">{t('mil.armyCols')}</small>}>
       {<ul class="armies compact">{g.w.armies.filter(a => a.country === c.id).map(a => ({ a, sup: (ds => ds.reduce((x, d) => x + d.sup, 0) / Math.max(1, ds.length))(divs.filter(d => d.army === a.id)) })).sort((x, y) => x.sup - y.sup).slice(0, 5).map(({ a }) => { const ds = divs.filter(d => d.army === a.id), n = ds.length, sup = ds.reduce((x, d) => x + d.sup, 0) / Math.max(1, n), atFront = ds.some(d => d.theater >= 0);
-        return <li key={a.id} data-tip={`${a.general.name} · ${a.general.traits.map(x => t('gtrait.' + x)).join(', ')} · ${t(atFront ? 'mil.armyFront' : 'mil.armyReserve')}`}><b>{armyName(a.num)}</b><b class="num">{n}</b><span class="meter"><span class={`fill ${sup < 0.5 ? 'bad' : sup < 0.8 ? 'amber' : 'good'}`} style={{ width: pct(sup) }} /></span><small class="num">{pct(sup)}</small></li>; })}</ul>}
+        return <li key={a.id} data-tip={`${a.general.name} · ${a.general.traits.map(x => t('gtrait.' + x)).join(', ')} · ${t(atFront ? 'mil.armyFront' : 'mil.armyReserve')}`}><b>{armyName(a.num)}</b><b class="num">{n}</b><span class="meter"><span class={`fill ${sup < 0.5 ? 'bad' : sup < 0.8 ? 'amber' : 'good'}`} style={{ width: pct(sup) }} /></span><small class="num">{pct(sup)}</small><button class="x locate" aria-label={t('mil.locate')} data-tip={t('mil.locate')} onClick={() => { const at = ds.filter(d => d.theater >= 0); const p: [number, number] = at.length ? [at.reduce((x, d) => x + d.x, 0) / at.length, at.reduce((x, d) => x + d.y, 0) / at.length] : g.s.assets.provinces[ds[0]?.prov ?? 0].label; g.focusLog({ at: p } as LogEntry); }}><Icon name="target" size={15} /></button></li>; })}</ul>}
       {(() => { const mine = g.w.armies.filter(a => a.country === c.id), inArmies = divs.filter(d => mine.some(a => a.id === d.army)).length, rest = mine.length - 5;
         return <small class="army-foot">{rest > 0 && t('mil.moreArmies', { n: rest })}{rest > 0 && ' · '}{t('mil.inArmies', { n: inArmies, total: divs.length })}</small>; })()}
     </Block>
@@ -353,7 +353,7 @@ function CountryPanel({ g, id }: { g: Game; id: number }) {
     </Block>}
     {c.alive && id !== me && (war
       ? <button class="primary" onClick={() => { const x = warsOf(w, me).find(x => sideOf(x, id)); if (x) g.openPanel({ kind: 'war', id: x.id }); }}><Icon name="war" size={16} />{t('war.open')}</button>
-      : <button class="danger outline wide" onClick={() => g.st.set({ declare: id, paused: true })}><Icon name="war" size={16} />{t('war.declare')}</button>)}
+      : <button class="danger outline wide" onClick={() => g.st.set({ declare: id, paused: true })}><Icon name="war" size={16} />{t('war.declare')}<small class="dw-cost"><Icon name="influence" size={12} />{warCost(w, me, id).influence}</small></button>)}
   </Sheet>;
 }
 

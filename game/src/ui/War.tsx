@@ -125,7 +125,7 @@ export function AgendaCards({ g, slim, drawer, onDrawer }: { g: Game; slim?: boo
     </section>
     : <div class={`agenda-slip plate k-${a.kind}`} key={a.id}><button class="slip-open" onClick={() => { setOpen(a.id); setAsked(a.id); }}><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={16} /></span><span class="slip-tt">{a.kind === 'diplo' && a.data?.act ? <><span class="slip-t slip-terms"><Icon name={a.data.act} size={14} />{t('treaty.' + a.data.act)}</span><small class="slip-from"><Flag s={g.s} code={g.w.countries[a.data.from].code} h={11} />{countryName(g.w, a.data.from)}</small></> : <span class="slip-t">{say(g.w, a.title)}</span>}</span></button>
       {a.kind !== 'diplo' ? <button class="slip-review" onClick={() => { setOpen(a.id); setAsked(a.id); }}>{t('agenda.review')}</button> : a.options.length === 2 && <><button class="slip-yes" aria-label={say(g.w, a.options[0].label)} data-tip={say(g.w, a.options[0].label)} onClick={() => decide(a.id, 0)}><Icon name="check" size={16} /></button><button class="slip-no" aria-label={say(g.w, a.options[1].label)} data-tip={say(g.w, a.options[1].label)} onClick={() => decide(a.id, 1)}><Icon name="cross" size={16} /></button></>}</div>)}
-    {!drawer && items.length > 1 && <button class="slip-more" onClick={() => onDrawer(true)}><Icon name="ballot" size={14} />{t('agenda.all', { n: items.length })}</button>}
+    {!drawer && items.length > 1 && <small class="slip-count">{t('agenda.moreIn', { n: items.length - 1 })}</small>}
   </div>;
 }
 
