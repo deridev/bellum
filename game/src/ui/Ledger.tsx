@@ -83,7 +83,7 @@ function Overview({ g }: { g: Game }) {
       {kpi('military', t('mil.divisions'), fmtInt(g.series('divisions').at(-1) ?? 0), since(g.series('divisions').at(-1) ?? 0, first?.divisions, fmtInt), 'divisions')}
       {kpi('political', t('led.col.provinces'), fmtInt(provs.at(-1) ?? 0), since(provs.at(-1) ?? 0, provs[0], fmtInt), 'provinces')}
     </div>
-    {marks.length > 0 && <ol class="pin-legend" title={t('led.pinHint')}>{marks.map(m => <li key={m.n}><i>{m.n}</i><time>{fmtDate(g.w, m.x, 'month')}</time><span>{m.label}</span></li>)}</ol>}
+    {marks.length > 0 && <ol class="pin-legend" title={t('led.pinHint')}>{marks.map(m => <li key={m.n} title={m.label}><i>{m.n}</i><time>{fmtDate(g.w, m.x, 'month')}</time><span>{m.label.split(' · ')[0]}{m.label.includes(' · ') && <em> +{m.label.split(' · ').length - 1}</em>}</span></li>)}</ol>}
     {xs.length < 2 ? <p class="no-history">{t('led.noHistory')}</p> : <div class="cells">
       {chart('gdp', t('stat.gdp'))}{chart('debt', t('eco.debt'))}{chart('casualties', t('war.casualties'))}
       {chart('manpower', t('ledger.manpower'))}{chart('stability', t('ledger.stability'))}{chart('warSupport', t('ledger.warSupport'))}

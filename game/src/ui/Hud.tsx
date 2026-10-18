@@ -202,7 +202,7 @@ function EconomyPanel({ g }: { g: Game }) {
     <div class="figures three">
       <Figure icon="gdp" label={t('led.col.gdp')} value={fmtMoney(c.gdp)} spark={g.series('gdp')} sub={(() => { const s = g.series('gdp'), a = s[Math.max(0, s.length - 13)], r = a ? c.gdp / a - 1 : 0; return <span class={r < 0 ? 'bad' : 'good'}><Icon name={r < 0 ? 'trendDown' : 'trend'} size={13} /> {t('eco.perYear', { v: (r > 0 ? '+' : '') + pct(r) })}</span>; })()} />
       <Figure icon="treasury" label={t('ledger.treasury')} value={fmtMoney(c.treasury)} spark={g.series('treasury')} sub={<span class="tr-sub" data-tip={t('eco.inOut', { i: fmtMoney(c.income), o: fmtMoney(c.spending) })}><b class={bal < 0 ? 'bad' : 'good'}>{(bal >= 0 ? '+' : '−') + fmtMoney(Math.abs(bal))}{t('hud.perMo')}</b><small class="muted">{t('eco.net')}</small></span>} />
-      <Figure icon="trendDown" label={t('eco.debt')} value={pct(debt)} tone={debt > 1.5 ? 'bad' : ''} sub={<span class="muted">{fmtMoney(c.debt)}</span>} />
+      <Figure icon="trendDown" label={t('eco.debt')} value={pct(debt)} tone={debt > 1 ? 'bad' : ''} sub={<span class="muted">{fmtMoney(c.debt)}</span>} />
     </div>
     {(debt > 0.8 || (bal < 0 && c.treasury <= 0)) && <div class={`debt-row ${debt > 0.8 ? 'danger' : 'warn'}`} data-tip={t('eco.borrowHint')}><Icon name="coup" size={20} /><small>{t(debt > 1.2 ? 'eco.debtHigh' : bal < 0 && c.treasury <= 0 ? 'eco.debtBorrowing' : 'eco.debtMid', { v: fmtMoney(-bal) })}</small>
       {c.taxRate < 0.55 && <button class="fix" onClick={() => { c.taxRate = Math.min(0.55, +(c.taxRate + 0.02).toFixed(2)); upd(); g.sound('click'); }}>{t('eco.fixTax')}</button>}</div>}

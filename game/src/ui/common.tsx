@@ -108,7 +108,7 @@ const P: Record<string, string> = {
   diplomacy: 'M2.5 14l4-6 3.5 1.5 3-1.5h4l4.5 6-3 2.5-5.5-5-2.5 1.5M2.5 14l7 6.5 2-1.5 2 1.5 3.5-2.5-3-3M16.5 16.5l-3.5-3',
   war: 'M5 5l11 11M19 5L8 16M14 18l4-4M10 18l-4-4M17.5 17.5L20 20M6.5 17.5L4 20',
   ledger: 'M4 4h16v16H4zM8 16v-3M12 16V8M16 16v-5',
-  chronicle: 'M7 4h11a2 2 0 0 1 2 2v1h-3M7 4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM8.5 10h5M8.5 13.5h5M8.5 17h3',
+  chronicle: 'M6 4h11a2 2 0 0 1 2 2v12M6 4a2 2 0 0 0-2 2v2h4M6 4a2 2 0 0 1 2 2v12a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-2H10v2a2 2 0 0 1-2 2M11 9h5M11 12.5h4',
   timelapse: 'M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9h8c0-5-8-5-8-9s8-4 8-9z',
   // map lenses
   political: 'M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14',
@@ -196,9 +196,10 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
   if (n < 2) return <div ref={ref} class="chart empty" style={{ height }}><span>{t('led.empty')}</span></div>;
   const labels = series.length > 1, L = 54, R = labels ? 96 : 14, T = 10 + (marks.length ? 16 : 0), B = 24, w = Math.max(60, W - L - R), h = height - T - B;
   const all = series.flatMap(s => s.values), mn = Math.min(...all), mx = Math.max(...all), pad = Math.max((mx - mn) * 0.12, Math.abs(mx) * 0.03, 1e-6);
-  const tk0 = ticks(zero ? Math.min(0, mn) : (mn >= 0 && mn - pad < 0 ? 0 : mn - pad), mx + pad);
+  const y0 = zero ? Math.min(0, mn) : (mn >= 0 && mn - pad < 0 ? 0 : mn - pad), y1 = mx + pad; // the axis fits the data, not the round numbers
+  const tk0 = ticks(y0, y1, 5).filter(v => v >= y0 - 1e-9 && v <= y1 + 1e-9);
   const tk = tk0.filter((v, i) => i === 0 || fmtY(v) !== fmtY(tk0[i - 1])); // no repeated labels after rounding
-  const y0 = tk0[0], y1 = tk0[tk0.length - 1], X = (i: number) => L + i / (n - 1) * w, Y = (v: number) => T + h - (v - y0) / (y1 - y0 || 1) * h;
+  const X = (i: number) => L + i / (n - 1) * w, Y = (v: number) => T + h - (v - y0) / (y1 - y0 || 1) * h;
   // direct labels, nudged apart so they never collide
   const ends0 = series.map(s => ({ s, y: Y(s.values[n - 1]), label: s.label })).sort((a, b) => a.y - b.y), ends: typeof ends0 = [];
   for (const e of ends0) { const last = ends[ends.length - 1]; if (last && e.y - last.y < 6) last.label += ', ' + e.label; else ends.push({ ...e }); }
@@ -220,8 +221,10 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
       {labels && ends.map(({ s, y, label }) => <g key={s.id}>{Math.abs(y - Y(s.values[n - 1])) > 3 && <line x1={L + w + 4} x2={L + w + 9} y1={Y(s.values[n - 1])} y2={y} stroke={s.color} stroke-width="1.5" />}<text x={L + w + 12} y={y + 4} class="end-label">{label}</text></g>)}
       {hi !== null && <g><line x1={hx} x2={hx} y1={T} y2={T + h} class="cross" />{series.map(s => <circle key={s.id} cx={hx} cy={Y(s.values[hi])} r="4" fill={s.color} class="end-dot" />)}</g>}
     </svg>
-    {hi !== null && <div class={`chart-tip ${labels ? '' : 'above'}`} style={(() => { const mid = series[0].values[hi], top = Y(mid) > T + h / 2; return labels ? (hx > L + w / 2 ? { left: L + 6 } : { right: R + 6 }) : { [hx > L + w / 2 ? 'left' : 'right']: hx > L + w / 2 ? L + 8 : R + 8, top: top ? T + 2 : T + h - 30 }; })()}><b>{fmtX(xs[hi])}</b>{pins.filter(m => m.i === hi).map((m, k) => labels || m.minor ? <em key={k}>{m.n}. {m.label}</em> : <em key={k} class="pin-n">◆{m.n}</em>)}
-      {series.slice().sort((a, b) => b.values[hi] - a.values[hi]).map(s => { const d = hi > 0 ? s.values[hi] - s.values[hi - 1] : 0; return <span key={s.id}><i style={{ background: s.color }} />{labels ? s.label : ''}<b class="num">{fmtY(s.values[hi])}</b>{hi > 0 && <small class={`num ${(d > 0) !== !!invert ? 'up' : 'dn'} ${d === 0 ? 'flat' : ''}`}>{d > 0 ? '▴' : d < 0 ? '▾' : '·'}{d ? fmtY(Math.abs(d)) : ''}</small>}</span>; })}</div>}
+    {hi !== null && <div class={`chart-tip ${labels ? '' : 'above'}`} style={(() => { // the top corner where the lines leave the most room
+      const half = (a: number, b: number) => Math.min(...series.flatMap(s => s.values.slice(a, b).map(Y)));
+      return half(0, Math.ceil(n / 2)) > half(Math.floor(n / 2), n) ? { left: L + 6 } : { right: R + 6 }; })()}><b>{fmtX(xs[hi])}</b>{pins.filter(m => m.i === hi).map((m, k) => labels || m.minor ? <em key={k}>{m.n}. {m.label}</em> : <em key={k} class="pin-n">◆{m.n}</em>)}
+      {series.slice().sort((a, b) => b.values[hi] - a.values[hi]).map(s => { const d0 = hi > 0 ? s.values[hi] - s.values[hi - 1] : 0, d = Math.abs(d0) < Math.abs(s.values[hi]) * 0.01 ? 0 : d0; return <span key={s.id}><i style={{ background: s.color }} />{labels ? s.label : ''}<b class="num">{fmtY(s.values[hi])}</b>{hi > 0 && <small class={`num ${(d > 0) !== !!invert ? 'up' : 'dn'} ${d === 0 ? 'flat' : ''}`}>{d > 0 ? '▴' : d < 0 ? '▾' : '·'}{d ? fmtY(Math.abs(d)) : ''}</small>}</span>; })}</div>}
   </div>;
 }
 /** An icon button whose label shows as a tooltip (and is its accessible name). */
