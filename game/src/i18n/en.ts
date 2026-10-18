@@ -174,4 +174,5 @@ export const en: Record<string, Entry> = {
   'agenda.all': 'All {n} decisions', 'hud.decisionsN': { one: 'Decision', other: 'Decisions' }, 'mil.noFundsWait': 'No production funds: it will queue and wait until the military budget covers upkeep',
   'led.lost': { one: '{n} province lost', other: '{n} provinces lost' }, 'led.gained': { one: '{n} province taken', other: '{n} provinces taken' },
   'agenda.daysLeft': { one: '{n} day left', other: '{n} days left' }, 'led.gdpFell': 'Economy falls {p}',
+  'pol.coupLine': 'Coup risk under 30%', 'mil.armySummary': 'armies · {n} at the front · supply {lo}–{hi}', 'ui.show': 'Show', 'ui.hide': 'Hide', 'agenda.proposals': '{n} proposals', 'agenda.acceptAll': 'Accept all', 'agenda.declineAll': 'Decline all',
 };

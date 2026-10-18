@@ -189,7 +189,7 @@ const DASH = ['', '7 4', '2 4', '10 4 2 4'];
 export const dashOf = (i: number) => DASH[i % DASH.length];
 export type Series = { id: string | number; label: string; color: string; values: number[] };
 /** Line chart over months: one y axis, recessive grid, direct labels at the line ends, a crosshair on hover. */
-export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = [], invert }: { series: Series[]; xs: number[]; fmtX: (x: number) => string; fmtY: (v: number) => string; height?: number; zero?: boolean; marks?: { x: number; label: string; n: number }[]; invert?: boolean }) {
+export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = [], invert }: { series: Series[]; xs: number[]; fmtX: (x: number) => string; fmtY: (v: number) => string; height?: number; zero?: boolean; marks?: { x: number; label: string; n: number; minor?: boolean }[]; invert?: boolean }) {
   const ref = useRef<HTMLDivElement>(null), [W, setW] = useState(480), [hi, setHi] = useState<number | null>(null);
   useEffect(() => { const el = ref.current; if (!el) return; const ro = new ResizeObserver(() => setW(el.clientWidth || 480)); ro.observe(el); return () => ro.disconnect(); }, []);
   const n = xs.length;
@@ -206,14 +206,14 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
   const path = (v: number[]) => smooth(v.map((y, i) => [X(i), Y(y)]));
   // event pins: the month each event fell in
   const pins0 = marks.map(m => ({ ...m, i: Math.max(0, xs.findIndex((x, j) => j === n - 1 || xs[j + 1] > m.x)) }));
-  const pins = pins0.filter((m, k) => pins0.findIndex(q => q.i === m.i) === k).map(m => ({ ...m, label: pins0.filter(q => q.i === m.i).map(q => q.label).join(' · '), px: Math.max(L + 10, X(m.i)) }));
+  const pins = pins0.filter((m, k) => pins0.findIndex(q => q.i === m.i) === k).map(m => ({ ...m, label: pins0.filter(q => q.i === m.i).map(q => q.label).join(' · '), px: Math.min(L + w - 12, Math.max(L + 10, X(m.i))) }));
   const move = (e: PointerEvent) => { const r = (e.currentTarget as SVGElement).getBoundingClientRect(); const i = Math.round((e.clientX - r.left - L) / w * (n - 1)); setHi(i >= 0 && i < n ? i : null); };
   const hx = hi === null ? 0 : X(hi);
   return <div ref={ref} class="chart">
     <svg width={W} height={height} onPointerMove={move} onPointerLeave={() => setHi(null)} role="img" aria-label={series.map(s => `${s.label} ${fmtY(s.values[n - 1])}`).join(', ')}>
       {tk.map(v => <g key={v}><line x1={L} x2={L + w} y1={Y(v)} y2={Y(v)} class="grid" /><text x={L - 8} y={Y(v) + 4} class="axis" text-anchor="end">{fmtY(v)}</text></g>)}
       <text x={L} y={height - 6} class="axis">{fmtX(xs[0])}</text><text x={L + w} y={height - 6} class="axis" text-anchor="end">{fmtX(xs[n - 1])}</text>
-      {pins.map((m, k) => <g key={k} class="pin"><line x1={m.px} x2={m.px} y1={T + 8} y2={T + h} /><path d={`M${m.px} ${T - 7}l8 8-8 8-8-8z`} /><text x={m.px} y={T + 5} text-anchor="middle">{m.n}</text></g>)}
+      {pins.map((m, k) => m.minor ? <path key={k} class="pin-minor" d={`M${m.px} ${T + h - 1}l4 -6h-8z`} /> : <g key={k} class="pin"><line x1={m.px} x2={m.px} y1={T + 8} y2={T + h} /><path d={`M${m.px} ${T - 7}l8 8-8 8-8-8z`} /><text x={m.px} y={T + 5} text-anchor="middle">{m.n}</text></g>)}
       {!labels && <path d={`${path(series[0].values)}L${X(n - 1)},${T + h}L${X(0)},${T + h}Z`} fill={series[0].color} opacity="0.16" />}
       {series.map((s, i) => <path key={s.id} d={path(s.values)} fill="none" stroke={s.color} stroke-width={i === 0 ? 3 : 2} stroke-dasharray={DASH[i % DASH.length]} stroke-linejoin="round" stroke-linecap="round" />)}
       {series.map(s => <circle key={s.id} cx={X(n - 1)} cy={Y(s.values[n - 1])} r="4" fill={s.color} class="end-dot" />)}

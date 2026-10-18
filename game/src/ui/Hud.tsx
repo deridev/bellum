@@ -93,7 +93,7 @@ function CommandStrip({ g, onDecisions }: { g: Game; onDecisions: () => void }) 
     <div class="alerts">
       {war && <button class={`alert war phone-only ${score < -20 ? 'bad' : score > 20 ? 'good' : ''}`} onClick={() => togglePanel(g, 'war')}>
         <Icon name="war" size={20} /><span class="al-txt"><b class="num">{score > 0 ? '+' : ''}{Math.round(score)}</b><small>{t('war.score')}</small></span>{wars.length > 1 && <i class="badge">{wars.length}</i>}</button>}
-      {waiting > 0 && <button class="alert wait" data-tip={t('hud.decisions', { n: waiting })} onClick={onDecisions}><Icon name="ballot" size={20} /><span class="al-txt"><b class="num">{waiting}</b><small>{t('hud.decisionsN', { n: waiting })}</small></span></button>}
+      {waiting > 0 && <button class={`alert wait ${g.w.agenda.some(a => a.country === g.player && a.kind === 'peace') ? 'urgent' : ''}`} data-tip={t('hud.decisions', { n: waiting })} onClick={onDecisions}><Icon name="ballot" size={20} /><span class="al-txt"><b class="num">{waiting}</b><small>{t('hud.decisionsN', { n: waiting })}</small></span></button>}
     </div>
     <div class="time">
       <div class="date-box"><div class="date num">{fmtDate(g.w)}</div><div class={`speed-l ${st.paused ? 'paused' : ''}`}>{st.paused ? t('clock.paused') : t('clock.speedN', { n: st.speed + 1 })}</div></div>
@@ -227,14 +227,13 @@ function PoliticsPanel({ g }: { g: Game }) {
           <div class="traits">{c.leader.traits.map(x => <span class="trait" key={x}>{t('trait.' + x)}</span>)}</div>
 </div>
       </div>
-      <div class="compass" data-tip={t('pol.ideology')}><svg viewBox="-110 -110 220 220" role="img" aria-label={t('pol.ideology')}>
-        <rect x="-100" y="-100" width="200" height="200" class="cmp-bg" /><rect x="-100" y="-100" width="100" height="100" class="cmp-q q1" /><rect x="0" y="-100" width="100" height="100" class="cmp-q q2" /><rect x="-100" y="0" width="100" height="100" class="cmp-q q3" /><rect x="0" y="0" width="100" height="100" class="cmp-q q4" /><line x1="-100" y1="0" x2="100" y2="0" class="cmp-ax" /><line x1="0" y1="-100" x2="0" y2="100" class="cmp-ax" />
-        <text x="0" y="-80" class="cmp-t" text-anchor="middle">{t('pol.order')}</text><text x="0" y="94" class="cmp-t" text-anchor="middle">{t('pol.liberty')}</text>
-        <circle cx={ex * 90} cy={-au * 90} r="11" class="cmp-dot" style={{ fill: c.color }} />
-      </svg><small class="cmp-x"><span>{t('pol.collective')}</span><span>{t('pol.market')}</span></small><b class="cmp-name">{t('ideo.' + ['l', 'c', 'r'][ex < -0.33 ? 0 : ex > 0.33 ? 2 : 1] + ['a', 'c', 'l'][au > 0.33 ? 0 : au < -0.33 ? 2 : 1])}</b></div>
+    </div>
+    <div class="ideology" data-tip={t('pol.ideology')}>
+      <span class="ideo-name"><small>{t('pol.ideology')}</small><b>{t('ideo.' + ['l', 'c', 'r'][ex < -0.33 ? 0 : ex > 0.33 ? 2 : 1] + ['a', 'c', 'l'][au > 0.33 ? 0 : au < -0.33 ? 2 : 1])}</b></span>
+      <span class="ideo-axes">{([[ex, 'pol.collective', 'pol.market'], [au, 'pol.liberty', 'pol.order']] as const).map(([v, l, r]) => <span key={l} class="ideo-axis"><small>{t(l)}</small><span class="ideo-track"><i style={{ left: pct((v + 1) / 2) }} /></span><small>{t(r)}</small></span>)}</span>
     </div>
     <div class="gauges">
-      <div class="gauge" data-tip={t('ledger.stability.hint')}><Ring v={c.stability} size={60} target={target} danger={0.3}><b class="num">{Math.round(c.stability * 100)}</b></Ring><span class="gauge-t"><b>{t('ledger.stability')}</b><small class={target < c.stability - 0.01 ? 'bad' : target > c.stability + 0.01 ? 'good' : 'muted'}>{t('pol.heading', { p: pct(target) })}</small></span></div>
+      <div class="gauge" data-tip={t('ledger.stability.hint')}><Ring v={c.stability} size={60} target={target} danger={0.3}><b class="num">{Math.round(c.stability * 100)}</b></Ring><span class="gauge-t"><b>{t('ledger.stability')}</b><small class={target < c.stability - 0.01 ? 'bad' : target > c.stability + 0.01 ? 'good' : 'muted'}>{t('pol.heading', { p: pct(target) })}</small><small class={c.stability < 0.3 ? 'bad' : 'muted'}>{t('pol.coupLine')}</small></span></div>
       <div class="gauge" data-tip={t('ledger.warSupport.hint')}><Ring v={c.warSupport} size={60}><b class="num">{Math.round(c.warSupport * 100)}</b></Ring><span class="gauge-t"><b>{t('ledger.warSupport')}</b><Spark values={g.series('warSupport')} w={80} h={20} /></span></div>
     </div>
     <Block title={t('pol.groups')} icon="population">
@@ -250,7 +249,7 @@ function PoliticsPanel({ g }: { g: Game }) {
 
 function MilitaryPanel({ g }: { g: Game }) {
   const c = g.me; const [, force] = useState(0); const upd = () => force(x => x + 1);
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState(''), [showArmies, setShowArmies] = useState(false);
   const divs = g.w.divisions.filter(d => d.country === c.id);
   const byType: Record<string, number> = {}; divs.forEach(d => (byType[d.type] = (byType[d.type] || 0) + 1));
   const men = divs.reduce((a, d) => a + d.str, 0), front = divs.filter(d => d.theater >= 0).length;
@@ -274,10 +273,11 @@ function MilitaryPanel({ g }: { g: Game }) {
       }}><i style={{ height: `${8 + i * 5}px` }} /><span>{t('law.' + l)}</span></button>)}</div>
 
     </Block>
-    <Block title={t('mil.armies')} icon="military">
-      <ul class="armies">{g.w.armies.filter(a => a.country === c.id).sort((a, b) => divs.filter(d => d.army === b.id).length - divs.filter(d => d.army === a.id).length).slice(0, 4).map(a => { const ds = divs.filter(d => d.army === a.id), n = ds.length, str = ds.reduce((x, d) => x + d.sup, 0) / Math.max(1, n), atFront = ds.some(d => d.theater >= 0); return <li key={a.id} data-tip={a.general.traits.map(x => t('gtrait.' + x)).join(', ')}>
-        <span class="monogram sm">{a.general.name.split(' ').map(x => x[0]).slice(0, 2).join('')}</span><span class="army-t"><b>{armyName(a.num)}</b><small>{a.general.name}</small><span class="army-s"><i class={atFront ? 'front' : ''}>{t(atFront ? 'mil.armyFront' : 'mil.armyReserve')}</i><span class="meter" data-tip={t('mil.supplyHint')}><span class={`fill ${str < 0.5 ? 'bad' : str < 0.8 ? 'amber' : 'good'}`} style={{ width: pct(str) }} /></span><b class="num ready">{pct(str)}</b></span></span><b class="num">{n}</b></li>; })}</ul>
-      {g.w.armies.filter(a => a.country === c.id).length > 4 && <small class="more-pill">{t('prov.more', { n: g.w.armies.filter(a => a.country === c.id).length - 4 })}</small>}
+    <Block title={t('mil.armies')} icon="military" aside={<button class="ghost small" aria-expanded={showArmies} onClick={() => setShowArmies(!showArmies)}>{t(showArmies ? 'ui.hide' : 'ui.show')}</button>}>
+      {(() => { const mine = g.w.armies.filter(a => a.country === c.id), sups = mine.map(a => { const ds = divs.filter(d => d.army === a.id); return ds.length ? ds.reduce((x, d) => x + d.sup, 0) / ds.length : 1; });
+        return <div class="army-sum"><b class="num">{mine.length}</b><span>{t('mil.armySummary', { n: mine.filter(a => divs.some(d => d.army === a.id && d.theater >= 0)).length, lo: pct(Math.min(...sups, 1)), hi: pct(Math.max(...sups, 0)) })}</span></div>; })()}
+      {showArmies && <ul class="armies">{g.w.armies.filter(a => a.country === c.id).sort((a, b) => divs.filter(d => d.army === b.id).length - divs.filter(d => d.army === a.id).length).map(a => { const ds = divs.filter(d => d.army === a.id), n = ds.length, str = ds.reduce((x, d) => x + d.sup, 0) / Math.max(1, n), atFront = ds.some(d => d.theater >= 0); return <li key={a.id} data-tip={a.general.traits.map(x => t('gtrait.' + x)).join(', ')}>
+        <span class="monogram sm">{a.general.name.split(' ').map(x => x[0]).slice(0, 2).join('')}</span><span class="army-t"><b>{armyName(a.num)}</b><small>{a.general.name}</small><span class="army-s"><i class={atFront ? 'front' : ''}>{t(atFront ? 'mil.armyFront' : 'mil.armyReserve')}</i><span class="meter" data-tip={t('mil.supplyHint')}><span class={`fill ${str < 0.5 ? 'bad' : str < 0.8 ? 'amber' : 'good'}`} style={{ width: pct(str) }} /></span><b class="num ready">{pct(str)}</b></span></span><b class="num">{n}</b></li>; })}</ul>}
     </Block>
   </NationSheet>;
 }
