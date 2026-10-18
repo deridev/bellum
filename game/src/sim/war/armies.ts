@@ -7,6 +7,7 @@ import { cellLonLat, cellOf, provAtLonLat, T, work, type Theater } from './theat
 import { activeWars, placeUnit, sideOf, theatersOf, withdraw } from './war';
 import { startOffensive } from './ai';
 import { makeGeneral } from '../names';
+import { launchLanding } from './landing';
 
 export const armyDivs = (w: World, id: number) => w.divisions.filter(d => d.army === id);
 export type ArmyState = 'attack' | 'hold' | 'wait' | 'front' | 'home' | 'moving';
@@ -83,7 +84,7 @@ function cancelAttack(w: World, id: number) {
 }
 /** An order for an army at a point on the map: our ground in a war zone = go there; enemy ground = attack it; one of our provinces elsewhere = station there.
  *  Returns what it did, or why not (a message key). */
-export function orderArmy(w: World, S: MapStatic, id: number, lon: number, lat: number): { kind: 'move' | 'attack' | 'station' | null; err: string | null } {
+export function orderArmy(w: World, S: MapStatic, id: number, lon: number, lat: number): { kind: 'move' | 'attack' | 'station' | 'landing' | null; err: string | null } {
   const a = w.armies.find(x => x.id === id); const divs = a ? armyDivs(w, id) : [];
   if (!a || !divs.length) return { kind: null, err: 'army.empty' };
   const c = a.country;
@@ -95,13 +96,18 @@ export function orderArmy(w: World, S: MapStatic, id: number, lon: number, lat: 
       // the armies left in the line close up at once around the one that leaves it
       if (t.c[k] * t.sideOf[c] > 0) { cancelAttack(w, id); sendArmy(w, S, t, free, lon, lat); deployLine(w, t, c, false); return { kind: 'move', err: null }; }
       cancelAttack(w, id);
-      const err = startOffensive(w, S, t, c, [lon, lat], id); if (!err) deployLine(w, t, c, false);
-      return { kind: err ? null : 'attack', err };
+      const err = startOffensive(w, S, t, c, [lon, lat], id); if (!err) { deployLine(w, t, c, false); return { kind: 'attack', err: null }; }
+      // no way over land (the sea, a neutral country): across the sea, if that is enemy coast
+      if (err === 'off.blocked' || err === 'off.tooFar') { const e2 = launchLanding(w, S, id, lon, lat); if (!e2) { deployLine(w, t, c, false); return { kind: 'landing', err: null }; } }
+      return { kind: null, err };
     }
   }
   const p = provAtLonLat(S, lon, lat); if (p < 0) return { kind: null, err: 'army.notOurs' };
   const pr = w.provinces[p];
-  if (pr.owner !== c || pr.controller !== c) return { kind: null, err: activeWars(w).some(x => sideOf(x, c) * sideOf(x, pr.owner) === -1) ? 'army.noFront' : 'army.notOurs' };
+  if (pr.owner !== c || pr.controller !== c) {
+    if (!activeWars(w).some(x => sideOf(x, c) * sideOf(x, pr.controller) === -1)) return { kind: null, err: 'army.notOurs' };
+    const e = launchLanding(w, S, id, lon, lat); return e ? { kind: null, err: e === 'land.inland' ? 'army.noFront' : e } : { kind: 'landing', err: null }; // enemy land with no front: land on its coast
+  }
   cancelAttack(w, id);
   for (const d of divs) { if (d.theater >= 0) withdraw(d); d.prov = p; }
   return { kind: 'station', err: null };

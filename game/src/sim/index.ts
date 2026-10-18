@@ -7,10 +7,11 @@ import { monthlyDiplomacy } from './diplomacy';
 import { aiMonthly } from './ai';
 import { monthlyEvents } from './events';
 import { checkOutcome, dailyOutcome } from './victory';
+import { dailyLandings } from './war/landing';
 let ready = false;
 /** Register every system with the daily/monthly step (idempotent). */
 export function initSim() {
   if (ready) return; ready = true;
-  hooks.daily.push(stepWars, warAI, expireAgenda, historyDaily, dailyOutcome);
+  hooks.daily.push(dailyLandings, stepWars, warAI, expireAgenda, historyDaily, dailyOutcome); // landings resolve before the day's fighting
   hooks.monthly.push(monthlyDiplomacy, aiMonthly, monthlyEvents, checkOutcome);
 }

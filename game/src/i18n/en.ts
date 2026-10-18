@@ -228,4 +228,7 @@ export const en: Record<string, Entry> = {
   'end.reason.firstPower': 'The years are over and {c} is the first power in the world.', 'end.reason.endDate': 'The years are over. {c} finishes as the world\'s number {n} power.', 'end.reason.annexed': '{c} is no more: its land belongs to others now.',
   'end.years': 'Years played', 'end.provinces': 'Provinces', 'end.peak': 'peak {n}', 'end.gdp': 'Economy', 'end.wars': 'Wars', 'end.casualties': 'Casualties', 'end.powers': 'The great powers', 'end.playOn': 'Play on', 'end.watch': 'Watch the world', 'end.chronicle': 'Read the chronicle', 'end.newGame': 'New game',
   'big.victory': 'Victory', 'big.defeat': 'Defeat', 'big.end': 'The end', 'log.outcome.domination': '{c} dominates the world economy', 'log.outcome.greatWarWon': '{c} wins the great war', 'log.outcome.greatWarLost': '{c} loses the great war', 'log.outcome.firstPower': '{c} ends the era as the first power', 'log.outcome.endDate': '{c} ends the era as power number {n}', 'log.outcome.annexed': '{c} has fallen',
+  'aim.landing': 'Landing', 'aim.landingOdds': '{p} chance · {n} days at sea · {m} defenders near the beach', 'army.done.landing': '{a} puts to sea', 'land.inland': 'Not on the coast: a landing needs a beach',
+  'log.atSea': '{a} puts to sea for {p}: {n} days', 'log.landed': '{a} of {c} lands at {p}', 'log.landingFailed': 'The landing of {c} at {p} is thrown back', 'big.landing': 'Landing',
+  'war.noFront': 'No front: the sea lies between you. Pick up an army and click their coast to land there.',
 };

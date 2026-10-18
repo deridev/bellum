@@ -7,6 +7,7 @@ import { say } from '../world';
 import { acceptsPeace, activeWars, heldDemand, makePeace, placeUnit, sendToTheater, sideOf, theatersOf, type PeaceTerms } from './war';
 import { cellLonLat, cellOf, offensiveTip, T, unitPower, work, type Offensive, type Theater } from './theater';
 import { deployLine, sendArmy } from './armies';
+import { landingPlan, launchLanding, seaShare } from './landing';
 
 /** Military strength of each side in a theater (arrived units only). */
 export function theaterStrength(w: World, t: Theater): [number, number] {
@@ -24,7 +25,7 @@ export function frontAggr(w: World, war: War, t: Theater): [number, number] {
 }
 export function warAI(w: World, S: MapStatic) {
   for (const war of activeWars(w)) {
-    const ths = theatersOf(w, war).filter(t => !t.frozen); if (!ths.length) continue;
+    const ths = theatersOf(w, war).filter(t => !t.frozen); if (!ths.length) { if (w.day % 7 === 5) for (const c of [...war.attackers, ...war.defenders]) if (isAI(w, c)) aiLanding(w, S, war, c); continue; }
     // aggression per side from relative strength (the player's side keeps the player's setting)
     if (w.day % 3 === 0) {
       let a = 0, b = 0; for (const t of ths) { const s = theaterStrength(w, t); a += s[0]; b += s[1]; }
@@ -49,9 +50,24 @@ export function warAI(w: World, S: MapStatic) {
       for (const c of Object.keys(t.sideOf).map(Number)) if (isAI(w, c)) planOffensive(w, S, war, t, c);
     }
     if (w.day % 7 === 3) peaceAI(w, S, war);
+    if (w.day % 7 === 5) for (const c of [...war.attackers, ...war.defenders]) if (isAI(w, c)) aiLanding(w, S, war, c);
   }
 }
 
+/** A war it cannot reach over land: with the stronger fleet, the AI sends its largest army at home across the sea to a valuable enemy coast. */
+function aiLanding(w: World, S: MapStatic, war: War, c: number) {
+  if (w.day - war.start < 21 || (w.cooldowns[`land:${war.id}:${c}`] ?? -1) > w.day || w.landings?.some(l => l.country === c)) return;
+  if (w.divisions.some(d => d.country === c && war.theaters.includes(d.theater))) return; // it already fights on a front of this war
+  const side = sideOf(war, c) as 1 | -1; if (seaShare(w, S, war, side) < 0.55) return;
+  const home = new Map<number, number>(); for (const d of w.divisions) if (d.country === c && d.theater < 0) home.set(d.army, (home.get(d.army) || 0) + 1);
+  const army = [...home.entries()].filter(([, n]) => n >= 3).sort((a, b) => b[1] - a[1])[0]?.[0]; if (army === undefined) return;
+  w.cooldowns[`land:${war.id}:${c}`] = w.day + 60;
+  const foes = side > 0 ? war.defenders : war.attackers, [cx, cy] = S.provinces[w.countries[c].capital].label;
+  const coast = w.provinces.filter(p => foes.includes(p.controller) && S.provinces[p.id].coastal).map(p => ({ p, v: p.gdp / (300 + km(cx, cy, ...S.provinces[p.id].label)) })).sort((a, b) => b.v - a.v).slice(0, 12);
+  let best: { lon: number; lat: number; s: number } | null = null;
+  for (const { p, v } of coast) { const [lon, lat] = S.provinces[p.id].label, plan = landingPlan(w, S, army, lon, lat); if (!plan.err && plan.p >= 0.45 && (!best || plan.p * v > best.s)) best = { lon, lat, s: plan.p * v }; }
+  if (best) launchLanding(w, S, army, best.lon, best.lat);
+}
 function reinforce(w: World, S: MapStatic, war: War, c: number, ths: Theater[]) {
   const mine = w.divisions.filter(d => d.country === c);
   const inWar = mine.filter(d => ths.some(t => t.id === d.theater)).length;

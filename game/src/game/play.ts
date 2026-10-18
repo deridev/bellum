@@ -13,6 +13,7 @@ import { acceptsPeace, activeWars, allied, declareWar, makePeace, sideOf, theate
 import { strikeOdds } from '../sim/war/ai';
 import { armyWhere, mergeArmies, orderArmy, releaseArmy, reserveArmy, splitArmy } from '../sim/war/armies';
 import { queueUnit } from '../sim/economy';
+import { landingPlan } from '../sim/war/landing';
 import { cellOf, provAtLonLat, work, type Theater } from '../sim/war/theater';
 import { diploOdds, doDiplo, type DiploAction } from '../sim/diplomacy';
 import { loadScenario, staticFor } from './scenarios';
@@ -20,7 +21,7 @@ import { audio, type Cue } from './audio';
 
 export type Panel = { kind: 'economy' | 'politics' | 'military' | 'diplomacy' | 'ledger' | 'chronicle' | 'timelapse' } | { kind: 'province'; id: number } | { kind: 'country'; id: number } | { kind: 'war'; id: number } | null;
 /** What an order at the pointer would do, while an army is picked up (for an attack, see strikeOdds). */
-export interface Aim { kind?: 'attack' | 'hold' | 'wait' | 'station'; err: string | null; odds: number; n: number; reserves: number; foes: number; def: number; from: [number, number] | null; to: [number, number] | null; ids: number[] }
+export interface Aim { kind?: 'attack' | 'hold' | 'wait' | 'station' | 'landing'; days?: number; err: string | null; odds: number; n: number; reserves: number; foes: number; def: number; from: [number, number] | null; to: [number, number] | null; ids: number[] }
 export interface GameState { day: number; speed: number; paused: boolean; tick: number; panel: Panel; turnMode: World['settings']['turnMode']; menu: boolean; toast: string; declare: number; aim: Aim | null; army: number | null }
 /** a cell of ours within 80 km of the front: an army sent there holds it (further back, it waits in reserve) */
 const nearFront = (th: Theater, k: number) => { const d = work(th).distF[k]; return d >= 0 && d * th.cellKm <= 80; };
@@ -106,7 +107,7 @@ export class Game {
     const id = this.st.get().army!, a = this.w.armies.find(x => x.id === id)!, r = orderArmy(this.w, this.S, id, lon, lat);
     if (r.err) { this.toast(t(r.err)); return; }
     const p = provAtLonLat(this.S, lon, lat);
-    this.toast(t('army.done.' + (r.kind === 'station' ? 'station' : r.kind === 'attack' ? 'attack' : 'move'), { a: armyName(a.num), p: p >= 0 ? this.S.provinces[p].name : '' }));
+    this.toast(t('army.done.' + (r.kind === 'station' ? 'station' : r.kind === 'attack' ? 'attack' : r.kind === 'landing' ? 'landing' : 'move'), { a: armyName(a.num), p: p >= 0 ? this.S.provinces[p].name : '' }));
     this.aimAt = ''; this.afterDay(); this.bump(); this.sound('order'); // the army stays picked up, for the next order
   }
   /** an order given at a screen point (a click, a right-click or a drop): onto another of our armies = merge into it, else an order there */
@@ -138,9 +139,11 @@ export class Game {
       const k = cellOf(th, lon, lat); if (k < 0 || !th.land[k] || !th.sideOf[this.player] || th.frozen) continue;
       if (th.c[k] * th.sideOf[this.player] > 0) { this.st.set({ aim: { ...base, kind: nearFront(th, k) ? 'hold' : 'wait', err: null } }); return; }
       const r = strikeOdds(this.w, war, th, this.player, [lon, lat], id);
+      if (r.err === 'off.blocked' || r.err === 'off.tooFar') { const l = landingPlan(this.w, this.S, id, lon, lat); if (!l.err) { this.st.set({ aim: { ...base, kind: 'landing', err: null, odds: l.p, foes: l.foes, days: l.days } }); return; } }
       this.st.set({ aim: { kind: 'attack', err: r.err, odds: r.odds, n: r.units.length, reserves: 0, foes: r.foes, def: r.def, from: r.from, to: r.to ?? null, ids: r.units.filter(d => d.theater === th.id).map(d => d.id) } }); return;
     }
     const p = provAtLonLat(this.S, lon, lat), pr = p >= 0 ? this.w.provinces[p] : null;
+    if (pr && pr.controller !== this.player) { const l = landingPlan(this.w, this.S, id, lon, lat); if (!l.err) { this.st.set({ aim: { ...base, kind: 'landing', err: null, odds: l.p, foes: l.foes, days: l.days } }); return; } } // enemy coast with no front: a landing
     this.st.set({ aim: pr && pr.owner === this.player && pr.controller === this.player ? { ...base, kind: 'station', err: null, to: this.S.provinces[p].label } : { ...base, err: 'army.notOurs', from: null, to: null } });
   }
   /** while an army is picked up: what an order at the pointer would be (recomputed when the pointer moves or a day passes) */

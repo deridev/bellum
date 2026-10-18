@@ -21,6 +21,7 @@ export interface Theater {
   sideOf: Record<number, 1 | -1>; offensives: Offensive[]; cities: { name: string; k: number; side: number; tier: number }[];
   lead: [number, number]; frozen: boolean; dmz: Float32Array | null; created: number;
   aggr?: [number, number]; // how hard each AI side pushes on this front (from the local balance)
+  beach?: [number, number][]; // beachheads supplied from the sea: [cell, side], while that side holds the cell
 }
 /** scratch buffers (not saved) */
 interface Work { c2: Float32Array; P0: Float32Array; P1: Float32Array; tmp: Float32Array; F: Float32Array; eff0: Float32Array; eff1: Float32Array; distF: Int16Array; q: Int32Array; dtmp: Int16Array; air: [number, number]; atk: [number, number]; aggr: [number, number]; act: Int32Array; nAct: number }
@@ -259,6 +260,7 @@ function updateSupply(w: World, S: MapStatic, t: Theater, wk: Work) {
     for (let j = 0; j < H; j++) for (const i of [0, W - 1]) { const k = j * W + i; if (land[k] && c[k] * side > 0) edge.push(k); }
     for (const [cs, s] of Object.entries(t.sideOf)) if (s === side) { const cap = w.countries[+cs].capital, [lon, lat] = S.provinces[cap].label; const k = cellOf(t, lon, lat); if (k >= 0 && land[k] && c[k] * side > 0) caps.push(k); }
     for (const city of t.cities) if (city.tier <= 2 && land[city.k] && c[city.k] * side > 0 && isCoast(t, city.k)) ports.push(city.k);
+    if (t.beach) for (const [k, s] of t.beach) if (s === side && land[k] && c[k] * side > 0) ports.push(k); // a beachhead is supplied from the sea
     const groups: { ks: number[]; cap: number; rangeKm: number }[] = [{ ks: edge, cap: 0.95, rangeKm: 900 }, { ks: caps, cap: 1, rangeKm: 1100 }, { ks: ports, cap: 0.8, rangeKm: 450 }];
     bfs(t, wk, groups.flatMap(g => g.ks), side, 0);
     for (let k = 0; k < N; k++) if (wk.dtmp[k] >= 0) eff[k] = 0.22;

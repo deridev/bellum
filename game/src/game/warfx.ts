@@ -326,6 +326,14 @@ export class WarFx {
   drawAim(ctx: CanvasRenderingContext2D, cam: Camera, w: World, aim: Aim, now: number) {
     if (aim.err || !aim.from || !aim.to) return;
     const scr = (lon: number, lat: number) => cam.toScreen(...project(lon, lat));
+    if (aim.kind === 'landing') { // across the sea: an arc to an anchor on the beach, coloured by the odds
+      const [ax, ay] = scr(...aim.from), [bx, by] = scr(...aim.to), mx = (ax + bx) / 2 - (by - ay) * 0.2, my = (ay + by) / 2 + (bx - ax) * 0.2, col = aim.odds >= 0.6 ? '#8fd07a' : aim.odds >= 0.35 ? '#e8c063' : '#e0645a';
+      ctx.save(); ctx.setLineDash([8, 6]); ctx.lineDashOffset = -now * 24 % 14; ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(8,12,18,0.7)'; ctx.lineWidth = 4.5; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.quadraticCurveTo(mx, my, bx, by); ctx.stroke();
+      ctx.strokeStyle = col; ctx.lineWidth = 2.2; ctx.stroke(); ctx.setLineDash([]);
+      ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(bx, by - 4, 3, 0, 7); ctx.moveTo(bx, by - 1); ctx.lineTo(bx, by + 8); ctx.moveTo(bx - 6, by + 3); ctx.quadraticCurveTo(bx, by + 11, bx + 6, by + 3); ctx.stroke();
+      ctx.restore(); return;
+    }
     if (aim.kind && aim.kind !== 'attack') { // a move: a pale dashed line to a ring where the army will stand
       const [ax, ay] = scr(...aim.from), [bx, by] = scr(...aim.to);
       ctx.save(); ctx.setLineDash([6, 6]); ctx.lineDashOffset = -now * 24 % 12; ctx.lineCap = 'round';
