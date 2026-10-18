@@ -2,3 +2,4 @@ node_modules
 dist
 tools/cache/*
 !tools/cache/fetch.sh
+vite.log
