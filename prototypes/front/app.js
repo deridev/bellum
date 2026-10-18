@@ -173,11 +173,11 @@
   // stays still when the front is still, and it drains away when the push stops.
   const OFF = { list: [], next: 1 };
   const shownDayOf = mix => sim.day - 2 + mix; // the map is drawn two days behind the sim
-  function cAt(x, y) { // bilinear control value at a world point (NaN off Korean land)
+  function cAt(x, y, arr) { // bilinear control value at a world point (NaN off Korean land)
     const gx = (x - S.GX0) / S.CELL - 0.5, gy = (y - S.GY0) / S.CELL - 0.5, i = Math.floor(gx), j = Math.floor(gy);
     if (i < 0 || j < 0 || i >= S.GW - 1 || j >= S.GH - 1) return NaN;
     const k = j * S.GW + i, fx_ = gx - i, fy = gy - j; let sum = 0, w = 0;
-    const add = (kk, ww) => { if (sim.kor[kk]) { sum += sim.c[kk] * ww; w += ww; } };
+    const C = arr || sim.c, add = (kk, ww) => { if (sim.kor[kk]) { sum += C[kk] * ww; w += ww; } };
     add(k, (1 - fx_) * (1 - fy)); add(k + 1, fx_ * (1 - fy)); add(k + S.GW, (1 - fx_) * fy); add(k + S.GW + 1, fx_ * fy);
     return w > 0.1 ? sum / w : NaN;
   }
@@ -197,13 +197,13 @@
       const sg = b.side === 0 ? 1 : -1; let best = null, bd = 0.6;
       for (const o of live) if (o.side === b.side) { const t = o.tips[o.tips.length - 1]; const d = Math.hypot(t.x - b.x, t.y - b.y); if (d < bd) { bd = d; best = o; } }
       if (best) { best.last = L; best.size = Math.max(best.size * 0.95, b.size); best.dx += (b.dx - best.dx) * 0.15; best.dy += (b.dy - best.dy) * 0.15; const l = Math.hypot(best.dx, best.dy); best.dx /= l; best.dy /= l; continue; }
-      if (b.size < 55 || live.filter(o => o.side === b.side).length >= 3) continue;
+      if (b.size < 80 || live.filter(o => o.side === b.side).length >= 2) continue;
       let tx = b.x - b.dx * 0.5, ty = b.y - b.dy * 0.5;
       for (let n = 0; n < 12 && !(cAt(tx, ty) * sg > 0.6); n++) { tx -= b.dx * 0.06; ty -= b.dy * 0.06; }
       if (!(cAt(tx, ty) * sg > 0)) continue;
       const [hx, hy] = march(tx, ty, b.dx, b.dy, sg, 2.2);
       if (Math.hypot(hx - tx, hy - ty) < 0.18) continue;
-      const o = { id: OFF.next++, side: b.side, tail: [tx, ty], dx: b.dx, dy: b.dy, tips: [{ d: L, x: hx, y: hy }], bornDay: L, last: L, size: b.size, endDay: 0, t0: 0, tEnd: 0, vs: 0, prev: null, impact: false };
+      const o = { id: OFF.next++, side: b.side, tail: [tx, ty], dx: b.dx, dy: b.dy, tips: [{ d: L, x: hx, y: hy }], bornDay: L, last: L, size: b.size, endDay: 0, t0: 0, tEnd: 0, vs: 0, prev: null, k: 0, kv: 0 };
       OFF.list.push(o); live.push(o);
     }
     for (const o of live) {
@@ -243,11 +243,12 @@
       if (!o.t0 && sd >= o.bornDay) o.t0 = now;
       if (o.endDay && !o.tEnd && o.t0 && sd >= o.endDay) o.tEnd = now;
       if (!o.t0) continue;
-      // tip speed (px/s) drives squash and stretch and the sparks at the point of the push
+      // tip speed (px/s) drives the stretch and how hard the tip presses into the front
       const h = toScreen(...tipAt(o, sd)); if (o.prev) { const v = Math.hypot(h[0] - o.prev[0], h[1] - o.prev[1]) / Math.max(dt, 1e-3); o.vs += (Math.min(v, 400) - o.vs) * Math.min(1, dt * 6); } o.prev = h;
-      if (!o.tEnd && now - o.t0 > 0.6 && state.playing && o.vs > 8 && Math.random() < o.vs * dt * 0.35) {
-        const [x, y] = tipAt(o, sd); fx.sparks.push({ x: x + (Math.random() - 0.5) * S.CELL * 2, y: y + (Math.random() - 0.5) * S.CELL * 2, t0: now, life: 0.35, big: Math.random() < 0.3 });
-      }
+      // push strength is a spring: thrust overshoots (anticipation, impact), then settles; at the end it relaxes
+      const e = now - o.t0;
+      const kt = o.tEnd ? 0 : e < 0.22 ? -0.15 : e < 0.55 ? 1.25 : 0.45 + 0.55 * Math.min(1, o.vs / 35);
+      o.kv += (kt - o.k) * 70 * dt; o.kv *= Math.exp(-8 * dt); o.k += o.kv * dt;
     }
     OFF.list = OFF.list.filter(o => !(o.tEnd && now - o.tEnd > 1.0));
     // artillery flashes along hot stretches of front
@@ -281,50 +282,48 @@
 
   const easeOutBack = q => { const c1 = 1.9, c3 = c1 + 1; return 1 + c3 * Math.pow(q - 1, 3) + c1 * Math.pow(q - 1, 2); };
   const easeOut = q => 1 - (1 - q) * (1 - q), easeInCubic = q => q * q * q;
+  const TIP_LEAD = 0.05; // world units the arrowhead leads the line while pressing
+  function tipOf(o, sd) { const [x, y] = tipAt(o, sd), l = TIP_LEAD * Math.max(0, o.k); return [x + o.dx * l, y + o.dy * l]; }
   function drawOffensive(o, sd, now) {
     if (!o.t0) return;
     const e = now - o.t0, f = o.tEnd ? now - o.tEnd : -1;
     let s = 1, u = 0, alpha = 1, wind = 0, hw = 1, hl = 1;
-    // anticipation: a short stub winds back, then the arrow thrusts forward and overshoots
-    if (e < 0.22) { s = 0.07 * easeOut(e / 0.22); wind = Math.sin(Math.PI * e / 0.22); alpha = e / 0.22; }
-    else if (e < 0.62) s = 0.07 + 0.93 * easeOutBack((e - 0.22) / 0.4);
-    // impact: the head squashes against the front, then rings out
-    if (e > 0.5) { const q = e - 0.5, damp = Math.exp(-q * 7) * Math.cos(q * 24); hw *= 1 + 0.5 * damp; hl *= 1 - 0.32 * damp;
-      if (!o.impact) { o.impact = true; const [x, y] = tipAt(o, sd); fx.sparks.push({ x, y, t0: now, life: 0.6, big: true }); fx.ripples.push({ lon: 0, lat: 0, wx: x, wy: y, side: o.side, tier: 3, t0: now, day: 0 }); } }
-    // stretch with speed (volume kept: longer head, slimmer)
-    const st = 1 + Math.min(0.4, o.vs / 260); hl *= st; hw /= Math.sqrt(st);
-    // follow-through: the head settles, then the arrow drains from the tail
-    if (f >= 0) { if (f < 0.25) hw *= 1 + 0.22 * Math.sin(Math.PI * f / 0.25); else u = easeInCubic(Math.min(1, (f - 0.25) / 0.6)); alpha = 1 - Math.min(1, Math.max(0, (f - 0.6) / 0.3)); }
+    if (e < 0.22) { s = 0.12 * easeOut(e / 0.22); wind = Math.sin(Math.PI * e / 0.22); alpha = e / 0.22; } // anticipation
+    else if (e < 0.6) s = 0.12 + 0.88 * easeOutBack((e - 0.22) / 0.38); // thrust
+    const push = Math.max(0, o.k); hw *= 1 + 0.25 * Math.max(0, push - 0.9); hl *= 1 - 0.15 * Math.max(0, push - 0.9); // squash when it hits
+    const st = 1 + Math.min(0.3, o.vs / 300); hl *= st; hw /= Math.sqrt(st); // stretch with speed
+    if (f >= 0) { u = easeInCubic(Math.min(1, f / 0.7)); alpha = 1 - Math.min(1, Math.max(0, (f - 0.45) / 0.35)); } // follow-through
     if (alpha <= 0.01) return;
-    let P = offPath(o, sd).map(p => toScreen(p[0] - o.dx * 0.04 * wind, p[1] - o.dy * 0.04 * wind));
+    const path = offPath(o, sd); path[path.length - 1] = tipOf(o, sd);
+    const P = path.map(p => toScreen(p[0] - o.dx * 0.04 * wind, p[1] - o.dy * 0.04 * wind));
     const cum = [0]; for (let k = 1; k < P.length; k++) cum.push(cum[k - 1] + Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1]));
     const total = cum[cum.length - 1]; if (total < 10) return;
-    const at = d => { // point + tangent at arc length d (extends past the head for the overshoot)
+    const at = d => {
       if (d >= total) { const a = P[P.length - 2], b = P[P.length - 1], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, tx = (b[0] - a[0]) / l, ty = (b[1] - a[1]) / l; return [b[0] + tx * (d - total), b[1] + ty * (d - total), tx, ty]; }
       let k = 1; while (k < cum.length - 1 && cum[k] < d) k++;
       const a = P[k - 1], b = P[k], l = (cum[k] - cum[k - 1]) || 1, q = (d - cum[k - 1]) / l, tx = (b[0] - a[0]) / l, ty = (b[1] - a[1]) / l;
       return [a[0] + (b[0] - a[0]) * q, a[1] + (b[1] - a[1]) * q, tx, ty];
     };
-    const W = Math.max(10, Math.min(22, 8 + Math.sqrt(o.size) * 0.7)), headL = W * 1.7 * hl, headW = W * 2.2 * hw;
-    const d0 = u * total, d1 = s * total, bodyEnd = Math.max(d0, d1 - headL);
+    // only the business end: a short body that fades out behind the head
+    const W = Math.max(6, Math.min(11, 5 + Math.sqrt(o.size) * 0.35)), headL = W * 2.0 * hl, headW = W * 2.3 * hw;
+    const d1 = s * total, d0 = Math.max(u * total, d1 - Math.min(150, total)), bodyEnd = Math.max(d0, d1 - headL);
     if (d1 - d0 < 4) return;
-    const left = [], right = [], N = 22;
+    const left = [], right = [], N = 18;
     for (let k = 0; k <= N; k++) {
       const d = d0 + (bodyEnd - d0) * k / N, [x, y, tx, ty] = at(d), a = (d - d0) / Math.max(1, d1 - d0);
-      const w = W * (0.22 + 0.78 * Math.min(1, a * 1.15)) / 2; left.push([x - ty * w, y + tx * w]); right.push([x + ty * w, y - tx * w]);
+      const w = W * (0.15 + 0.85 * Math.min(1, a * 1.1)) / 2; left.push([x - ty * w, y + tx * w]); right.push([x + ty * w, y - tx * w]);
     }
-    const [bx, by, btx, bty] = at(bodyEnd), [tipX, tipY] = at(d1 + 2);
-    ctx.save(); ctx.globalAlpha = alpha;
+    const [bx, by, btx, bty] = at(bodyEnd), [tipX, tipY] = at(d1);
+    ctx.save(); ctx.globalAlpha = alpha * 0.85;
     ctx.beginPath(); ctx.moveTo(...left[0]); for (const q of left) ctx.lineTo(...q);
     ctx.lineTo(bx - bty * headW / 2, by + btx * headW / 2); ctx.lineTo(tipX, tipY); ctx.lineTo(bx + bty * headW / 2, by - btx * headW / 2);
     for (let k = right.length - 1; k >= 0; k--) ctx.lineTo(...right[k]); ctx.closePath();
     const [sx0, sy0] = at(d0), g = ctx.createLinearGradient(sx0, sy0, tipX, tipY);
-    g.addColorStop(0, `rgba(${SIDE_RGB[o.side]},0.15)`); g.addColorStop(0.45, `rgba(${SIDE_RGB[o.side]},0.75)`); g.addColorStop(1, `rgba(${SIDE_RGB[o.side]},1)`);
-    ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 2; ctx.fillStyle = g; ctx.fill();
-    ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; ctx.lineJoin = 'round'; ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.92)'; ctx.stroke();
-    // bow wave: the point glows while it is actually pushing
-    const push = Math.min(1, o.vs / 60);
-    if (push > 0.05 && f < 0) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha * push * 0.8; const r = headW * 0.9; ctx.drawImage(FLASH, tipX - r, tipY - r, 2 * r, 2 * r); ctx.globalCompositeOperation = 'source-over'; }
+    const dark = o.side === 0 ? '96,8,22' : '10,38,96'; // a darker shade of its own colour: reads on own territory without shouting
+    g.addColorStop(0, `rgba(${dark},0)`); g.addColorStop(0.6, `rgba(${dark},0.5)`); g.addColorStop(1, `rgba(${dark},0.85)`);
+    ctx.fillStyle = g; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(bx - bty * headW / 2, by + btx * headW / 2); ctx.lineTo(tipX, tipY); ctx.lineTo(bx + bty * headW / 2, by - btx * headW / 2);
+    ctx.lineJoin = 'round'; ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(255,240,235,0.55)'; ctx.stroke();
     ctx.restore();
   }
 
@@ -379,27 +378,54 @@
     }
     ctx.globalAlpha = 1;
 
-    // units: each division shows as a small cluster of flags (one per ~6,000 men)
-    const s = Math.min(1.9, Math.max(0.75, Math.pow(zoom, 0.4)));
+    // units: one flag per division, kept on its own side of the line; attackers lunge at the front
+    const s = Math.min(1.8, Math.max(0.8, Math.pow(zoom, 0.4)));
     const w = 11 * s, h = 7.5 * s; const sums = [[0, 0, 0], [0, 0, 0]];
     const blink = 0.55 + 0.45 * Math.sin(t * 6);
-    const spread = Math.max(6, Math.min(16, 9 * s));
+    const lag0 = fx.cLag[0], lag1 = fx.cLag[1] || lag0;
+    const cDisp = (x, y) => lag0 ? cAt(x, y, lag0) * (1 - mix) + cAt(x, y, lag1) * mix : cAt(x, y);
+    const gstep = S.CELL * 0.5;
     for (const u of sim.units) {
-      const [ux, uy] = unitPos(u, mix); const [x, y] = toScreen(ux, uy);
+      let [ux, uy] = unitPos(u, mix); const sg = u.side === 0 ? 1 : -1;
+      if (!u.seen) u.seen = t;
+      // staging: keep the flag behind the line it is fighting on (never on top of it)
+      let ox = 0, oy = 0, room = 99, fwx = 0, fwy = 0;
+      const cv = cDisp(ux, uy) * sg;
+      if (cv === cv && cv < 0.97) {
+        const gx = (cDisp(ux + gstep, uy) - cDisp(ux - gstep, uy)) * sg / (2 * gstep), gy = (cDisp(ux, uy + gstep) - cDisp(ux, uy - gstep)) * sg / (2 * gstep);
+        const gl = Math.hypot(gx, gy);
+        if (gl > 1e-3 && gx === gx && gy === gy) {
+          const dist = cv / gl, need = (h / 2 + 4) * view.upp; // world distance to the line, and what the flag needs
+          fwx = -gx / gl; fwy = -gy / gl; // toward the enemy
+          if (dist < need) { const back = Math.min(need - dist, need * 3); ox -= fwx * back; oy -= fwy * back; room = 2; } else room = (dist - need) / view.upp + 2;
+        }
+      }
+      let [x, y] = toScreen(ux + ox, uy + oy);
       const k = sim.cellAt(u.x, u.y);
       if (k >= 0 && sim.distF[k] >= 0 && sim.distF[k] <= 8) { const sum = sums[u.side]; sum[0] += x * u.str; sum[1] += y * u.str; sum[2] += u.str; }
       if (x < -30 || y < -30 || x > view.w + 30 || y > view.h + 30) continue;
-      const n = zoom > 3 ? 1 : Math.max(1, Math.min(4, Math.round(u.str / 6000)));
-      const bob = u.retreat ? Math.sin(t * 9 + u.id) * 0.8 : 0;
-      ctx.globalAlpha = 0.6 + 0.4 * Math.min(1, u.str / u.max);
-      for (let i = 0; i < n; i++) {
-        const fx_ = x + (i ? (hash(u.id * 31 + i) - 0.5) * spread * 2 : 0), fy = y + bob + (i ? (hash(u.id * 57 + i * 7) - 0.5) * spread * 1.4 : 0);
-        FLAG[u.fac](fx_ - w / 2, fy - h / 2, w, h);
-        ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.strokeRect(fx_ - w / 2 - 0.5, fy - h / 2 - 0.5, w + 1, h + 1);
-      }
+      // the push: pull back (anticipation), thrust, squash on contact, settle
+      let sx = 1, sy = 1;
+      const heat = k >= 0 ? sim.heat[k] : 0;
+      if (fwx && sim.atk[u.side] > 1.02 && heat > 0.25 && !u.retreat && u.sup > 0 && !sim.frozen) {
+        const per = 1.7 + hash(u.id) * 0.9, ph = ((t + hash(u.id * 3) * per) % per) / per, amp = Math.min(1, heat * 1.6) * s;
+        let off = 0, bell = 0;
+        if (ph < 0.2) off = -2 * easeOut(ph / 0.2);
+        else if (ph < 0.32) off = -2 + 7 * easeOut((ph - 0.2) / 0.12);
+        else if (ph < 0.45) { off = 5; bell = Math.sin(Math.PI * (ph - 0.32) / 0.13); }
+        else { const q = (ph - 0.45) / 0.55; off = 5 * (1 - q * q * (3 - 2 * q)); }
+        off = Math.min(off * amp, room);
+        x += fwx * off; y += fwy * off; sx = 1 + 0.2 * bell * amp; sy = 1 - 0.15 * bell * amp;
+      } else if (u.retreat) { const q = Math.sin(t * 7 + u.id) * 0.5 + 0.5; sx = 1 - 0.05 * q; }
+      // a new division pops in
+      const pop = Math.min(1, (t - u.seen) / 0.35); const ps = pop < 1 ? easeOutBack(pop) : 1;
+      const ww = w * sx * ps, hh = h * sy * ps;
+      ctx.globalAlpha = (0.65 + 0.35 * Math.min(1, u.str / u.max)) * Math.min(1, pop * 2);
+      FLAG[u.fac](x - ww / 2, y - hh / 2, ww, hh);
+      ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.strokeRect(x - ww / 2 - 0.5, y - hh / 2 - 0.5, ww + 1, hh + 1);
       ctx.globalAlpha = 1;
-      if (u.sup === 0) { ctx.strokeStyle = `rgba(242,193,78,${blink})`; ctx.lineWidth = 2; ctx.strokeRect(x - w / 2 - 2, y - h / 2 - 2, w + 4, h + 4); }
-      if (u.type === 'armor' || u.type === 'marine') { ctx.fillStyle = '#000'; ctx.fillRect(x - w / 2, y + h / 2 - 1.6 * s, w, 1.6 * s); }
+      if (u.sup === 0) { ctx.strokeStyle = `rgba(242,193,78,${blink})`; ctx.lineWidth = 2; ctx.strokeRect(x - ww / 2 - 2, y - hh / 2 - 2, ww + 4, hh + 4); }
+      if (u.type === 'armor' || u.type === 'marine') { ctx.fillStyle = '#000'; ctx.fillRect(x - ww / 2, y + hh / 2 - 1.6 * s, ww, 1.6 * s); }
     }
     // divisions that just surrendered (white flag) or broke (cross)
     for (const g of fx.ghosts) {
@@ -494,7 +520,9 @@
     // camera shake on big moments (screen-space, tiny)
     const sx = reduceMotion ? 0 : (Math.random() - 0.5) * fx.shake, sy = reduceMotion ? 0 : (Math.random() - 0.5) * fx.shake;
     view.x += sx * view.upp; view.y += sy * view.upp;
-    ren.draw(view, mix, ts, { grid: state.grid });
+    const sdNow = shownDayOf(mix);
+    const tips = OFF.list.filter(o => o.t0 && Math.abs(o.k) > 0.01).map(o => { const [x, y] = tipAt(o, sdNow); return [x, y, o.dx, o.dy, o.k, o.side === 0 ? 1 : -1]; });
+    ren.draw(view, mix, ts, { grid: state.grid, tips });
     drawOverlay(mix, ts);
     view.x -= sx * view.upp; view.y -= sy * view.upp;
     requestAnimationFrame(frame);

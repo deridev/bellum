@@ -47,6 +47,7 @@
   uniform vec4 uLandBox, uGridBox; uniform vec2 uGridSize, uLandSize;
   uniform sampler2D tLand, tHeight, tF0, tF1, tF2, tF3, tPocket, tDmz, tX1, tX2;
   uniform vec3 uNorth, uSouth;
+  uniform vec4 uTipA[6]; uniform vec2 uTipB[6]; uniform int uTipN;
   out vec4 o;
 
   // integer hash: stays clean at any zoom (float hashes streak at large coordinates)
@@ -84,6 +85,16 @@
     for (int k=0;k<3;k++){ float fade = smoothstep(uUpp*3.0, uUpp*10.0, 1.0/f); float sp = 0.7*float(k+1);
       w += (vec2(vn(p*f + vec2(t*sp, 3.0)), vn(p*f + vec2(7.0, -t*sp))) - 0.5) * a * fade; f *= 2.4; a *= 0.5; }
     return w*heat;
+  }
+  // Offensive tips press into the front like a finger into a membrane: an elongated bump
+  // just behind each tip pushes the zero line forward so the arrow visibly drives the bulge.
+  float tipPush(vec2 p){
+    float s = 0.0;
+    for (int i=0;i<6;i++){ if (i >= uTipN) break;
+      vec2 d = p - uTipA[i].xy, dir = uTipA[i].zw; float al = dot(d, dir), pe = dot(d, vec2(-dir.y, dir.x)), R = 0.10;
+      float g = exp(-pow((al + 0.55*R)/R, 2.0) - pow(pe/(0.55*R), 2.0));
+      s += uTipB[i].y * uTipB[i].x * g; }
+    return s;
   }
   // Catmull-Rom through four daily snapshots: smooth motion with no speed jerks between days
   float cr4(float p0, float p1, float p2, float p3, float t){
@@ -139,7 +150,7 @@
     vec2 guv = (gp - uGridBox.xy) / uGridBox.zw;
     float c0 = bicubic(tF0, guv, uGridSize).r, c1 = bicubic(tF1, guv, uGridSize).r, c2 = bicubic(tF2, guv, uGridSize).r, c3 = bicubic(tF3, guv, uGridSize).r;
     float cr = cr4(c0, c1, c2, c3, uMix)*2.0 - 1.0;
-    float c = cr + edgeNoise(p);
+    float c = cr + edgeNoise(p) + tipPush(p)*2.2;
     if (uGrid > 0.5) { // debug: what the simulation actually sees
       vec2 gi = floor(guvRaw*uGridSize); float raw = texelFetch(tF2, ivec2(clamp(gi, vec2(0), uGridSize-1.0)), 0).r*2.0-1.0;
       c = raw; vec2 gf = fract(guvRaw*uGridSize); float gl = step(0.92, max(gf.x, gf.y));
@@ -318,6 +329,9 @@
     bind(this.tF[at(0)], 2, 'tF0'); bind(this.tF[at(1)], 3, 'tF1'); bind(this.tF[at(2)], 4, 'tF2'); bind(this.tF[at(3)], 5, 'tF3');
     bind(this.tPocket, 6, 'tPocket'); bind(this.tDmz, 7, 'tDmz');
     bind(this.tX[at(1)], 8, 'tX1'); bind(this.tX[at(2)], 9, 'tX2');
+    const tips = (opts.tips || []).slice(0, 6), A = new Float32Array(24), B = new Float32Array(12);
+    tips.forEach((t, i) => { A.set([t[0], t[1], t[2], t[3]], i * 4); B.set([t[4], t[5]], i * 2); });
+    gl.uniform4fv(u.uTipA, A); gl.uniform2fv(u.uTipB, B); gl.uniform1i(u.uTipN, tips.length);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   };
 

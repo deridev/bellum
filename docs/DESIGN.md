@@ -144,10 +144,12 @@ The sim core resolves "a set of orders → next state." Sequential mode is the s
   - *Anticipation*: when a real push starts, a stub winds back from a tail anchored in its own lines.
   - *Thrust with overshoot*: it then shoots to the front.
   - *Squash on impact*: the head squashes against the line, with a flash and a ring.
-  - *Follow the front*: the tip is locked to the visible front, so the arrow grows as the line moves and is **still when the front is still**.
+  - *The tip pushes, it doesn't follow*: the arrowhead leads the line slightly and the front bulges around it, like a finger pressed into a membrane. The press is a spring: it overshoots on impact, rides with the speed of the advance, and relaxes when the push ends. When the front is still, the arrow is still.
+  - *Quiet by default*: at most two arrows per side, only for real offensives. Each is a short, darker shade of its own side's colour with a fading tail; only the head is outlined.
   - *Stretch*: the head stretches with speed, and sparks fly at the point of the push (secondary action).
   - *Arcs*: the body bends along the route the push actually took.
   - *Follow-through*: when the push stops, the head settles and the arrow drains away from the tail.
+- **Units follow the same rules**: one flag per division, always kept on its own side of the line. Attacking divisions on a hot front lunge at it (pull back, thrust, squash on contact, settle), staggered so the line never pulses in sync. New divisions pop in.
 - **Staging: nothing covers the front.** Troop totals sit inside each side's territory, clear of the line, the band of unit flags, city names and the HUD. They hold their spot unless a clearly better one appears, and they cross-fade rather than sweep across the map. Banners use the free strip between HUD panels (on small screens, a card over the HUD).
 - **Turning points** get a cinematic banner and a small camera shake. **Cities changing hands** ripple in the new owner's colour. **Surrendering divisions** leave a white flag; broken ones a cross.
 - **Troop totals** pulse when they change fast.
