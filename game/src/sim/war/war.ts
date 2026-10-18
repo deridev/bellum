@@ -181,7 +181,7 @@ function leaders(w: World, t: Theater): [number, number] {
 function reportCities(w: World, t: Theater, war: War) {
   for (const city of t.cities) {
     const s = t.c[city.k] >= 0 ? 1 : -1;
-    if (s !== city.side) { city.side = s; const who = s > 0 ? t.lead[0] : t.lead[1]; if (who >= 0) say(w, `${city.name} falls to ${w.countries[who].name}`, 'city', { who: [who, ...(s > 0 ? war.defenders : war.attackers)] }); }
+    if (s !== city.side) { city.side = s; const who = s > 0 ? t.lead[0] : t.lead[1]; if (who >= 0) say(w, `${city.name} falls to ${w.countries[who].name}`, 'city', { who: [who, ...(s > 0 ? war.defenders : war.attackers)], at: cellLonLat(t, city.k) }); }
   }
 }
 /** grow a theater when the front nears its edge */
@@ -248,6 +248,14 @@ export function termsCost(w: World, war: War, side: 1 | -1, terms: PeaceTerms): 
   return Math.round(tot);
 }
 /** Would the other side accept? (AI) */
+/** The provinces a side holds of its enemies' land, most valuable first, as many as a war score of `budget` pays for. */
+export function heldDemand(w: World, war: War, side: 1 | -1, budget: number): number[] {
+  const losers = side > 0 ? war.defenders : war.attackers, winners = side > 0 ? war.attackers : war.defenders;
+  const held = w.provinces.filter(p => losers.includes(p.owner) && winners.includes(p.controller)).sort((a, b) => b.gdp - a.gdp);
+  const pick: number[] = [];
+  for (const p of held) if (termsCost(w, war, side, { type: 'treaty', provinces: [...pick, p.id] }) <= budget) pick.push(p.id);
+  return pick;
+}
 export function acceptsPeace(w: World, war: War, from: 1 | -1, terms: PeaceTerms): { ok: boolean; why: string } {
   const myScore = war.score * from; // from proposer's view
   const theirEx = war.exhaustion[from > 0 ? 1 : 0];

@@ -3,8 +3,8 @@ import { km } from '../../geo';
 import { nextRand } from '../rng';
 import type { MapStatic, War, World } from '../types';
 import { say } from '../world';
-import { acceptsPeace, activeWars, makePeace, sendToTheater, sideOf, termsCost, theatersOf, type PeaceTerms } from './war';
-import { cellLonLat, cellOf, offensiveTip, T, unitPower, work, type Offensive, type Theater } from './theater';
+import { acceptsPeace, activeWars, heldDemand, makePeace, sendToTheater, sideOf, theatersOf, type PeaceTerms } from './war';
+import { cellLonLat, cellOf, T, unitPower, work, type Offensive, type Theater } from './theater';
 
 /** Military strength of each side in a theater (arrived units only). */
 export function theaterStrength(w: World, t: Theater): [number, number] {
@@ -26,9 +26,9 @@ export function warAI(w: World, S: MapStatic) {
         war.aggr[side > 0 ? 0 : 1] = ratio > 1.35 ? 1.22 : ratio > 1.0 ? 1.08 : ratio > 0.75 ? 0.98 : 0.9;
       }
     }
-    // reinforcements
-    if (w.day % 4 === 0) for (const c of [...war.attackers, ...war.defenders]) if (isAI(w, c)) reinforce(w, S, war, c, ths);
-    if (w.day % 3 === 1) for (const t of ths) for (const c of Object.keys(t.sideOf).map(Number)) if (isAI(w, c)) redeploy(w, S, t, c);
+    // logistics run for everyone, players included: reinforcements up to the committed share, rail moves to threatened sectors
+    if (w.day % 4 === 0) for (const c of [...war.attackers, ...war.defenders]) reinforce(w, S, war, c, ths);
+    if (w.day % 3 === 1) for (const t of ths) for (const c of Object.keys(t.sideOf).map(Number)) redeploy(w, S, t, c);
     // offensives
     for (const t of ths) {
       for (const o of t.offensives) if (!o.ended && (o.org < 0.08 || w.day - o.created > 45 || reached(t, o))) o.ended = w.day;
@@ -43,9 +43,7 @@ export function warAI(w: World, S: MapStatic) {
 function reinforce(w: World, S: MapStatic, war: War, c: number, ths: Theater[]) {
   const mine = w.divisions.filter(d => d.country === c);
   const inWar = mine.filter(d => ths.some(t => t.id === d.theater)).length;
-  const C = w.countries[c], capThreat = war.score * sideOf(war, c) < -30;
-  // how much of the army to commit: more when it is a fight for survival, less for a far-off war
-  const share = capThreat ? 0.92 : sideOf(war, c) > 0 ? 0.6 : 0.85;
+  const share = commitShare(w, war, c);
   const want = Math.ceil(mine.length * share) - inWar; if (want <= 0) return;
   const reserves = mine.filter(d => d.theater < 0);
   const batch = Math.min(want, Math.max(2, Math.ceil(mine.length / 20)), reserves.length);
@@ -56,7 +54,11 @@ function reinforce(w: World, S: MapStatic, war: War, c: number, ths: Theater[]) 
     for (const t of ths) { const s = theaterStrength(w, t), side = t.sideOf[c]; if (!side) continue; const r = side > 0 ? s[0] / Math.max(1, s[1]) : s[1] / Math.max(1, s[0]); if (r < bestR) { bestR = r; best = t; } }
     if (best) sendToTheater(w, S, d, best);
   }
-  void C;
+}
+/** Share of a country's army that goes to a war: the player's choice, else more for a fight for survival, less for a far-off war. */
+export function commitShare(w: World, war: War, c: number) {
+  if (war.commit?.[c] !== undefined) return war.commit[c];
+  return war.score * sideOf(war, c) < -30 ? 0.92 : sideOf(war, c) > 0 ? 0.6 : 0.85;
 }
 
 /** Shift a few divisions from the quietest sectors to the most threatened one (by rail: they vanish and arrive later). */
@@ -104,13 +106,21 @@ function planOffensive(w: World, S: MapStatic, war: War, t: Theater, c: number) 
     const l = Math.hypot(gx, gy) || 1, dirx = -gx / l * side, diry = -gy / l * side;
     target = [fx + dirx * 1.35 / Math.cos(fy * Math.PI / 180), fy + diry * 1.35];
   }
-  // start from our side of the front, nearest the target
+  startOffensive(w, t, c, target, army);
+}
+/** Launch an offensive toward a target: it starts from our side of the front nearest the target. Returns why not, if it can't. */
+export function startOffensive(w: World, t: Theater, c: number, target: [number, number], army?: number): string | null {
+  const side = t.sideOf[c]; if (!side) return 'Not part of this war';
+  const wk = work(t), mine = w.divisions.filter(d => d.country === c && d.theater === t.id && d.arrive <= w.day);
+  const busy = new Set(t.offensives.filter(o => !o.ended && o.country === c).map(o => o.army));
+  if (army === undefined) { const n = new Map<number, number>(); for (const d of mine) if (!busy.has(d.army)) n.set(d.army, (n.get(d.army) || 0) + 1); army = [...n.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]; }
+  if (army === undefined) return mine.length ? 'Every army at this front is already attacking' : 'No divisions at this front yet';
+  const tk = cellOf(t, target[0], target[1]); if (tk >= 0 && t.c[tk] * side > 0) return 'Pick a target on enemy ground';
   let from: [number, number] | null = null, bd = Infinity;
   for (let k = 0; k < t.W * t.H; k += 2) { if (!t.land[k] || wk.distF[k] < 2 || wk.distF[k] > 4 || t.c[k] * side < 0.5) continue; const [x, y] = cellLonLat(t, k); const d = km(x, y, target[0], target[1]); if (d < bd) { bd = d; from = [x, y]; } }
-  if (!from || bd > 600) return;
-  const o: Offensive = { id: w.nextId++, side: side as 1 | -1, country: c, army, from, to: target, created: w.day, org: 1, ended: 0 };
-  t.offensives.push(o);
-  void offensiveTip;
+  if (!from || bd > 600) return 'Too far from the front (600 km at most)';
+  t.offensives.push({ id: w.nextId++, side: side as 1 | -1, country: c, army, from, to: target, created: w.day, org: 1, ended: 0 });
+  return null;
 }
 const cAtSafe = (t: Theater, x: number, y: number) => { const k = cellOf(t, x, y); return k >= 0 ? t.c[k] : 0; };
 
@@ -121,11 +131,7 @@ function peaceAI(w: World, S: MapStatic, war: War) {
     const score = war.score * side, ex = war.exhaustion[side > 0 ? 0 : 1];
     let terms: PeaceTerms | null = null;
     if (score > 35 && (w.day - war.start > 120 || score > 70)) {
-      // take what we hold, as far as the score allows
-      const losers = side > 0 ? war.defenders : war.attackers, winners = side > 0 ? war.attackers : war.defenders;
-      const held = w.provinces.filter(p => losers.includes(p.owner) && winners.includes(p.controller)).sort((a, b) => b.gdp - a.gdp);
-      const pick: number[] = [];
-      for (const p of held) { const tr: PeaceTerms = { type: 'treaty', provinces: [...pick, p.id] }; if (termsCost(w, war, side, tr) <= score) pick.push(p.id); }
+      const pick = heldDemand(w, war, side, score);
       if (pick.length) terms = { type: 'treaty', provinces: pick };
     } else if (score < -45 && ex > 0.3) terms = { type: 'white', provinces: [] };
     else {

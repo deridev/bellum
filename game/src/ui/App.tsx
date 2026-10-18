@@ -50,6 +50,6 @@ export function MapModes({ s }: { s: Session }) {
 export function HoverTip({ s }: { s: Session }) {
   const hover = useStore(s.ui, u => u.hover), mouse = useStore(s.ui, u => u.mouse);
   if (hover < 0) return null;
-  const p = s.assets.provinces[hover], c = s.assets.countries[s.owner[hover]];
-  return <div class="tip card" style={{ left: mouse[0], top: mouse[1] }}><b>{p.name}</b> <span>· {c.name} · <span style={{ textTransform: 'capitalize' }}>{p.terrain}</span></span></div>;
+  const p = s.assets.provinces[hover], c = s.assets.countries[s.owner[hover]], occ = s.occupier?.(hover);
+  return <div class="tip card" style={{ left: mouse[0], top: mouse[1] }}><b>{p.name}</b> <span>· {c.name}{occ ? <span class="bad"> (held by {occ})</span> : null} · <span style={{ textTransform: 'capitalize' }}>{p.terrain}</span></span></div>;
 }

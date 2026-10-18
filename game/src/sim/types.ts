@@ -60,12 +60,13 @@ export interface War {
   start: number; goal: WarGoal; score: number; // -100 (defenders win) .. 100 (attackers win)
   aggr: [number, number]; // how hard each side pushes (set by AI/player postures)
   exhaustion: [number, number]; casualties: [number, number]; theaters: number[]; ended: number;
+  commit?: Record<number, number>; // share of its army a country sends to this war (players choose; AI decides by role)
 }
 export interface Bloc { name: string; members: number[]; alliance: boolean; leader: number }
 export interface Treaty { type: TreatyType; a: number; b: number; since: number; until: number }
 export type TreatyType = 'alliance' | 'nap' | 'guarantee' | 'access' | 'trade' | 'puppet';
 
-export interface LogEntry { day: number; text: string; kind: LogKind; who?: number[]; prov?: number; big?: string }
+export interface LogEntry { day: number; text: string; kind: LogKind; who?: number[]; prov?: number; big?: string; at?: [number, number] }
 export type LogKind = 'war' | 'peace' | 'diplo' | 'politics' | 'economy' | 'event' | 'city' | 'pocket' | 'player';
 
 export interface AgendaItem { id: number; country: number; day: number; title: string; text: string; options: AgendaOption[]; kind: string; data?: any; expires: number }

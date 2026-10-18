@@ -8,6 +8,8 @@ import { CONSCRIPTION_RATE, rel } from '../sim/world';
 import { MapModes, HoverTip } from './App';
 import { fmtBig, fmtInt, fmtMoney, pct } from './format';
 import { listSaves, loadGame, saveGame, deleteSave } from '../game/save';
+import { AgendaCards, DeclareDialog, ToolHint, WarChip, WarPanel } from './War';
+import { enemies, warsOf } from '../sim/war/war';
 
 export function Flag({ g, code, h = 14 }: { g: Game; code: string; h?: number }) {
   const A = g.s.assets, fi = A.flagIndex[code]; if (!fi) return null;
@@ -26,6 +28,10 @@ export function Hud({ g }: { g: Game }) {
     {st.panel?.kind === 'nation' && <NationPanel g={g} tab={st.panel.tab} />}
     {st.panel?.kind === 'province' && <ProvincePanel g={g} id={st.panel.id} />}
     {st.panel?.kind === 'country' && <CountryPanel g={g} id={st.panel.id} />}
+    {st.panel?.kind === 'war' && <WarPanel g={g} id={st.panel.id} />}
+    <AgendaCards g={g} />
+    <ToolHint g={g} />
+    {st.declare >= 0 && <DeclareDialog g={g} target={st.declare} />}
     {st.menu && <Menu g={g} />}
   </>;
 }
@@ -46,6 +52,7 @@ function TopBar({ g }: { g: Game }) {
       <Chip label="Stability" value={pct(c.stability)} tone={c.stability < 0.35 ? 'bad' : ''} title="Low stability means lost revenue, unrest and, in the worst case, coups" onClick={() => g.openPanel({ kind: 'nation', tab: 'politics' })} />
       <Chip label="War support" value={pct(c.warSupport)} title="Public willingness to fight. Falls with casualties and long wars" onClick={() => g.openPanel({ kind: 'nation', tab: 'politics' })} />
       <Chip label="Influence" value={fmtInt(c.polCap)} title="Political capital: spent on laws and diplomacy" onClick={() => g.openPanel({ kind: 'nation', tab: 'politics' })} />
+      <WarChip g={g} />
     </div>
     <div class="clock">
       <div class="date num">{dateStr(w)}</div>
@@ -214,6 +221,9 @@ function CountryPanel({ g, id }: { g: Game; id: number }) {
       {treaties.length > 0 && <><dt>Treaties with you</dt><dd>{treaties.map(t => t.type).join(', ')}</dd></>}
     </dl>
     <div class="traits">{c.leader.traits.map(t => <span class="trait" key={t}>{t}</span>)}</div>
+    {c.alive && id !== me && (enemies(g.w, me, id)
+      ? <button onClick={() => { const war = warsOf(g.w, me).find(x => x.attackers.includes(id) || x.defenders.includes(id)); if (war) g.openPanel({ kind: 'war', id: war.id }); }}>Open the war room</button>
+      : <button class="danger" onClick={() => g.st.set({ declare: id, paused: true })}>Declare war…</button>)}
   </Sheet>;
 }
 

@@ -81,11 +81,15 @@ export class Session {
     st.addEventListener('wheel', e => { if ((e.target as HTMLElement).closest('.ui-scroll')) return; e.preventDefault(); const p = pos(e); this.cam.zoomAt(p[0], p[1], Math.exp(-e.deltaY * 0.0015)); }, { passive: false });
     st.addEventListener('pointerleave', () => { this.pickPending = null; this.ui.set({ hover: -1 }); });
   }
+  clickWorld: [number, number] = [0, 0];
   click(p: [number, number]) {
+    this.clickWorld = this.cam.toWorld(p[0], p[1]);
     const pid = this.ren.pick(this.cam, p[0], p[1]);
     this.onClick?.(pid);
   }
   onClick: ((province: number) => void) | null = null;
+  /** who holds a province, if not its owner (set once a game runs) */
+  occupier: ((province: number) => string | null) | null = null;
   onFrame: ((dt: number, t: number) => void) | null = null;
   onOverlay: ((ctx: CanvasRenderingContext2D) => void) | null = null;
 
