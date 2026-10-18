@@ -5,6 +5,7 @@ import type { MapAssets } from './data/types';
 import { Session } from './game/session';
 import { SetupScreen, TitleScreen } from './ui/App';
 import { Hud } from './ui/Hud';
+import { TipLayer } from './ui/common';
 import { Game } from './game/play';
 import { loadGame } from './game/save';
 import { onLang, registerCountries, t } from './i18n';
@@ -32,7 +33,7 @@ function Root() {
     const p = Math.max(0, w.countries.findIndex(c => c.player));
     const g = new Game(s, p); await g.loadWorld(w); (window as any).__game = g; setGame(g); setPhase('play');
   };
-  return <>
+  return <><TipLayer />
     <div id="stage" ref={stage} class={phase === 'title' ? 'dim' : ''}><canvas id="map" ref={glc} /><canvas id="overlay" ref={ovc} />
       {session && phase === 'title' && <TitleScreen s={session} onNew={() => setPhase('setup')} onLoad={slot => resume(session, slot)} />}
       {session && phase === 'setup' && <SetupScreen s={session} onPlay={ci => start(session, ci)} onBack={() => setPhase('title')} />}

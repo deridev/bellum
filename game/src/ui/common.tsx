@@ -244,3 +244,36 @@ export function Slider({ id, label, value, min, max, step, fmt, onInput, hint, c
 export function Seg<T extends string | number>({ value, options, onPick, label }: { value: T; options: { v: T; label: string; icon?: string; title?: string }[]; onPick: (v: T) => void; label: string }) {
   return <div class="seg" role="group" aria-label={label}>{options.map(o => <button key={String(o.v)} aria-pressed={o.v === value} title={o.title} aria-label={o.icon ? o.label : undefined} onClick={() => onPick(o.v)}>{o.icon && <Icon name={o.icon} size={16} />}{(!o.icon || o.title) && <span>{o.label}</span>}</button>)}</div>;
 }
+
+/** One floating tooltip for every [data-tip], drawn above everything in screen space and kept inside the window: a panel can never clip it, and it adds no scroll height. */
+export function TipLayer() {
+  useEffect(() => {
+    const el = document.createElement('div'); el.className = 'tipfloat'; el.setAttribute('role', 'tooltip'); document.body.appendChild(el);
+    let cur: HTMLElement | null = null, timer = 0, poll = 0;
+    const hide = () => { clearTimeout(timer); clearInterval(poll); cur = null; el.classList.remove('on'); };
+    const place = () => {
+      const text = cur?.isConnected ? cur.getAttribute('data-tip') : ''; if (!cur || !text) { hide(); return; }
+      if (el.textContent !== text) el.textContent = text;
+      const r = cur.getBoundingClientRect(), tw = el.offsetWidth, th = el.offsetHeight, m = 8;
+      const below = r.bottom + m + th <= innerHeight - m || r.top - m - th < m;
+      const x = Math.max(m, Math.min(innerWidth - m - tw, r.left + r.width / 2 - tw / 2)), y = below ? r.bottom + m : r.top - m - th;
+      el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    };
+    const show = (t: HTMLElement, delay: number) => {
+      if (t === cur) return; const was = el.classList.contains('on'); hide(); cur = t;
+      timer = window.setTimeout(() => { place(); el.classList.add('on'); poll = window.setInterval(place, 250); }, was ? 0 : delay); // the text can change while it shows
+    };
+    const tipOf = (e: Event) => (e.target as HTMLElement | null)?.closest?.('[data-tip]') as HTMLElement | null;
+    const over = (e: PointerEvent) => { if (e.pointerType === 'touch') return; const t = tipOf(e); if (t) show(t, 250); else if (cur) hide(); };
+    const out = (e: PointerEvent) => { if (!e.relatedTarget) hide(); };
+    const focus = (e: FocusEvent) => { const t = tipOf(e); if (t?.matches(':focus-visible')) show(t, 0); };
+    document.addEventListener('pointerover', over); document.addEventListener('pointerout', out); document.addEventListener('pointerdown', hide);
+    document.addEventListener('focusin', focus); document.addEventListener('focusout', hide); window.addEventListener('scroll', hide, true); window.addEventListener('blur', hide);
+    return () => {
+      hide(); el.remove();
+      document.removeEventListener('pointerover', over); document.removeEventListener('pointerout', out); document.removeEventListener('pointerdown', hide);
+      document.removeEventListener('focusin', focus); document.removeEventListener('focusout', hide); window.removeEventListener('scroll', hide, true); window.removeEventListener('blur', hide);
+    };
+  }, []);
+  return null;
+}

@@ -7,11 +7,11 @@ import { groupMood, stabilityTarget } from '../sim/politics';
 import { DIPLO, diploOdds, type DiploAction } from '../sim/diplomacy';
 import { type Conscription, type Country, type LogEntry, type UnitType, type War } from '../sim/types';
 import { CONSCRIPTION_GROWTH, CONSCRIPTION_RATE, rel } from '../sim/world';
-import { armyName, countryName, fmtDate, has, say, t, unitName } from '../i18n';
+import { armyName, countryName, fmtDate, has, say, t, unitName, onLang } from '../i18n';
 import { HoverTip } from './App';
 import { Bar, Block, Delta, Flag, Icon, IconBtn, MoreFooter, Ring, Sheet, SignedBar, Slider, Spark, StackBar, UnitSymbol, useMore } from './common';
 import { LedgerScreen } from './Ledger';
-import { fmtBig, fmtInt, fmtMoney, pct, pct1, cssPct } from './format';
+import { fmtBig, fmtInt, fmtMoney, fmtMoney2, pct, pct1, cssPct } from './format';
 import { listSaves, loadGame, saveGame, deleteSave } from '../game/save';
 import { AgendaCards, DeclareDialog, POSTURES, ToolHint, WarPanel } from './War';
 import { ChroniclePanel, TimelapsePanel } from './Chronicle';
@@ -84,7 +84,7 @@ function CommandStrip({ g, onDecisions }: { g: Game; onDecisions: () => void }) 
     </button>
     <div class="res">
       <Res icon="treasury" tone="gold" k="treasury" v={fmtMoney(c.treasury)} danger={c.treasury <= 0 || (bal < 0 && c.treasury < -bal * 3)} onClick={() => togglePanel(g, 'economy')}
-        sub={<span class={`delta ${bal < 0 ? 'bad' : 'good'}`}><Icon name={bal < 0 ? 'down' : 'up'} size={9} />{fmtMoney(Math.abs(bal))}{t('hud.perMo')}</span>} />
+        sub={<span class={`delta ${bal < 0 ? 'bad' : 'good'}`}><Icon name={bal < 0 ? 'down' : 'up'} size={9} />{fmtMoney2(Math.abs(bal))}{t('hud.perMo')}</span>} />
       <Res minor icon="manpower" tone="steel" k="manpower" v={fmtBig(c.manpower)} sub={<Delta v={monthly(g, 'manpower')} fmt={fmtBig} />} onClick={() => togglePanel(g, 'military')} />
       <Res icon="stability" tone="teal" k="stability" v={pct(c.stability)} gauge={c.stability} danger_={0.3} danger={c.stability < 0.3} sub={<Delta v={monthly(g, 'stability')} fmt={pts} />} onClick={() => togglePanel(g, 'politics')} />
       <Res icon="warSupport" tone="rust" k="warSupport" v={pct(c.warSupport)} gauge={c.warSupport} sub={<Delta v={monthly(g, 'warSupport')} fmt={pts} />} onClick={() => togglePanel(g, 'politics')} />
@@ -128,10 +128,13 @@ function DateSizer({ g }: { g: Game }) {
   useLayoutEffect(() => { const el = ref.current, box = el?.parentElement; if (el && box) box.style.minWidth = `${Math.ceil((el.scrollWidth + 2) / 12) * 12}px`; });
   return <span class="date-sizer" ref={ref} aria-hidden="true">{days.map(d => <span key={d} class="date num">{fmtDate(g.w, d)}</span>)}</span>;
 }
-/** Each cell has a fixed share of the strip, so a number that grows never pushes its neighbours. */
-const RES_SHARE: Record<string, number> = { treasury: 1.6, manpower: 1.05, stability: 1, warSupport: 1.2, influence: 0.9 };
+/** Top-bar cells never shrink below the widest they have been (in 8px steps): a number that changes length cannot make the bar jitter, and nothing is clipped. Reset when the window or the language changes. */
+const resWidth = new Map<string, number>();
+if (typeof window !== 'undefined') { window.addEventListener('resize', () => resWidth.clear()); onLang(() => resWidth.clear()); }
 function Res({ icon, k, v, tone, gauge, sub, danger, minor, onClick, danger_ }: { icon: string; k: string; v: string; tone: string; gauge?: number; sub?: any; danger?: boolean; minor?: boolean; onClick: () => void; danger_?: number }) {
-  return <button style={{ '--share': RES_SHARE[k] ?? 1 }} class={`res-cell t-${tone} ${danger ? 'alarm' : ''} ${minor ? 'minor' : ''}`} aria-label={`${t('ledger.' + k)} ${v}`} data-tip={`${t('ledger.' + k)} — ${t('ledger.' + k + '.hint')}`} onClick={onClick}>
+  const ref = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => { const el = ref.current; if (!el) return; const want = Math.ceil(el.getBoundingClientRect().width / 8) * 8, had = resWidth.get(k) ?? 0; if (want > had) resWidth.set(k, want); const w = `${Math.max(want, had)}px`; if (el.style.minWidth !== w) el.style.minWidth = w; });
+  return <button ref={ref} class={`res-cell t-${tone} ${danger ? 'alarm' : ''} ${minor ? 'minor' : ''}`} aria-label={`${t('ledger.' + k)} ${v}`} data-tip={`${t('ledger.' + k)} — ${t('ledger.' + k + '.hint')}`} onClick={onClick}>
     <span class="res-badge"><Icon name={icon} size={20} /></span>
     <span class="res-txt"><span class="res-top"><b class="res-v num">{v}</b>{sub}</span>{gauge !== undefined && <span class="res-meter"><i style={{ width: cssPct(Math.max(0, Math.min(1, gauge))) }} />{danger_ !== undefined && <b style={{ left: cssPct(danger_) }} />}</span>}<span class="res-k">{t('ledger.' + k)}</span></span></button>;
 }

@@ -83,18 +83,11 @@ select option { background: var(--slate-solid); }
 .title-row { display: flex; gap: 10px; align-items: center; min-width: 0; }
 .delta { display: inline-flex; align-items: center; gap: 3px; font: 700 17px/1 var(--display); letter-spacing: 0.02em; white-space: nowrap; } .delta.flat { color: var(--faint); }
 
-/* tooltips: every icon explains itself */
-[data-tip]::after { content: attr(data-tip); position: absolute; left: 50%; top: calc(100% + 8px); transform: translate(-50%, -3px); z-index: 20; width: max-content; max-width: 280px;
-  padding: 7px 10px; background: var(--slate-solid); border: 1px solid var(--edge-2); border-radius: 3px; color: var(--paper); font: 500 13px/1.4 var(--body); text-align: left; white-space: pre-line; letter-spacing: 0; text-transform: none;
-  opacity: 0; pointer-events: none; transition: opacity 0.12s, transform 0.12s; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45); }
-[data-tip]:hover::after, [data-tip]:focus-visible::after { opacity: 1; transform: translate(-50%, 0); transition-delay: 0.25s; }
+/* tooltips: every icon explains itself (one floating layer, see TipLayer) */
 [data-tip] { position: relative; }
-/* hidden tips must not add phantom scroll height inside scroll boxes */
-.sheet-body [data-tip]:not(:hover):not(:focus-visible)::after, .ledger-body [data-tip]:not(:hover):not(:focus-visible)::after { display: none; }
-.dock [data-tip]::after { top: auto; bottom: calc(100% + 10px); transform: translate(-50%, 3px); }
-.dock [data-tip]:hover::after { transform: translate(-50%, 0); }
-.time [data-tip]::after, .alerts [data-tip]::after { left: auto; right: 0; transform: translateY(-3px); } .time [data-tip]:hover::after, .alerts [data-tip]:hover::after { transform: none; }
-.sheet [data-tip]::after, .agenda [data-tip]::after { left: auto; right: 0; transform: translateY(-3px); } .sheet [data-tip]:hover::after, .agenda [data-tip]:hover::after { transform: none; }
+.tipfloat { position: fixed; left: 0; top: 0; z-index: 1000; width: max-content; max-width: 280px; padding: 7px 10px; background: var(--slate-solid); border: 1px solid var(--edge-2); border-radius: 3px;
+  color: var(--paper); font: 500 13px/1.4 var(--body); text-align: left; white-space: pre-line; letter-spacing: 0; text-transform: none; pointer-events: none; box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45); opacity: 0; transition: opacity 0.12s; }
+.tipfloat.on { opacity: 1; }
 .tip { position: absolute; z-index: 3; pointer-events: none; padding: 7px 11px; font-size: 14px; white-space: nowrap; transform: translate(14px, 14px); }
 .tip.flip { transform: translate(calc(-100% - 14px), 14px); }
 .tip b { font-weight: 700; } .tip span { color: var(--mute); }
@@ -509,7 +502,7 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
   .res-top .delta { display: none; } .res-v { font-size: 15px; }
   .alert { height: 32px; padding: 0 8px; } .al-txt b { font-size: 15px; } .alert.wait.urgent .al-txt b { font-size: 13px; } .alert.wait.urgent .al-txt small { display: block !important; font-size: 12px; }
   .speed-l { display: none; } .time { padding-left: 8px; gap: 4px; } .time .date { font-size: 16px; } .time .pp, .time .icon-btn { width: 34px; height: 34px; } .pips { height: 34px; } .pip { height: 34px; width: 8px; padding-bottom: 7px; } .date-box { min-width: 0; } .alerts { padding: 0 6px; gap: 4px; } .strip-r { padding-right: 0; } .time .icon-btn { width: 32px; } .alert { height: 36px !important; }
-  .toasts { display: none; } .tip { display: none; } .sheet [data-tip]::after { display: none; } .war-banner { display: none; } .phone-only { display: inline-flex !important; }
+  .toasts { display: none; } .tip { display: none; } .war-banner { display: none; } .phone-only { display: inline-flex !important; }
   .figures.three .fig-v { font-size: 20px; } .figures.three .figure .spark { display: none; }
   .agenda { left: var(--left); right: var(--right); width: auto; }
   .agenda-card p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -546,7 +539,6 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 .desk-body { flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; padding: 16px 18px 12px 20px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 26px; align-items: start; }
 .desk-col { display: grid; gap: 14px; align-content: start; min-width: 0; }
 .desk .block-h .icon { color: var(--dc); }
-.desk-body [data-tip]:not(:hover):not(:focus-visible)::after { display: none; }
 .sheet-body { scrollbar-gutter: stable; }
 /* policies: one row each, what it does in plain words */
 .policies { display: grid; gap: 5px; }
@@ -571,14 +563,13 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
   .desk-body { grid-template-columns: 1fr; }
 }
 
-/* the strip never moves when numbers change: cells take fixed shares, values truncate rather than push */
-.res { justify-content: flex-start; }
-.res-cell { flex: var(--share, 1) 1 0; min-width: 0; justify-content: flex-start; overflow: hidden; }
-.res-txt { min-width: 0; } .res-top { display: flex; align-items: baseline; gap: 6px; min-width: 0; white-space: nowrap; overflow: hidden; }
-.res-top > * { flex: none; } .res-top .delta { min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; }
+/* the strip never jitters: cells keep their widest width (see Res), content starts at the left */
+.res-cell { justify-content: flex-start; }
+.res-top { display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
 .date-box { position: relative; } .date-sizer { display: grid; height: 0; overflow: hidden; visibility: hidden; } .date-sizer > * { grid-area: 1 / 1; }
 
-.res-k { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.res-k { white-space: nowrap; font-size: 15px; letter-spacing: 0.02em; }
+.res-cell { padding: 0 10px; } .res-top .delta { font-size: 15px; }
 @media (max-width: 1100px) and (min-width: 761px) {
   /* labels are hidden here, so the monthly change takes the second line instead of being cut */
   .res-top { flex-direction: column; align-items: flex-start; gap: 3px; } .res-top .delta { font-size: 13px; }
