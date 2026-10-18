@@ -203,7 +203,8 @@ function EconomyPanel({ g }: { g: Game }) {
       <Figure icon="treasury" label={t('ledger.treasury')} value={fmtMoney(c.treasury)} tone={c.treasury <= 0 ? 'bad' : ''} spark={g.series('treasury')} sub={<span class="muted">{t('eco.revenueIs', { v: t('eco.perMonth', { v: fmtMoney(c.income) }) })}</span>} />
       <Figure icon="trendDown" label={t('eco.debt')} value={pct(debt)} tone={debt > 0.8 ? 'bad' : ''} sub={<span class="muted">{fmtMoney(c.debt)}</span>} />
     </div>
-    {(debt > 0.8 || (bal < 0 && c.treasury <= 0)) && <div class={`debt-row ${debt > 0.8 ? 'danger' : 'warn'}`} data-tip={t('eco.borrowHint')}><Icon name="coup" size={20} /><small>{t(debt > 1.2 ? 'eco.debtHigh' : bal < 0 && c.treasury <= 0 ? 'eco.debtBorrowing' : 'eco.debtMid', { v: fmtMoney(-bal) })}</small></div>}
+    {(debt > 0.8 || (bal < 0 && c.treasury <= 0)) && <div class={`debt-row ${debt > 0.8 ? 'danger' : 'warn'}`} data-tip={t('eco.borrowHint')}><Icon name="coup" size={20} /><small>{t(debt > 1.2 ? 'eco.debtHigh' : bal < 0 && c.treasury <= 0 ? 'eco.debtBorrowing' : 'eco.debtMid', { v: fmtMoney(-bal) })}</small>
+      {c.taxRate < 0.55 && <button class="fix" onClick={() => { c.taxRate = Math.min(0.55, +(c.taxRate + 0.02).toFixed(2)); upd(); g.sound('click'); }}>{t('eco.fixTax')}</button>}</div>}
     <Block title={t('eco.budget')} icon="economy">
       <StackBar parts={BUDGET.map(b => ({ v: c.budget[b.k], color: b.color, label: t('eco.' + b.k) }))} />
       {BUDGET.map(b => <Slider key={b.k} id={'b-' + b.k} color={b.color} label={t('eco.' + b.k)} value={c.budget[b.k]} min={b.k === 'research' ? 0 : 0.02} max={b.k === 'research' ? 0.3 : 0.8} step={0.01} fmt={pct} onInput={v => setShare(b.k, v)} hint={hints[b.k]} sub={t('eco.perMonth', { v: fmtMoney(c.spending * c.budget[b.k]) })} />)}
@@ -227,7 +228,7 @@ function PoliticsPanel({ g }: { g: Game }) {
 </div>
       </div>
       <div class="compass" data-tip={t('pol.ideology')}><svg viewBox="-110 -110 220 220" role="img" aria-label={t('pol.ideology')}>
-        <rect x="-100" y="-100" width="200" height="200" class="cmp-bg" /><line x1="-100" y1="0" x2="100" y2="0" class="cmp-ax" /><line x1="0" y1="-100" x2="0" y2="100" class="cmp-ax" />
+        <rect x="-100" y="-100" width="200" height="200" class="cmp-bg" /><rect x="-100" y="-100" width="100" height="100" class="cmp-q q1" /><rect x="0" y="-100" width="100" height="100" class="cmp-q q2" /><rect x="-100" y="0" width="100" height="100" class="cmp-q q3" /><rect x="0" y="0" width="100" height="100" class="cmp-q q4" /><line x1="-100" y1="0" x2="100" y2="0" class="cmp-ax" /><line x1="0" y1="-100" x2="0" y2="100" class="cmp-ax" />
         <text x="0" y="-80" class="cmp-t" text-anchor="middle">{t('pol.order')}</text><text x="0" y="94" class="cmp-t" text-anchor="middle">{t('pol.liberty')}</text>
         <circle cx={ex * 90} cy={-au * 90} r="11" class="cmp-dot" style={{ fill: c.color }} />
       </svg><small class="cmp-x"><span>{t('pol.collective')}</span><span>{t('pol.market')}</span></small><b class="cmp-name">{t('ideo.' + ['l', 'c', 'r'][ex < -0.33 ? 0 : ex > 0.33 ? 2 : 1] + ['a', 'c', 'l'][au > 0.33 ? 0 : au < -0.33 ? 2 : 1])}</b></div>
@@ -255,7 +256,8 @@ function MilitaryPanel({ g }: { g: Game }) {
   const men = divs.reduce((a, d) => a + d.str, 0), front = divs.filter(d => d.theater >= 0).length;
   const free = Math.max(0, c.spending * c.budget.military - c.upkeep), pop = popOf(g.w, c.id);
   const laws: Conscription[] = ['volunteer', 'limited', 'extensive', 'total'];
-  return <NationSheet g={g} kind="military" fig={<RibbonFig label={t('mil.ready')} v={pct(divs.reduce((x, d) => x + d.str / d.max * d.org, 0) / Math.max(1, divs.length))} />}>
+  return <NationSheet g={g} kind="military" fig={(() => { const sup = g.w.armies.filter(a => a.country === c.id).map(a => { const ds = divs.filter(d => d.army === a.id); return ds.length ? ds.reduce((x, d) => x + d.sup, 0) / ds.length : 1; }), lo = sup.length ? Math.min(...sup) : 1;
+      return <RibbonFig label={t('mil.weakestSupply')} v={pct(lo)} tone={lo < 0.5 ? 'bad' : ''} />; })()}>
     <Block title={t('mil.forces')} icon="military" aside={<span class="muted">{t('mil.atFront')} <b class="num">{fmtInt(front)}/{fmtInt(divs.length)}</b> · <span class={free <= 0 ? 'bad' : ''}>{t('mil.fundsShort')} {t('eco.perMonth', { v: fmtMoney(free) })}</span></span>}>
       <div class="forces">{(Object.keys(UNIT_SPEC) as UnitType[]).map(k => { const s = UNIT_SPEC[k], queued = c.production.filter(p => p.type === k).length;
         return <div key={k} class={`force u-${k}`}><UnitSymbol type={k} size={36} /><span class="f-t"><b class="num">{byType[k] || 0}{queued > 0 && <small class="f-q">+{queued}</small>}</b><span>{t('unitShort.' + k)}</span><small class="num">{fmtMoney(c.unitCost * s.costMul)} · {s.days}d</small></span>
@@ -273,8 +275,8 @@ function MilitaryPanel({ g }: { g: Game }) {
 
     </Block>
     <Block title={t('mil.armies')} icon="military">
-      <ul class="armies">{g.w.armies.filter(a => a.country === c.id).sort((a, b) => divs.filter(d => d.army === b.id).length - divs.filter(d => d.army === a.id).length).slice(0, 4).map(a => { const ds = divs.filter(d => d.army === a.id), n = ds.length, str = ds.reduce((x, d) => x + d.str / d.max * d.org, 0) / Math.max(1, n), atFront = ds.some(d => d.theater >= 0); return <li key={a.id} data-tip={a.general.traits.map(x => t('gtrait.' + x)).join(', ')}>
-        <span class="monogram sm">{a.general.name.split(' ').map(x => x[0]).slice(0, 2).join('')}</span><span class="army-t"><b>{armyName(a.num)}</b><small>{a.general.name}</small><span class="army-s"><i class={atFront ? 'front' : ''}>{t(atFront ? 'mil.armyFront' : 'mil.armyReserve')}</i><span class="meter" data-tip={t('mil.readiness')}><span class={`fill ${str < 0.5 ? 'bad' : str < 0.8 ? 'amber' : 'good'}`} style={{ width: pct(str) }} /></span><b class="num ready">{pct(str)}</b></span></span><b class="num">{n}</b></li>; })}</ul>
+      <ul class="armies">{g.w.armies.filter(a => a.country === c.id).sort((a, b) => divs.filter(d => d.army === b.id).length - divs.filter(d => d.army === a.id).length).slice(0, 4).map(a => { const ds = divs.filter(d => d.army === a.id), n = ds.length, str = ds.reduce((x, d) => x + d.sup, 0) / Math.max(1, n), atFront = ds.some(d => d.theater >= 0); return <li key={a.id} data-tip={a.general.traits.map(x => t('gtrait.' + x)).join(', ')}>
+        <span class="monogram sm">{a.general.name.split(' ').map(x => x[0]).slice(0, 2).join('')}</span><span class="army-t"><b>{armyName(a.num)}</b><small>{a.general.name}</small><span class="army-s"><i class={atFront ? 'front' : ''}>{t(atFront ? 'mil.armyFront' : 'mil.armyReserve')}</i><span class="meter" data-tip={t('mil.supplyHint')}><span class={`fill ${str < 0.5 ? 'bad' : str < 0.8 ? 'amber' : 'good'}`} style={{ width: pct(str) }} /></span><b class="num ready">{pct(str)}</b></span></span><b class="num">{n}</b></li>; })}</ul>
       {g.w.armies.filter(a => a.country === c.id).length > 4 && <small class="more-pill">{t('prov.more', { n: g.w.armies.filter(a => a.country === c.id).length - 4 })}</small>}
     </Block>
   </NationSheet>;
@@ -349,7 +351,7 @@ function CountryPanel({ g, id }: { g: Game; id: number }) {
     </Block>}
     {c.alive && id !== me && (war
       ? <button class="primary" onClick={() => { const x = warsOf(w, me).find(x => sideOf(x, id)); if (x) g.openPanel({ kind: 'war', id: x.id }); }}><Icon name="war" size={16} />{t('war.open')}</button>
-      : <button class="danger wide" onClick={() => g.st.set({ declare: id, paused: true })}><Icon name="war" size={16} />{t('war.declare')}</button>)}
+      : <button class="primary danger wide" onClick={() => g.st.set({ declare: id, paused: true })}><Icon name="war" size={16} />{t('war.declare')}</button>)}
   </Sheet>;
 }
 

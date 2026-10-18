@@ -170,4 +170,5 @@ export const en: Record<string, Entry> = {
   'group.want.military': 'A big military budget', 'group.want.industry': 'Low taxes, investment', 'group.want.labor': 'Welfare and growth', 'group.want.rural': 'Low taxes and calm',
   'mil.readiness': 'Readiness (strength × organisation)', 'eco.gdpRank': 'World GDP rank', 'pol.angry': 'Angry: unrest and strikes', 'led.rankPlace': 'Your place',
   'mil.ready': 'Readiness',
+  'mil.supplyHint': 'Supply of the army\'s divisions: low supply weakens them at the front', 'mil.weakestSupply': 'Weakest supply', 'eco.fixTax': 'Raise tax +2 pt',
 };

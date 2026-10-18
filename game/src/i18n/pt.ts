@@ -176,4 +176,5 @@ export const pt: Record<string, Entry> = {
   'group.want.military': 'Orçamento militar alto', 'group.want.industry': 'Impostos baixos, investimento', 'group.want.labor': 'Bem-estar e crescimento', 'group.want.rural': 'Impostos baixos e calma',
   'mil.readiness': 'Prontidão (força × organização)', 'eco.gdpRank': 'Posição mundial do PIB', 'pol.angry': 'Irritado: agitação e greves', 'led.rankPlace': 'Sua posição',
   'mil.ready': 'Prontidão',
+  'mil.supplyHint': 'Suprimento das divisões do exército: pouco suprimento as enfraquece no front', 'mil.weakestSupply': 'Pior suprimento', 'eco.fixTax': 'Subir imposto +2 pt',
 };

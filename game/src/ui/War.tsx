@@ -100,13 +100,11 @@ export function AgendaCards({ g, slim }: { g: Game; slim?: boolean }) {
   const RANK: Record<string, number> = { peace: 0, diplo: 1, event: 2 };
   const items = g.w.agenda.filter(a => a.country === g.player).sort((a, b) => (RANK[a.kind] ?? 3) - (RANK[b.kind] ?? 3));
   // a new decision opens for a few seconds, then folds into a one-line slip; a click on a slip opens it again
-  const [open, setOpen] = useState<number | null>(null), [asked, setAsked] = useState<number | null>(null), seen = useRef(new Set<number>()), hover = useRef(false);
+  const [open, setOpen] = useState<number | null>(null), [asked, setAsked] = useState<number | null>(null), seen = useRef(new Set<number>());
   useEffect(() => {
     const fresh = items.find(a => !seen.current.has(a.id)); items.forEach(a => seen.current.add(a.id));
     if (!fresh || (open !== null && items.find(a => a.id === open && (RANK[a.kind] ?? 3) < (RANK[fresh.kind] ?? 3)))) return; // never bury a bigger decision
-    setOpen(fresh.id); if (fresh.kind === 'peace') return; // a peace offer stays open until answered
-    const id = setTimeout(() => { if (!hover.current) setOpen(o => o === fresh.id ? null : o); }, 6000);
-    return () => clearTimeout(id);
+    if (fresh.kind === 'peace') setOpen(fresh.id); // a peace offer opens and stays open until answered; reports and proposals wait as slips
   }, [items.map(a => a.id).join()]);
   if (!items.length) return null;
   const decide = (id: number, i: number) => { resolveAgenda(g.w, g.S, id, i); g.afterOrder(); g.sound('click'); };
@@ -114,7 +112,7 @@ export function AgendaCards({ g, slim }: { g: Game; slim?: boolean }) {
   const showOpen = slim ? asked : open;
   const shown = items.slice(0, slim ? 1 : 2), cur = items.find(a => a.id === showOpen);
   if (cur && !shown.includes(cur)) shown[0] = cur;
-  return <div class="ui agenda" onMouseEnter={() => (hover.current = true)} onMouseLeave={() => (hover.current = false)}>{shown.map(a => a.id === showOpen
+  return <div class="ui agenda">{shown.map(a => a.id === showOpen
     ? <section class={`agenda-card plate k-${a.kind}`} key={a.id} role="dialog" aria-label={say(g.w, a.title)}>
       <div class="cable-head"><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={18} /></span><span class="eyebrow">{t('agenda.' + a.kind)}</span><time class="mono">{fmtDate(g.w, a.day, 'short')}</time><button class="x" aria-label={t('agenda.fold')} onClick={() => { setOpen(null); setAsked(null); }}><Icon name="down" size={12} /></button></div>
       <div class="h3 plain">{say(g.w, a.title)}</div><p>{say(g.w, a.text)}</p>
