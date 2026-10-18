@@ -535,12 +535,38 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 @media (max-width: 480px) { .groups .group { grid-template-columns: 34px minmax(0, 1fr) 60px 38px 12px; }  }
 
 /* policies: three to a row; demobilize sits beside build */
-.action-grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.action-grid.three .act { position: relative; grid-template-columns: 20px minmax(0, 1fr); padding-right: 16px; }
-.action-grid.three .act-s { position: absolute; top: 5px; right: 5px; }
 .act-c.gain { color: var(--green); }
-.action-grid.three .act { align-content: start; row-gap: 5px; } .action-grid.three .act-c { grid-column: 1 / -1; white-space: nowrap; }
 /* the treasury's net line wraps under its figure instead of running into the next one */
 .fig-sub > .tr-sub { flex-wrap: wrap; white-space: normal; column-gap: 4px; } .tr-sub > * { white-space: nowrap; }
 .f-dis { width: 32px; height: 32px; padding: 0; justify-content: center; font: 700 18px/1 var(--display); color: var(--mute); }
 .f-dis:disabled { opacity: 0.35; }
+
+/* nation desks: reading screens over the dimmed map, in columns */
+.desk { top: var(--below-strip); max-height: calc(100vh - var(--below-strip) - var(--above-dock)); left: max(var(--left), calc(50% - 560px)); right: max(var(--right), calc(50% - 560px)); display: flex; flex-direction: column; z-index: 4; }
+.desk-body { flex: 0 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; padding: 16px 18px 12px 20px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 26px; align-items: start; }
+.desk-col { display: grid; gap: 14px; align-content: start; min-width: 0; }
+.desk .block-h .icon { color: var(--dc); }
+.desk-body [data-tip]:not(:hover):not(:focus-visible)::after { display: none; }
+.sheet-body { scrollbar-gutter: stable; }
+/* policies: one row each, what it does in plain words */
+.policies { display: grid; gap: 5px; }
+.policy { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 11px; align-items: center; padding: 8px 11px; text-align: left; color: var(--faint); }
+.policy.ok { color: var(--paper); } .policy[aria-disabled="true"] { cursor: not-allowed; } .policy.ok .icon { color: var(--dc, var(--brass-hi)); }
+.pl-t { display: grid; gap: 2px; min-width: 0; } .pl-t b { font-weight: 600; font-size: 14.5px; } .pl-t small { font-size: 12.5px; color: var(--mute); line-height: 1.3; } .pl-t small.bad { color: #ff8f84; }
+.policy .act-c { white-space: nowrap; }
+/* money flow: in vs out on one scale, then the lines */
+.flow-bars { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; }
+.fb-l { font: 700 12px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--mute); }
+.fb-track { display: flex; gap: 2px; height: 12px; } .fb-track i { display: block; height: 100%; border-radius: 2px; min-width: 2px; }
+.flow { list-style: none; margin: 0; padding: 0; display: grid; }
+.flow li { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 2px; border-bottom: 1px solid var(--edge); }
+.flow li > span { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; } .flow li small { color: var(--mute); font-size: 12.5px; flex-basis: 100%; padding-left: 16px; }
+.flow li.in small { padding-left: 0; } .flow li .chip-dot { align-self: center; }
+.flow li b.num { font: 700 15px/1 var(--display); white-space: nowrap; }
+.flow li.total { border-bottom: 0; border-top: 2px solid var(--edge-2); margin-top: 2px; padding-top: 8px; } .flow li.total small { padding-left: 0; } .flow li.total b.num { font-size: 19px; }
+/* conscription: what the law does, for the one you point at */
+.law-x { display: grid; gap: 4px; font-size: 13.5px; line-height: 1.4; } .law-x p { margin: 0; } .law-x b { font-weight: 700; }
+@media (max-width: 760px) {
+  .desk { top: var(--top); left: var(--left); right: var(--left); max-height: calc(100vh - var(--top) - var(--above-dock)); }
+  .desk-body { grid-template-columns: 1fr; }
+}

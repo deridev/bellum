@@ -5,6 +5,8 @@ import type { Army, Conscription, Country, Division, Gov, Group, MapStatic, Msg,
 import { DAY0 } from './types';
 
 export const CONSCRIPTION_RATE: Record<Conscription, number> = { volunteer: 0.004, limited: 0.012, extensive: 0.03, total: 0.06 };
+/** Drafting workers costs output: change in annual growth per law. */
+export const CONSCRIPTION_GROWTH: Record<Conscription, number> = { volunteer: 0, limited: 0, extensive: -0.005, total: -0.015 };
 const GOV_STABILITY: Record<Gov, number> = { democracy: 0.68, authoritarian: 0.62, oneparty: 0.7, junta: 0.42, monarchy: 0.66, theocracy: 0.55 };
 const GROUP_POWER: Record<Gov, [number, number, number, number]> = { // military, industry, labor, rural
   democracy: [0.15, 0.35, 0.3, 0.2], authoritarian: [0.35, 0.3, 0.15, 0.2], oneparty: [0.3, 0.25, 0.3, 0.15], junta: [0.6, 0.15, 0.1, 0.15], monarchy: [0.3, 0.35, 0.1, 0.25], theocracy: [0.35, 0.15, 0.2, 0.3],

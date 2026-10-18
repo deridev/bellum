@@ -6,7 +6,7 @@ import { acceptsPeace, heldDemand, sideOf, theatersOf, truceKey, warCost, warsOf
 import type { War } from '../sim/types';
 import { armyName, countryName, fmtDate, say, t } from '../i18n';
 import { Block, Flag, Icon, Sheet, Tug } from './common';
-import { fmtBig, fmtInt, pct } from './format';
+import { fmtBig, fmtInt, pct, cssPct } from './format';
 
 /** Postures map onto the same push strengths the AI uses. */
 export const POSTURES = [{ id: 'hold', aggr: 0.9 }, { id: 'advance', aggr: 1.08 }, { id: 'offensive', aggr: 1.22 }] as const;
@@ -45,7 +45,7 @@ export function WarPanel({ g, id }: { g: Game; id: number }) {
         return <button key={c.id} aria-pressed={cur === c.id} class={ci >= i ? 'on' : ''} data-tip={t('war.commitHint', { p: pct(c.v < 0 ? commitShare(w, { ...war, commit: {} }, me) : c.v) })} onClick={() => { war.commit ||= {}; if (c.v < 0) delete war.commit[me]; else war.commit[me] = c.v; g.bump(); }}><i style={{ height: `${8 + i * 6}px` }} /><span>{t('commit.' + c.id)}</span></button>; })}</div>
     </Block>
     <Block title={t('war.offensives')} icon="offensive" aside={<b class="num">{offs.length}/3</b>}>
-      {offs.length > 0 && <ul class="offs">{offs.map(o => { const a = w.armies.find(x => x.id === o.army); return <li key={o.id}><Icon name="advance" size={14} /><span>{a ? armyName(a.num) : t('war.army')}</span><small class="num">{t('war.day', { n: w.day - o.created })}</small><div class="meter" data-tip={t('war.momentum')}><div class="fill amber" style={{ width: pct(o.org) }} /></div></li>; })}</ul>}
+      {offs.length > 0 && <ul class="offs">{offs.map(o => { const a = w.armies.find(x => x.id === o.army); return <li key={o.id}><Icon name="advance" size={14} /><span>{a ? armyName(a.num) : t('war.army')}</span><small class="num">{t('war.day', { n: w.day - o.created })}</small><div class="meter" data-tip={t('war.momentum')}><div class="fill amber" style={{ width: cssPct(o.org) }} /></div></li>; })}</ul>}
       <button class="primary wide" disabled={posture.id === 'hold' || offs.length >= 3} data-tip={t(posture.id === 'hold' ? 'war.planHold' : offs.length >= 3 ? 'war.planMax' : 'war.planHint')} onClick={() => g.setTool({ kind: 'offensive', war: war.id })}><Icon name="target" size={16} />{t('war.plan')}</button>
       {posture.id === 'hold' && <small class="muted">{t('war.planHold')}</small>}
     </Block>

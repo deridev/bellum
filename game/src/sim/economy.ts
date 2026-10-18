@@ -1,4 +1,4 @@
-import { CONSCRIPTION_RATE, clamp01, newDivision, say } from './world';
+import { CONSCRIPTION_GROWTH, CONSCRIPTION_RATE, clamp01, newDivision, say } from './world';
 import type { Country, MapStatic, ProdItem, UnitType, World } from './types';
 import { msg } from './types';
 import { tradeBonus } from './diplomacy';
@@ -27,11 +27,7 @@ export function monthlyEconomy(w: World, S: MapStatic) {
   for (const c of w.countries) {
     if (!c.alive) continue;
     c.gdp = computeGdp(w, c.id);
-    const collect = 0.55 + 0.45 * c.stability;
-    const revenue = c.gdp * c.taxRate / 12 * collect;
-    // interest comes off the top; the budget spends the rest, plus what is borrowed (or minus what is saved)
-    const interest = Math.min(revenue * 0.6, c.debt * 0.04 / 12);
-    const spending = Math.max(0, revenue - interest) * (1 + c.deficit);
+    const { revenue, interest, spending } = cashFlow(c);
     const nDiv = w.divisions.filter(d => d.country === c.id).length;
     c.upkeep = nDiv * c.unitCost;
     c.income = revenue; c.spending = spending + interest;
@@ -48,7 +44,7 @@ export function monthlyEconomy(w: World, S: MapStatic) {
     let g = 0.004 + 0.08 * (c.budget.investment - 0.18) + (c.stability - 0.6) * 0.04 - (c.taxRate - 0.25) * 0.05 + 0.016 * (1 - Math.min(1, pc / 40000));
     if (debtRatio > 1.2) g -= 0.01 * (debtRatio - 1.2);
     if (atWar(w, c.id)) g -= 0.02;
-    g += tradeBonus(w, c.id);
+    g += tradeBonus(w, c.id) + CONSCRIPTION_GROWTH[c.conscription];
     g += (nextNoise(w, c.id) - 0.5) * 0.01;
     c.growth = g = Math.max(-0.25, Math.min(0.12, g)); // a collapsed economy shrinks, it does not explode
     const f = Math.pow(1 + g, 1 / 12);
@@ -62,6 +58,17 @@ export function monthlyEconomy(w: World, S: MapStatic) {
     c.manpower = Math.min(max, c.manpower + max * 0.025);
     c.polCap = Math.min(300, c.polCap + 4 + 6 * c.stability);
   }
+}
+/** One month of money, from the current settings: what monthlyEconomy books, and what the Economy panel shows. */
+export function cashFlow(c: Country) {
+  const collect = 0.55 + 0.45 * c.stability, revenue = c.gdp * c.taxRate / 12 * collect; // unrest and corruption: low stability loses taxes
+  // interest comes off the top; the budget spends the rest, plus what is borrowed (or minus what is saved)
+  const interest = Math.min(revenue * 0.6, c.debt * 0.04 / 12), spending = Math.max(0, revenue - interest) * (1 + c.deficit);
+  const free = Math.max(0, spending * c.budget.military - c.upkeep);
+  // production the military budget cannot cover is paid from savings (up to half a month of revenue)
+  const need = c.production.reduce((a, i) => a + Math.min(i.cost - i.progress, i.cost / Math.max(1, i.days) * 1.5 * 30), 0);
+  const fromSavings = Math.min(c.treasury, c.income * 0.5, Math.max(0, need - free));
+  return { collect, revenue, interest, spending, free, fromSavings, net: revenue - spending - interest - fromSavings };
 }
 /** Daily production: military funds left after upkeep build the queue in order. */
 export function dailyProduction(w: World) {

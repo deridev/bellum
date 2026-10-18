@@ -1,4 +1,5 @@
 // The ledger: a full screen of numbers over time. Your nation's growth, the world's rankings, and you against your rivals.
+import { cashFlow } from '../sim/economy';
 import { useEffect, useState } from 'preact/hooks';
 import type { Game, NationStat } from '../game/play';
 import { rel } from '../sim/world';
@@ -39,7 +40,7 @@ const monthX = (g: Game) => (d: number) => fmtDate(g.w, d, 'month');
 /** Your nation, month by month. */
 function Overview({ g }: { g: Game }) {
   const c = g.me, xs = g.history.map(h => h.day), first = g.history[0]?.me;
-  const provs = g.nationSeries(c.id, 'provinces'), bal = c.income - c.spending;
+  const provs = g.nationSeries(c.id, 'provinces'), bal = cashFlow(c).net;
   const rows = table(g), rank = (k: typeof COLS[number]) => rows.slice().sort((a, b) => b[k] - a[k]).findIndex(r => r.id === c.id) + 1;
   // rank at the first recorded month, from the per-nation records
   const rank0 = (j: number) => { const h = g.history[0]; if (!h) return 0; const n = h.all.length / 4, mine = h.all[c.id * 4 + j]; let r = 1; for (let i = 0; i < n; i++) if (h.all[i * 4 + j] > mine) r++; return r; };

@@ -423,7 +423,6 @@ Across 10 years of AI-only play (seed 11), median debt fell from 0.48 to 0.30 of
 ### 15.2 Known issues, not yet addressed
 - In 1939, AI-only play ends the Second World War in May 1940 with a small treaty. The scenario needs war goals that keep the great powers fighting.
 - Every scripted Ukraine strategy accepts or is forced into a cession within months. The front holds Kyiv, but peace comes too early for a war of attrition.
-- Spanish and Portuguese money formats are long, so the Economy panel scrolls a little in those languages at 1440×860.
 
 ---
 
@@ -448,3 +447,6 @@ Across 10 years of AI-only play (seed 11), median debt fell from 0.48 to 0.30 of
 | 16 | 2026-10-18 | **Every meter has a consequence**: war support at zero topples the government; an army beyond its budget loses readiness. Penalties that feed back on themselves are capped |
 | 17 | 2026-10-18 | **Peacetime has things to do**: savings and influence buy one-off policies with cooldowns. The AI plays by the same rules (§15.1) |
 | 18 | 2026-10-18 | **Treaties mean what they say**: allying with a nation at war joins its war, so only publics ready for that war sign; attacking an ally tears up every treaty |
+| 19 | 2026-10-18 | **Reading screens get the screen**: Economy, Politics, Military and Diplomacy open as a two-column desk over the dimmed map. Panels about a place (province, country, war) stay on the right, beside the map they describe |
+| 20 | 2026-10-18 | **Show the money**: the Economy desk lists next month's flow from the current settings (taxes in; interest, each budget line and production from savings out; the treasury change). Every net figure uses the same calculation as the simulation |
+| 21 | 2026-10-18 | **Conscription is a trade-off**: a law sets the recruit pool, and drafting workers costs growth (extensive −0.5%, total −1.5% a year). The desk explains the law you point at |

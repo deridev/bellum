@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import type { Session } from '../game/session';
 import { t } from '../i18n';
-import { pct } from './format';
+import { pct, cssPct } from './format';
 
 export function Flag({ s, code, h = 14 }: { s: Session; code: string; h?: number }) {
   const A = s.assets, fi = A.flagIndex[s.flagOf[code] || code]; if (!fi) return <span class="flag" style={{ width: h * 1.5, height: h }} />;
@@ -31,7 +31,8 @@ export function Sheet({ title, onClose, children, eyebrow, icon, head }: { title
 export function useMore() {
   const body = useRef<HTMLDivElement>(null), [more, setMore] = useState(false);
   // the footer takes room itself, so it stays only if the content would still overflow without it
-  const check = () => { const b = body.current; if (!b) return; const f = b.nextElementSibling as HTMLElement | null, foot = f?.classList.contains('more-foot') ? f.offsetHeight : 0; setMore(b.scrollHeight - b.scrollTop - b.clientHeight - foot > 8); };
+  // while the pointer is inside, only scrolling re-measures: a tooltip near the bottom adds height, and toggling the footer then would move the content under the pointer (flicker)
+  const check = (e?: Event) => { const b = body.current; if (!b || (!e && b.matches(':hover'))) return; const f = b.nextElementSibling as HTMLElement | null, foot = f?.classList.contains('more-foot') ? f.offsetHeight : 0; setMore(b.scrollHeight - b.scrollTop - b.clientHeight - foot > 8); };
   useEffect(check);
   useEffect(() => { const id = setInterval(check, 500); return () => clearInterval(id); }, []); // cheap, and catches every late layout change
   return [body, more, check] as const;
@@ -45,11 +46,11 @@ export function Block({ title, icon, aside, children }: { title?: string; icon?:
 }
 
 export function Bar({ v, tone, mark }: { v: number; tone?: string; mark?: number }) {
-  return <div class="meter"><div class={`fill ${tone || ''}`} style={{ width: pct(Math.max(0, Math.min(1, v))) }} />{mark !== undefined && <div class="mark" style={{ left: pct(Math.max(0, Math.min(1, mark))) }} />}</div>;
+  return <div class="meter"><div class={`fill ${tone || ''}`} style={{ width: cssPct(Math.max(0, Math.min(1, v))) }} />{mark !== undefined && <div class="mark" style={{ left: cssPct(Math.max(0, Math.min(1, mark))) }} />}</div>;
 }
 /** A centred bar for values from -100 to 100 (opinion). */
 export function SignedBar({ v, title }: { v: number; title?: string }) {
-  return <div class="meter rel" title={title}><div class="fill" style={{ left: v < 0 ? pct(0.5 + v / 200) : '50%', width: pct(Math.abs(v) / 200), background: v < 0 ? 'var(--red)' : 'var(--green)' }} /></div>;
+  return <div class="meter rel" title={title}><div class="fill" style={{ left: v < 0 ? cssPct(0.5 + v / 200) : '50%', width: cssPct(Math.abs(v) / 200), background: v < 0 ? 'var(--red)' : 'var(--green)' }} /></div>;
 }
 /** Ring gauge for a 0..1 value, with an optional target tick. */
 export function Ring({ v, size = 26, tone, target, danger, children }: { v: number; size?: number; tone?: string; target?: number; danger?: number; children?: any }) {
