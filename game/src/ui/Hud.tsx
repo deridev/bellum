@@ -6,7 +6,7 @@ import { groupMood, stabilityTarget } from '../sim/politics';
 import { DIPLO, diploOdds, type DiploAction } from '../sim/diplomacy';
 import { type Conscription, type Country, type LogEntry, type UnitType, type War } from '../sim/types';
 import { CONSCRIPTION_RATE, rel } from '../sim/world';
-import { armyName, countryName, fmtDate, say, t, unitName } from '../i18n';
+import { armyName, countryName, fmtDate, has, say, t, unitName } from '../i18n';
 import { HoverTip } from './App';
 import { Bar, Block, Delta, Flag, Icon, IconBtn, Ring, Sheet, SignedBar, Slider, Spark, StackBar, UnitSymbol } from './common';
 import { LedgerScreen } from './Ledger';
@@ -131,7 +131,7 @@ function Dock({ g }: { g: Game }) {
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'm' && !(e.target as HTMLElement).closest('input, textarea')) setLensOpen(o => !o); if (e.key === 'Escape') setLensOpen(false); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
   return <nav class="ui dock plate" aria-label={t('hud.panels')}>
     {panelOrder(g).map((kind, i) => <button key={kind} class={`dock-btn d-${kind}`} aria-pressed={p?.kind === kind} data-tip={`${t('panel.' + kind)}  ·  ${i + 1}`} onClick={() => togglePanel(g, kind)}>
-      <span class="dock-disc"><Icon name={kind} size={20} /></span><span>{t('panel.' + kind)}</span><kbd>{i + 1}</kbd>{kind === 'war' && <i class="badge">{wars}</i>}</button>)}
+      <span class="dock-disc"><Icon name={kind} size={20} /></span><span>{t(has('dock.' + kind) ? 'dock.' + kind : 'panel.' + kind)}</span><kbd>{i + 1}</kbd>{kind === 'war' && <i class="badge">{wars}</i>}</button>)}
     <span class="dock-sep" aria-hidden="true" />
     <span class="map-pick">
       <button class="dock-btn d-map" aria-expanded={lensOpen} aria-label={t('modes.label')} onClick={() => setLensOpen(!lensOpen)}><span class="dock-disc"><Icon name={cur.icon} size={20} /></span><span>{t('modes.' + cur.id)}</span><kbd>M</kbd></button>

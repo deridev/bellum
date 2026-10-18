@@ -214,7 +214,7 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 .d-economy { --dc: var(--gold); } .d-politics { --dc: var(--teal); } .d-military { --dc: var(--steel); } .d-diplomacy { --dc: var(--violet); } .d-war { --dc: var(--rust); }
 .d-political, .d-none, .d-timelapse { --dc: var(--brass-hi); }  .d-ledger { --dc: #efe3c6; } .d-chronicle { --dc: #f2a7c3; }
 .dock { bottom: var(--bottom); left: 50%; transform: translateX(-50%); height: var(--dock-h); display: flex; align-items: stretch; gap: 2px; padding: 4px; z-index: 3; max-width: calc(100vw - 2 * var(--g)); transition: left 0.2s; }
-.dock-btn { flex-direction: column; justify-content: center; gap: 4px; width: 63px; padding: 0 2px; background: transparent; border-color: transparent; color: var(--mute); }
+.dock-btn { flex-direction: column; justify-content: center; gap: 4px; min-width: 60px; padding: 0 9px; background: transparent; border-color: transparent; color: var(--mute); }
 .dock-disc { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--dc) 24%, #121a22); color: var(--dc); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--dc) 75%, transparent); transition: transform 0.12s; }
 .dock-btn:hover .dock-disc { transform: translateY(-1px); } .dock-btn[aria-pressed="true"] .dock-disc, .dock-btn[aria-expanded="true"] .dock-disc { background: var(--dc); color: #111820; box-shadow: 0 0 0 2px var(--slate-solid), 0 0 0 4px var(--dc); }
 .dock-btn > span:not(.dock-disc) { font: 700 13px/1 var(--display); letter-spacing: 0.02em; text-transform: uppercase; white-space: nowrap; }

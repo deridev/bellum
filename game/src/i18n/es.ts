@@ -187,4 +187,5 @@ export const es: Record<string, Entry> = {
   'agenda.peaceShort': 'Oferta de paz', 'agenda.moreIn': '+{n} más en Decisiones ↑', 'led.andMore': '+{n} más', 'mil.locate': 'Mostrar en el mapa',
   'mil.show': 'Ver',
   'led.noChange': 'sin cambios', 'pol.rising': 'Apoyo al alza', 'pol.falling': 'Apoyo a la baja', 'pol.steady': 'Estable', 'eco.borrowingNow': '{v}/mes prestados',
+  'dock.ledger': 'Datos',
 };
