@@ -4,12 +4,15 @@ import { loadAssets } from './data/load';
 import type { MapAssets } from './data/types';
 import { Session } from './game/session';
 import { PickScreen } from './ui/App';
+import { Hud } from './ui/Hud';
+import { Game } from './game/play';
 import './ui/styles.css';
 
 function Root() {
   const [assets, setAssets] = useState<MapAssets | null>(null);
   const [prog, setProg] = useState(0); const [err, setErr] = useState('');
   const [session, setSession] = useState<Session | null>(null);
+  const [game, setGame] = useState<Game | null>(null);
   const stage = useRef<HTMLDivElement>(null), glc = useRef<HTMLCanvasElement>(null), ovc = useRef<HTMLCanvasElement>(null);
   useEffect(() => { loadAssets((d, t) => setProg(d / t)).then(setAssets).catch(e => setErr(String(e.message || e))); }, []);
   useEffect(() => {
@@ -19,7 +22,8 @@ function Root() {
   }, [assets]);
   return <>
     <div id="stage" ref={stage}><canvas id="map" ref={glc} /><canvas id="overlay" ref={ovc} />
-      {session && <PickScreen s={session} onPlay={ci => { session.ui.set({ player: ci, phase: 'play' }); }} />}
+      {session && !game && <PickScreen s={session} onPlay={ci => { session.ui.set({ player: ci, phase: 'play', selected: -1 }); const g = new Game(session, ci); (window as any).__game = g; setGame(g); session.focusCountry(ci); }} />}
+      {game && <Hud g={game} />}
     </div>
     {!session && <div class="loading"><div class="box">
       <div class="brand">BELLUM<small>Grand strategy</small></div>

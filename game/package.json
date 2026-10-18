@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build && node tools/artifact.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "mapgen": "node tools/mapgen/build.mjs"
+    "mapgen": "node tools/mapgen/build.mjs && node tools/mapgen/flags.mjs"
   },
   "dependencies": {
     "preact": "^10.24.3"
@@ -17,6 +17,7 @@
     "@preact/preset-vite": "^2.9.1",
     "adm-zip": "^0.5.16",
     "earcut": "^3.0.0",
+    "flag-icons": "^7.2.3",
     "mapshaper": "^0.6.99",
     "sharp": "^0.33.5",
     "topojson-client": "^3.1.0",
