@@ -101,7 +101,7 @@ export class TheaterLayer {
   private side: Uint8Array = new Uint8Array(1024 * MAX_SLOTS); private tSide: WebGLTexture;
   private shown: Theater[] = [];
   private colors: [number, number, number][] = [];
-  mix = 0;
+  mix = 0; hidden = false; // hidden: the timelapse shows plain province colours
   tipA = new Float32Array(MAX_TIPS * 4); tipB = new Float32Array(MAX_TIPS * 2); tipN = 0;
 
   constructor(private gl: WebGL2RenderingContext) {
@@ -161,7 +161,7 @@ export class TheaterLayer {
     const box: number[] = [], size: number[] = [], ca: number[] = [], cb: number[] = [], state: number[] = [];
     this.slots.forEach((s, i) => {
       const t = this.shown.find(t => t.id === s.id), h = t && this.hist.get(t.id);
-      if (!t || !h) { box.push(0, 0, 1, 1); size.push(1, 1); ca.push(0, 0, 0); cb.push(0, 0, 0); state.push(0); return; }
+      if (!t || !h || this.hidden) { box.push(0, 0, 1, 1); size.push(1, 1); ca.push(0, 0, 0); cb.push(0, 0, 0); state.push(0); return; }
       if (s.dirty) this.upload(s, h);
       box.push(t.lon0, t.lat0, t.W * t.cw, t.H * t.ch); size.push(t.W, t.H); state.push(t.frozen ? 2 : 1);
       const lead = (sd: number, j: number) => t.lead[j] >= 0 ? t.lead[j] : +Object.keys(t.sideOf).find(c => t.sideOf[+c] === sd)!;

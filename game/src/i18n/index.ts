@@ -9,7 +9,7 @@ export const LANGS: { id: Lang; label: string }[] = [{ id: 'en', label: 'English
 /** A dictionary entry: plain text with {placeholders}, or plural forms picked by the `n` argument. */
 export type Entry = string | { one: string; other: string };
 const DICTS: Record<Lang, Record<string, Entry>> = { en, pt, es };
-const LOCALE: Record<Lang, string> = { en: 'en-GB', pt: 'pt-BR', es: 'es-ES' };
+const LOCALE: Record<Lang, string> = { en: 'en-US', pt: 'pt-BR', es: 'es-ES' };
 
 let lang: Lang = detect();
 const listeners = new Set<() => void>();
@@ -52,12 +52,16 @@ function arg(w: World, v: MsgArg): string | number {
 let regionNames: Intl.DisplayNames | null = null;
 const ISO2: Record<string, string> = {};
 /** Tell the localizer each country code's ISO 3166 alpha-2 code (for built-in translated names). */
-export function registerCountries(list: { code: string; iso2?: string }[]) { for (const c of list) if (c.iso2 && /^[A-Z]{2}$/.test(c.iso2)) ISO2[c.code] = c.iso2; }
-export function countryName(w: World, id: number): string {
-  const c = w.countries[id]; if (!c) return '?';
-  const own = DICTS[lang]['country.' + c.code]; if (typeof own === 'string') return own;
-  if (lang === 'en' || !ISO2[c.code]) return c.name;
-  try { regionNames ||= new Intl.DisplayNames([LOCALE[lang]], { type: 'region' }); return regionNames.of(ISO2[c.code]) || c.name; } catch { return c.name; }
+export function registerCountries(list: { code: string; iso2?: string; name: string }[]) { for (const c of list) { MODERN_NAME[c.code] = c.name; if (c.iso2 && /^[A-Z]{2}$/.test(c.iso2)) ISO2[c.code] = c.iso2; } }
+export function countryName(w: World, id: number): string { const c = w.countries[id]; return c ? nameFor(c.code, c.name, w.scenario === '2026' || !w.scenario ? ISO2[c.code] : histIso(c.code, c.name)) : '?'; }
+/** A historical country gets its modern name only if it is the same state under the same name (France 1914 = France). */
+const MODERN_NAME: Record<string, string> = {}; const histIso = (code: string, name: string) => MODERN_NAME[code] === name ? ISO2[code] : '';
+/** A country's name in the current language: our own dictionary first, then the browser's region names. */
+export function nameFor(code: string, name: string, iso2 = ISO2[code]): string {
+  const hist = DICTS[lang]['cname.' + name]; if (typeof hist === 'string') return hist; // historical names ("Kingdom of Italy")
+  const own = DICTS[lang]['country.' + code]; if (typeof own === 'string') return own;
+  if (lang === 'en' || !iso2 || !/^[A-Z]{2}$/.test(iso2)) return name;
+  try { regionNames ||= new Intl.DisplayNames([LOCALE[lang]], { type: 'region' }); return regionNames.of(iso2) || name; } catch { return name; }
 }
 const ordEn = (n: number) => { const s = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'; return n + s; };
 /** "1st Infantry Division" / "1ª Divisão de Infantaria" */
@@ -68,5 +72,5 @@ export function armyName(n: number) { return t('army.name', { ord: lang === 'en'
 export const fmtNum = (v: number, digits = 0) => v.toLocaleString(LOCALE[lang], { maximumFractionDigits: digits });
 export function fmtDate(w: World, day = w.day, style: 'long' | 'month' = 'long') {
   const d = new Date(w.startDate + day * 864e5);
-  return d.toLocaleDateString(LOCALE[lang], style === 'month' ? { month: 'short', year: 'numeric', timeZone: 'UTC' } : { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+  return d.toLocaleDateString(lang === 'en' ? 'en-GB' : LOCALE[lang], style === 'month' ? { month: 'short', year: 'numeric', timeZone: 'UTC' } : { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 }

@@ -4,13 +4,15 @@ import { Camera } from '../render/camera';
 import { computeLabels, drawCountryLabels, type CountryLabel } from '../render/labels';
 import { MapRenderer, type MapMode } from '../render/map';
 import { createStore } from './store';
+import { presentDay, type Scenario } from './scenarios';
+import { nameFor, onLang } from '../i18n';
 
 export interface UIState {
   phase: 'pick' | 'play';
   hover: number; // province under the cursor
   selected: number; // selected country index
   player: number; // player's country index
-  mapMode: MapMode | 'population' | 'economy';
+  mapMode: MapMode | 'population' | 'economy' | 'diplomacy';
   mouse: [number, number];
 }
 
@@ -19,22 +21,28 @@ export class Session {
   assets: MapAssets; cam = new Camera(); ren: MapRenderer; ctx: CanvasRenderingContext2D;
   ui = createStore<UIState>({ phase: 'pick', hover: -1, selected: -1, player: -1, mapMode: 'political', mouse: [0, 0] });
   owner: Int32Array; countryIndex: Record<string, number> = {}; labels: CountryLabel[] = [];
+  /** the scenario on the map: its countries, starting owners and flag keys */
+  scenario: Scenario; get countries() { return this.scenario.countries; } get flagOf() { return this.scenario.flagOf; }
+  /** per-province values for map modes that need the running game (set by Game) */
+  modeValues: ((mode: UIState['mapMode']) => ArrayLike<number> | null) | null = null;
   private pickPending: [number, number] | null = null;
   constructor(public glc: HTMLCanvasElement, public ovc: HTMLCanvasElement, public stage: HTMLElement, assets: MapAssets) {
     this.assets = assets;
     this.ren = new MapRenderer(glc, assets);
     this.ctx = ovc.getContext('2d')!;
-    assets.countries.forEach((c, i) => (this.countryIndex[c.code] = i));
-    this.owner = new Int32Array(assets.provinces.map(p => this.countryIndex[p.country]));
-    this.ren.setPalette(assets.countries.map(c => c.color));
-    this.ren.setOwners(this.owner);
-    this.relabel();
+    this.scenario = presentDay(assets); this.owner = this.scenario.owner;
+    this.setScenario(this.scenario);
+    onLang(() => this.relabel());
     this.resize(); this.cam.upp = 360 / this.cam.w; this.cam.x = 15; this.cam.y = 28; this.cam.clamp();
     this.bindInput();
     window.addEventListener('resize', () => this.resize());
     requestAnimationFrame(t => this.frame(t));
   }
-  relabel() { this.labels = computeLabels(this.assets, this.owner, this.assets.countries.map(c => c.name)); }
+  setScenario(sc: Scenario) {
+    this.scenario = sc; this.countryIndex = {}; sc.countries.forEach((c, i) => (this.countryIndex[c.code] = i));
+    this.owner = sc.owner.slice(); this.ren.setPalette(sc.countries.map(c => c.color)); this.ren.setOwners(this.owner); this.relabel();
+  }
+  relabel() { this.labels = computeLabels(this.assets, this.owner, this.countries.map(c => nameFor(c.code, c.name, c.iso2))); }
   resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2), w = this.stage.clientWidth, h = this.stage.clientHeight;
     this.cam.w = w; this.cam.h = h; this.cam.dpr = dpr;
@@ -43,7 +51,7 @@ export class Session {
     this.cam.clamp();
   }
   focusCountry(ci: number) {
-    const cap = this.assets.countries[ci].capital, [lon, lat] = this.assets.provinces[cap].label, [x, y] = project(lon, lat);
+    const cap = this.countries[ci].capital, [lon, lat] = this.assets.provinces[cap].label, [x, y] = project(lon, lat);
     this.cam.x = x; this.cam.y = y; this.cam.upp = Math.min(this.cam.upp, 0.06); this.cam.clamp();
   }
   setMapMode(m: UIState['mapMode']) {
@@ -51,6 +59,7 @@ export class Session {
     const P = this.assets.provinces;
     if (m === 'population') { const v = P.map(p => Math.log10(1 + p.pop / Math.max(1, p.area)) / 3.2); this.ren.setValues(v); }
     if (m === 'economy') { const v = P.map(p => Math.log10(1 + p.gdp / Math.max(1, p.pop) * 1e6) / 5); this.ren.setValues(v); }
+    if (m === 'diplomacy') { const v = this.modeValues?.(m); if (v) this.ren.setValues(v); }
   }
 
   private bindInput() {
@@ -98,7 +107,7 @@ export class Session {
     const dt = Math.min(0.1, (t - this.last) / 1000 || 0); this.last = t;
     this.onFrame?.(dt, t / 1000);
     const s = this.ui.get();
-    const mode: MapMode = s.mapMode === 'population' || s.mapMode === 'economy' ? 'value' : s.mapMode;
+    const mode: MapMode = s.mapMode === 'population' || s.mapMode === 'economy' ? 'value' : s.mapMode === 'diplomacy' ? 'relations' : s.mapMode;
     this.ren.draw(this.cam, { sel: s.selected, hover: s.hover, player: s.player, mode, time: t / 1000 });
     if (this.pickPending) { const h = this.ren.pick(this.cam, ...this.pickPending); this.pickPending = null; if (h !== s.hover) this.ui.set({ hover: h }); }
     this.drawOverlay();

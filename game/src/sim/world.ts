@@ -1,4 +1,4 @@
-import { ACTIVE_K, BLOCS, FRIENDS, GOV, GOV_TITLE, IDEOLOGY_NUDGE, MIL_GDP, PERSONALITY, PM_COUNTRIES, RIVALS, START_TREATIES } from './data';
+import { GOV_TITLE, TABLES_2026, type Tables } from './data';
 import { leaderTraits, makeGeneral, personName } from './names';
 import { nextRand } from './rng';
 import type { Army, Conscription, Country, Division, Gov, Group, MapStatic, Msg, Personality, Province, UnitType, World } from './types';
@@ -11,10 +11,11 @@ const GROUP_POWER: Record<Gov, [number, number, number, number]> = { // military
 };
 
 /** Build the 2026 world from the static map and scenario tables. */
-export function createWorld(S: MapStatic, opts: { seed?: number; player?: number } = {}): World {
+export function createWorld(S: MapStatic, opts: { seed?: number; player?: number; startDate?: number; scenario?: string; tables?: Tables } = {}): World {
+  const TB = opts.tables ?? TABLES_2026, modern = (opts.scenario ?? '2026') === '2026';
   const nC = S.countries.length;
   const w: World = {
-    version: 1, seed: opts.seed ?? 2026, rng: opts.seed ?? 2026, day: 0, startDate: DAY0, scenario: '2026',
+    version: 2, seed: opts.seed ?? 2026, rng: opts.seed ?? 2026, day: 0, startDate: opts.startDate ?? DAY0, scenario: opts.scenario ?? '2026',
     provinces: [], countries: [], divisions: [], armies: [], nextId: 1, wars: [], theaters: [], treaties: [], blocs: {},
     relations: new Int8Array(nC * nC), log: [], agenda: [], cooldowns: {}, settings: { turnMode: 'continuous', difficulty: 1 },
   };
@@ -29,32 +30,32 @@ export function createWorld(S: MapStatic, opts: { seed?: number; player?: number
     const pc = gdp * 1e6 / Math.max(1, pop), rich = Math.min(1, pc / 45000);
     for (const p of provsOf[i]) w.provinces[p].infra = 0.25 + 0.7 * rich;
     const taxRate = pc > 40000 ? 0.32 : pc > 12000 ? 0.25 : pc > 4000 ? 0.2 : 0.16;
-    const milPct = (MIL_GDP[code] ?? 1.5) / 100;
+    const milPct = (TB.milGdp[code] ?? 1.5) / 100;
     const military = Math.min(0.62, Math.max(0.04, milPct / taxRate));
-    const deficit = Math.max(0, milPct / taxRate - 0.62) + (code === 'UKR' ? 0.4 : code === 'USA' ? 0.2 : 0.03);
+    const deficit = Math.max(0, milPct / taxRate - 0.62) + (modern && code === 'UKR' ? 0.4 : modern && code === 'USA' ? 0.2 : 0.03);
     const research = 0.03 + 0.03 * rich, investment = 0.2, welfare = Math.max(0.05, 1 - military - research - investment);
-    const gov: Gov = GOV[code] ?? (pc < 2500 && nextRand(w) < 0.25 ? 'authoritarian' : 'democracy');
-    const nudge = IDEOLOGY_NUDGE[code];
+    const gov: Gov = TB.gov[code] ?? (pc < 2500 && nextRand(w) < 0.25 ? 'authoritarian' : 'democracy');
+    const nudge = TB.ideology[code];
     const ideology: [number, number] = nudge ? [...nudge] as [number, number] : [
       (gov === 'oneparty' ? -0.5 : 0.2) + (nextRand(w) - 0.5) * 0.6,
       ({ democracy: -0.35, authoritarian: 0.6, oneparty: 0.8, junta: 0.85, monarchy: 0.7, theocracy: 0.85 } as Record<Gov, number>)[gov] + (nextRand(w) - 0.5) * 0.3,
     ];
-    const conscription: Conscription = ['PRK', 'ISR', 'ERI'].includes(code) ? 'extensive' : ['UKR'].includes(code) ? 'total' : ['RUS', 'KOR', 'TWN', 'IRN', 'TUR', 'EGY', 'VNM', 'CHN', 'SYR', 'FIN', 'GRC', 'ARM', 'AZE'].includes(code) ? 'limited' : 'volunteer';
+    const conscription: Conscription = TB.conscription ? (TB.conscription[code] ?? 'limited') : ['PRK', 'ISR', 'ERI'].includes(code) ? 'extensive' : ['UKR'].includes(code) ? 'total' : ['RUS', 'KOR', 'TWN', 'IRN', 'TUR', 'EGY', 'VNM', 'CHN', 'SYR', 'FIN', 'GRC', 'ARM', 'AZE'].includes(code) ? 'limited' : 'volunteer';
     const power = GROUP_POWER[gov];
     const groups: Group[] = (['military', 'industry', 'labor', 'rural'] as const).map((id, k) => ({ id, power: power[k], support: 0.45 + nextRand(w) * 0.2 }));
     let stability = GOV_STABILITY[gov] + (rich - 0.4) * 0.2 + (nextRand(w) - 0.5) * 0.1;
-    if (code === 'UKR') stability = 0.55; if (['SDN', 'SSD', 'SOM', 'YEM', 'SYR', 'AFG', 'MMR', 'HTI', 'LBY'].includes(code)) stability = 0.3;
-    const title = PM_COUNTRIES.has(code) && gov === 'democracy' ? 'Prime Minister' : GOV_TITLE[gov];
-    const bloc = Object.entries(BLOCS).find(([, b]) => b.members.includes(code))?.[0] ?? '';
-    const personality: Personality = PERSONALITY[code] ?? (['defensive', 'defensive', 'opportunist', 'isolationist', 'opportunist'] as Personality[])[Math.floor(nextRand(w) * 5)];
+    if (modern && code === 'UKR') stability = 0.55; if (['SDN', 'SSD', 'SOM', 'YEM', 'SYR', 'AFG', 'MMR', 'HTI', 'LBY'].includes(code)) stability = 0.3;
+    const title = TB.titles?.[code] ?? (TB.pm.has(code) && gov === 'democracy' ? 'Prime Minister' : GOV_TITLE[gov]);
+    const bloc = Object.entries(TB.blocs).find(([, b]) => b.members.includes(code))?.[0] ?? '';
+    const personality: Personality = TB.personality[code] ?? (['defensive', 'defensive', 'opportunist', 'isolationist', 'opportunist'] as Personality[])[Math.floor(nextRand(w) * 5)];
     const revenue = gdp * taxRate / 12;
     const c: Country = {
       id: i, code, name: sc.name, color: sc.color, capital: sc.capital, alive: true, player: i === opts.player,
-      treasury: revenue * 2, debt: gdp * (({ JPN: 2.4, USA: 1.2, ITA: 1.4, GRC: 1.6, FRA: 1.1, GBR: 1.0, CAN: 1.05 } as Record<string, number>)[code] ?? (rich > 0.5 ? 0.6 : 0.45)),
+      treasury: revenue * 2, debt: gdp * ((modern ? ({ JPN: 2.4, USA: 1.2, ITA: 1.4, GRC: 1.6, FRA: 1.1, GBR: 1.0, CAN: 1.05 } as Record<string, number>)[code] : undefined) ?? (rich > 0.5 ? 0.6 : 0.45)),
       taxRate, deficit, budget: { military, investment, welfare, research },
       gdp, gdpStart: gdp, growth: 0.02, income: revenue, spending: revenue, upkeep: 0, unitCost: 1,
-      manpower: pop * CONSCRIPTION_RATE[conscription] * 0.6, conscription, polCap: 50, research: 0, tech: Math.round(4 * rich),
-      gov, ideology, stability: clamp01(stability), warSupport: code === 'UKR' ? 0.82 : code === 'RUS' ? 0.6 : code === 'ISR' ? 0.65 : 0.32,
+      manpower: pop * CONSCRIPTION_RATE[conscription] * 0.6, conscription, polCap: 50, research: 0, tech: TB.tech?.[code] ?? Math.round(4 * rich),
+      gov, ideology, stability: clamp01(stability), warSupport: TB.warSupport?.[code] ?? (modern ? (code === 'UKR' ? 0.82 : code === 'RUS' ? 0.6 : code === 'ISR' ? 0.65 : 0.32) : 0.4),
       groups, leader: { name: personName(w, code), title, born: 1950 + Math.floor(nextRand(w) * 25), traits: leaderTraits(w), since: 0 },
       nextElection: gov === 'democracy' ? Math.floor(nextRand(w) * 365 * 4) + 30 : -1,
       production: [], bloc, personality, aiNext: Math.floor(nextRand(w) * 30), milBase: military,
@@ -62,12 +63,13 @@ export function createWorld(S: MapStatic, opts: { seed?: number; player?: number
     };
     w.countries.push(c);
     // ---- standing army ----
-    const activeK = ACTIVE_K[code] ?? Math.max(2, Math.min(120, pop * 0.0035 / 1000 * (0.5 + rich)));
+    const activeK = TB.active[code] ?? Math.max(2, Math.min(120, pop * 0.0035 / 1000 * (0.5 + rich)));
     const nDiv = Math.max(1, Math.round(activeK * 1000 / 12000));
     const milMonthly = revenue * (1 + deficit) * military;
     c.unitCost = Math.max(2, milMonthly * 0.7 / nDiv);
     const coastal = provsOf[i].some(p => S.provinces[p].coastal);
-    const mix: [UnitType, number][] = [['armor', 0.08 + 0.12 * rich], ['mechanized', 0.12 + 0.2 * rich], ['marines', coastal && nDiv > 15 ? 0.05 : 0], ['airborne', nDiv > 25 ? 0.04 : 0]];
+    const mixOf = TB.mix?.[code] ?? (TB.mix ? [0.02, 0.03] : [0.08 + 0.12 * rich, 0.12 + 0.2 * rich]);
+    const mix: [UnitType, number][] = [['armor', mixOf[0]], ['mechanized', mixOf[1]], ['marines', coastal && nDiv > 15 ? 0.05 : 0], ['airborne', nDiv > 25 ? 0.04 : 0]];
     const border = provsOf[i].filter(p => S.provinces[p].nbr.some(n => w.provinces[n].owner !== i));
     const counts: Record<string, number> = {};
     const armies: Army[] = [];
@@ -82,11 +84,11 @@ export function createWorld(S: MapStatic, opts: { seed?: number; player?: number
     c.upkeep = nDiv * c.unitCost; c.spending = revenue * (1 + deficit) + c.debt * 0.04 / 12;
   }
   // ---- blocs, treaties, relations ----
-  for (const [key, b] of Object.entries(BLOCS)) {
+  for (const [key, b] of Object.entries(TB.blocs)) {
     const members = b.members.map(m => ci[m]).filter(x => x !== undefined);
     w.blocs[key] = { name: b.name, members, alliance: b.alliance, leader: members.slice().sort((x, y) => w.countries[y].gdp - w.countries[x].gdp)[0] };
   }
-  for (const [a, b, type] of START_TREATIES) if (ci[a] !== undefined && ci[b] !== undefined) w.treaties.push({ type, a: ci[a], b: ci[b], since: 0, until: -1 });
+  for (const [a, b, type] of TB.treaties) if (ci[a] !== undefined && ci[b] !== undefined) w.treaties.push({ type, a: ci[a], b: ci[b], since: 0, until: -1 });
   const setRel = (a: number, b: number, v: number) => { w.relations[a * nC + b] = clampRel(v); w.relations[b * nC + a] = clampRel(v); };
   for (let a = 0; a < nC; a++) for (let b = a + 1; b < nC; b++) {
     const A = w.countries[a], B = w.countries[b];
@@ -95,7 +97,7 @@ export function createWorld(S: MapStatic, opts: { seed?: number; player?: number
     if ((A.bloc === 'atlantic' && B.bloc === 'csto') || (A.bloc === 'csto' && B.bloc === 'atlantic')) v -= 40;
     setRel(a, b, v);
   }
-  for (const [x, y, v] of [...RIVALS, ...FRIENDS]) if (ci[x] !== undefined && ci[y] !== undefined) setRel(ci[x], ci[y], v);
+  for (const [x, y, v] of [...TB.rivals, ...TB.friends]) if (ci[x] !== undefined && ci[y] !== undefined) setRel(ci[x], ci[y], v);
   for (const t of w.treaties) if (t.type === 'alliance') setRel(t.a, t.b, Math.max(rel(w, t.a, t.b), 60));
   return w;
 }

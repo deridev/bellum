@@ -61,7 +61,7 @@ export function monthlyEvents(w: World, S: MapStatic) {
       if (c.player) {
         const a: Record<string, MsgArg> = { c: { c: c.id } }; if (other >= 0) a.o = { c: other };
         const item: AgendaItem = { id: w.nextId++, country: c.id, day: w.day, kind: 'event', title: msg(`ev.${e.id}.title`, a), text: msg(`ev.${e.id}.text`, a),
-          options: e.options.map((_, i) => ({ label: msg(`ev.${e.id}.o${i}`), effect: `event.${e.id}`, hint: msg(`ev.${e.id}.h${i}`) })), data: { other }, expires: w.day + 45 };
+          options: e.options.map((_, i) => ({ label: msg(`ev.${e.id}.o${i}`, a), effect: `event.${e.id}`, hint: msg(`ev.${e.id}.h${i}`, a) })), data: { other }, expires: w.day + 45 };
         w.agenda.push(item);
       } else e.options[e.aiPick ? e.aiPick(x) : 0](x);
       if (e.id === 'protests' || e.id === 'disaster') say(w, msg(`log.ev.${e.id}`, { c: { c: c.id } }), 'event', { who: [c.id] });

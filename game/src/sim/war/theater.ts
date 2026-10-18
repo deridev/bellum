@@ -18,6 +18,7 @@ export interface Theater {
   land: Uint8Array; prov: Int32Array; mtn: Float32Array; c: Float32Array; ent: Float32Array; flip: Uint8Array; heat: Float32Array; pocket: Uint8Array; main: Uint8Array;
   sideOf: Record<number, 1 | -1>; offensives: Offensive[]; cities: { name: string; k: number; side: number; tier: number }[];
   lead: [number, number]; frozen: boolean; dmz: Float32Array | null; created: number;
+  aggr?: [number, number]; // how hard each AI side pushes on this front (from the local balance)
 }
 /** scratch buffers (not saved) */
 interface Work { c2: Float32Array; P0: Float32Array; P1: Float32Array; tmp: Float32Array; F: Float32Array; eff0: Float32Array; eff1: Float32Array; distF: Int16Array; q: Int32Array; dtmp: Int16Array; air: [number, number]; atk: [number, number]; aggr: [number, number] }
@@ -409,16 +410,22 @@ export function frontDistanceKm(t: Theater, lon: number, lat: number): number { 
 export { km };
 
 /** place units along their own side of the front (scenario start) */
-export function deployAlongFront(w: World, t: Theater, units: Division[], rand: () => number) {
+/** Place units on their own side of the front. `near` (optional) sends a unit to the stretch of front closest to a point. */
+export function deployAlongFront(w: World, t: Theater, units: Division[], rand: () => number, near?: (u: Division) => [number, number] | undefined) {
   const wk = work(t); computeDist(t, wk);
   const cells: Record<string, number[]> = { '1': [], '-1': [] };
   for (let k = 0; k < t.W * t.H; k++) { if (!t.land[k] || !t.main[k]) continue; const d = wk.distF[k]; if (d >= 1 && d <= Math.max(2, Math.round(25 / t.cellKm))) cells[t.c[k] >= 0 ? '1' : '-1'].push(k); }
   // attackers spread along the front; defenders take up positions opposite them
   const place = (u: Division, k: number) => { const [x, y] = cellLonLat(t, k); u.theater = t.id; u.arrive = 0; u.x = x; u.y = y; };
   const att = units.filter(u => t.sideOf[u.country] > 0), def = units.filter(u => t.sideOf[u.country] < 0);
-  for (const u of att) { const list = cells['1']; if (list.length) place(u, list[Math.floor(rand() * list.length)]); }
+  const nearest = (list: number[], p: [number, number]) => { // a random cell among the 40 closest to the point
+    const scored = list.map(k => { const [x, y] = cellLonLat(t, k); return [k, (x - p[0]) ** 2 * Math.cos(y * Math.PI / 180) ** 2 + (y - p[1]) ** 2] as [number, number]; }).sort((a, b) => a[1] - b[1]);
+    return scored[Math.floor(rand() * Math.min(40, scored.length))][0];
+  };
+  for (const u of att) { const list = cells['1']; if (!list.length) continue; const p = near?.(u); place(u, p ? nearest(list, p) : list[Math.floor(rand() * list.length)]); }
   for (const u of def) {
     const list = cells['-1']; if (!list.length) continue;
+    const p = near?.(u); if (p) { place(u, nearest(list, p)); continue; }
     const foe = att.length ? att[Math.floor(rand() * att.length)] : null;
     if (!foe) { place(u, list[Math.floor(rand() * list.length)]); continue; }
     let best = list[0], bd = Infinity; for (const k of list) { const [x, y] = cellLonLat(t, k); const d = (x - foe.x) ** 2 + (y - foe.y) ** 2; if (d < bd) { bd = d; best = k; } }

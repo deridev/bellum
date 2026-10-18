@@ -1,4 +1,154 @@
 import type { Entry } from '.';
 
+// Español (neutro). Mismas claves que en.ts, agrupadas igual.
 export const es: Record<string, Entry> = {
+  'lang.code': 'es', 'loading': 'Cargando el mundo', 'fmt.money': '{v} US$',
+  'ui.close': 'Cerrar', 'ui.back': 'Atrás', 'ui.cancel': 'Cancelar',
+
+  // ---- título y configuración ----
+  'title.tagline': 'Gran estrategia sobre un mapa vivo', 'title.menu': 'Menú principal', 'title.new': 'Nueva partida', 'title.load': 'Cargar partida', 'title.settings': 'Ajustes',
+  'title.foot': 'Fronteras reales, frentes que fluyen como pintura. Todos los países son jugables.',
+  'setup.step1': 'Paso 1 de 2', 'setup.title': 'Elige un momento de la historia', 'setup.step2': 'Paso 2 · elige tu nación',
+  'setup.hint': 'O haz clic en cualquier país del mapa.', 'setup.play': 'Jugar como {c}', 'setup.unavailable': 'No se pudo cargar este escenario. Inténtalo de nuevo en un momento.',
+  'scenario.2026.name': 'La actualidad', 'scenario.2026.blurb': 'Enero de 2026. La guerra de Ucrania sigue su curso; en el resto del mundo, viejas rivalidades a punto de estallar.',
+  'scenario.1939.name': 'El mundo en guerra', 'scenario.1939.blurb': 'Septiembre de 1939. Alemania invade Polonia. Gran Bretaña y Francia deben responder.',
+  'scenario.1914.name': 'La Gran Guerra', 'scenario.1914.blurb': 'Julio de 1914. Austria-Hungría ataca a Serbia y el sistema de alianzas se pone en marcha.',
+  'stat.capital': 'Capital', 'stat.population': 'Población', 'stat.gdp': 'Economía (PIB)', 'stat.provinces': 'Provincias', 'stat.area': 'Superficie', 'stat.terrain': 'Terreno',
+  'terrain.forest': 'bosque', 'terrain.plains': 'llanuras', 'terrain.jungle': 'selva', 'terrain.mountains': 'montañas', 'terrain.hills': 'colinas', 'terrain.desert': 'desierto', 'terrain.arctic': 'ártico',
+  'modes.label': 'Modo de mapa', 'modes.political': 'Político', 'modes.terrain': 'Terreno', 'modes.diplomacy': 'Diplomacia', 'modes.population': 'Población', 'modes.economy': 'Riqueza',
+  'tip.heldBy': 'en manos de {c}',
+
+  // ---- HUD ----
+  'hud.openNation': 'Abrir tu nación', 'hud.panels': 'Paneles',
+  'panel.economy': 'Economía', 'panel.politics': 'Política', 'panel.military': 'Ejército', 'panel.diplomacy': 'Diplomacia', 'panel.war': 'Guerra', 'panel.chronicle': 'Crónica', 'panel.timelapse': 'Timelapse', 'panel.province': 'Provincia', 'panel.country': 'Nación extranjera',
+  'ledger.treasury': 'Tesoro', 'ledger.monthly': 'Mensual', 'ledger.manpower': 'Reservas', 'ledger.stability': 'Estabilidad', 'ledger.warSupport': 'Apoyo a la guerra', 'ledger.influence': 'Influencia',
+  'ledger.treasury.hint': 'Dinero disponible. Cuando se agota, el gasto se financia con préstamos y aumenta la deuda.', 'ledger.monthly.hint': 'Ingresos menos gastos e intereses, último mes',
+  'ledger.manpower.hint': 'Reclutas disponibles para nuevas divisiones', 'ledger.stability.hint': 'Una estabilidad baja supone pérdida de ingresos, disturbios y, en el peor de los casos, golpes de Estado',
+  'ledger.warSupport.hint': 'Disposición de la población a luchar. Cae con las bajas y las guerras largas', 'ledger.influence.hint': 'Capital político: se gasta en diplomacia, leyes y declaraciones de guerra',
+  'clock.play': 'Reanudar', 'clock.pause': 'Pausar', 'clock.speed': 'Velocidad', 'clock.speedN': 'Velocidad {n}', 'clock.perSec': { one: '{n} día por segundo', other: '{n} días por segundo' },
+  'feed.title': 'Despachos',
+  'agenda.peace': 'Oferta de paz', 'agenda.diplo': 'Propuesta', 'agenda.event': 'Informe',
+
+  // ---- economía ----
+  'eco.perYear': '{v}/año', 'eco.perMonth': '{v}/mes', 'eco.growth': 'Crecimiento', 'eco.revenue': 'Ingresos', 'eco.spending': 'Gastos (incl. intereses)', 'eco.debt': 'Deuda', 'eco.debtOf': '{v} ({p} del PIB)',
+  'eco.taxes': 'Impuestos y endeudamiento', 'eco.taxRate': 'Nivel de impuestos', 'eco.taxHint': 'Más impuestos: más ingresos, menos crecimiento y descontento en la industria y el campo.',
+  'eco.borrowing': 'Endeudamiento', 'eco.ofRevenue': '+{p} de los ingresos', 'eco.borrowHint': 'Gasta por encima de tus ingresos. La deuda cuesta un 4 % anual y una deuda elevada frena el crecimiento.',
+  'eco.budget': 'Presupuesto', 'eco.military': 'Defensa', 'eco.milHint': 'Mantenimiento {up}/mes · producción {prod}/mes', 'eco.investment': 'Inversión', 'eco.invHint': 'Infraestructura e industria: impulsa el crecimiento.',
+  'eco.welfare': 'Gasto social', 'eco.welHint': 'Sanidad, pensiones, servicios: estabilidad y apoyo de los trabajadores.', 'eco.research': 'Investigación', 'eco.resHint': 'Nivel de tecnología militar {n}. Cada nivel hace las unidades un 5 % más fuertes.',
+
+  // ---- política ----
+  'gov.democracy': 'Democracia', 'gov.authoritarian': 'Estado autoritario', 'gov.oneparty': 'Estado de partido único', 'gov.junta': 'Junta militar', 'gov.monarchy': 'Monarquía', 'gov.theocracy': 'Teocracia',
+  'title.President': 'Presidente', 'title.Prime Minister': 'Primer ministro', 'title.General Secretary': 'Secretario general', 'title.Head of the Council': 'Jefe del Consejo', 'title.King': 'Rey', 'title.Supreme Leader': 'Líder Supremo',
+  'title.Emperor': 'Emperador', 'title.Chancellor': 'Canciller', 'title.Premier': 'Jefe de Gobierno', 'title.Sultan': 'Sultán', 'title.Tsar': 'Zar', 'title.Duce': 'Duce', 'title.Führer': 'Führer',
+  'pol.nextElection': 'Próximas elecciones: {d}', 'pol.heading': 'Tendencia: {p}', 'pol.groups': 'Grupos de interés', 'pol.power': 'poder {p}',
+  'pol.markerHint': 'El marcador indica hacia dónde evoluciona el ánimo de cada grupo con tus políticas actuales.', 'pol.ideology': 'Ideología', 'pol.order': 'Orden', 'pol.liberty': 'Libertad', 'pol.collective': 'Colectivo', 'pol.market': 'Mercado',
+  'group.military': 'Militares', 'group.industry': 'Industria', 'group.labor': 'Trabajadores', 'group.rural': 'Agricultores',
+  'trait.Cautious': 'Prudente', 'trait.Bold': 'Audaz', 'trait.Reformer': 'Reformista', 'trait.Hardliner': 'Intransigente', 'trait.Pragmatic': 'Pragmático', 'trait.Populist': 'Populista', 'trait.Technocrat': 'Tecnócrata', 'trait.Charismatic': 'Carismático',
+  'trait.Corrupt': 'Corrupto', 'trait.War Hero': 'Héroe de guerra', 'trait.Diplomat': 'Diplomático', 'trait.Isolationist': 'Aislacionista', 'trait.Hawk': 'Halcón', 'trait.Dove': 'Paloma', 'trait.Industrialist': 'Industrialista',
+
+  // ---- ejército ----
+  'mil.divisions': 'Divisiones', 'mil.divCount': '{n} ({men} hombres)', 'mil.atFront': 'En el frente', 'mil.mix': 'Composición', 'mil.upkeep': 'Mantenimiento', 'mil.funds': 'Fondos de producción', 'mil.tech': 'Tecnología', 'mil.level': 'Nivel {n}',
+  'mil.build': 'Reclutar', 'mil.cost': '{v} · {d} días · {m} hombres', 'mil.noManpower': 'Reservas insuficientes', 'mil.queued': 'División en cola: {u}', 'mil.queue': 'Cola de producción',
+  'mil.noFunds': 'Sin fondos de producción: el mantenimiento consume todo el presupuesto de defensa. Aumenta la partida de defensa o endéudate.',
+  'mil.conscription': 'Reclutamiento', 'mil.lawHint': 'Hasta el {p} de la población ({n})', 'mil.needInfluence': 'Requiere {n} de influencia', 'mil.lawSet': 'Reclutamiento: {l}', 'mil.lawCost': 'Las leyes más duras cuestan influencia y estabilidad (menos en tiempo de guerra).',
+  'mil.armies': 'Ejércitos', 'mil.general': 'Gral. {g} · {n} div.',
+  'law.volunteer': 'Voluntario', 'law.limited': 'Limitado', 'law.extensive': 'Amplio', 'law.total': 'Total',
+  'unitShort.infantry': 'Infantería', 'unitShort.armor': 'Blindados', 'unitShort.mechanized': 'Mecanizados', 'unitShort.marines': 'Infantería de marina', 'unitShort.airborne': 'Paracaidistas',
+  'gtrait.Bold': 'Audaz', 'gtrait.Cautious': 'Prudente', 'gtrait.Defensive Genius': 'Genio defensivo', 'gtrait.Armor Pioneer': 'Pionero de los blindados', 'gtrait.Beloved by the Troops': 'Querido por la tropa', 'gtrait.Logistician': 'Experto en logística',
+  'gtrait.Mountain Expert': 'Experto en montaña', 'gtrait.Urban Fighter': 'Experto en combate urbano', 'gtrait.Politically Ambitious': 'Ambición política', 'gtrait.Reckless': 'Temerario', 'gtrait.Old Guard': 'Vieja guardia', 'gtrait.Rising Star': 'Estrella emergente',
+  'unit.name': '{ord}.ª {type}', 'army.name': '{ord}.º Ejército',
+  'unitType.infantry': 'División de Infantería', 'unitType.armor': 'División Acorazada', 'unitType.mechanized': 'División Mecanizada', 'unitType.marines': 'División de Infantería de Marina', 'unitType.airborne': 'División Aerotransportada',
+
+  // ---- provincias ----
+  'prov.output': 'Producción', 'prov.infra': 'Infraestructura', 'prov.damage': 'Daños de guerra', 'prov.stationed': 'Desplegadas aquí', 'prov.more': 'y {n} más',
+
+  // ---- diplomacia ----
+  'dip.opinion': 'Opinión sobre ti', 'dip.bloc': 'Bloque', 'dip.withYou': 'Tratados contigo', 'dip.cost': '{n} de influencia', 'dip.rivals': 'Rivales', 'dip.friends': 'Naciones amigas',
+  'dip.influenceHint': 'La influencia crece cada mes según la estabilidad. La diplomacia, las leyes y las declaraciones de guerra la consumen.', 'dip.mapHint': 'El modo de mapa Diplomacia colorea el mundo según cómo te ve cada nación.',
+  'dip.allyNote': 'Los aliados se unen a las guerras defensivas de los demás.',
+  'dip.act.improve': 'Mejorar relaciones', 'dip.act.trade': 'Acuerdo comercial', 'dip.act.nap': 'Pacto de no agresión', 'dip.act.alliance': 'Proponer alianza', 'dip.act.guarantee': 'Garantizar independencia', 'dip.act.denounce': 'Denunciar', 'dip.act.break': 'Romper tratado',
+  'dip.done.improve': 'Emisarios enviados a {c}', 'dip.done.trade': 'Acuerdo comercial firmado con {c}', 'dip.done.nap': 'Pacto de no agresión firmado con {c}', 'dip.done.alliance': 'Alianza firmada con {c}',
+  'dip.done.guarantee': 'Garantizas la independencia de {c}', 'dip.done.denounce': 'Denuncias a {c}', 'dip.done.break': 'Tratado con {c} roto',
+  'dip.why.invalid': 'No es posible.', 'dip.why.cooldown': 'Demasiado pronto para volver a intentarlo (a partir del {d}).', 'dip.why.influence': 'Requiere {n} de influencia.', 'dip.why.atWar': 'Estás en guerra con ellos.',
+  'dip.why.improve': 'Su opinión sobre ti mejorará.', 'dip.why.maxed': 'Las relaciones no podrían ser mejores.', 'dip.why.denounce': 'Empeora las relaciones, moviliza a tu opinión pública y complace a sus rivales. Un rival denunciado justifica la guerra.',
+  'dip.why.break': 'Pone fin a tu tratado. No lo olvidarán.', 'dip.why.noTreaty': 'No tienes ningún tratado que romper.', 'dip.why.already': 'Ya está en vigor.', 'dip.why.tradeOk': 'Ambas economías crecerían un poco.',
+  'dip.why.opinion': 'Su opinión sobre ti debe ser al menos {n}.', 'dip.why.napOk': 'Aceptarían no atacarte durante diez años.', 'dip.why.napWeak': 'No necesitan un pacto con una nación más débil.',
+  'dip.why.guaranteeOk': 'Los defenderás si son atacados.', 'dip.why.badFriends': 'Tus aliados son sus enemigos.', 'dip.why.allyRival': 'Hay un enemigo común: firmarían.', 'dip.why.allyOk': 'Confían en ti lo suficiente para firmar.',
+  'dip.why.allyNo': 'Aún no están convencidos (puntuación {n} de {need}). Mejores relaciones, un enemigo común o más poder ayudarían.',
+  'treaty.alliance': 'alianza', 'treaty.nap': 'pacto de no agresión', 'treaty.guarantee': 'garantía', 'treaty.access': 'acceso militar', 'treaty.trade': 'acuerdo comercial', 'treaty.puppet': 'estado títere',
+  'treaty.alliance.list': 'Aliados', 'treaty.guarantee.list': 'Garantías', 'treaty.nap.list': 'Pactos de no agresión', 'treaty.trade.list': 'Socios comerciales', 'treaty.puppet.list': 'Estados títere',
+  'bloc.atlantic': 'Alianza Atlántica', 'bloc.csto': 'Pacto de Seguridad Colectiva', 'bloc.pacific': 'Asociación del Pacífico', 'bloc.gulf': 'Consejo del Golfo', 'bloc.axis': 'Eje de la Resistencia', 'bloc.bolivar': 'Bloque Bolivariano', 'bloc.sahel': 'Confederación del Sahel',
+  'bloc.entente': 'Triple Entente', 'bloc.central': 'Potencias Centrales', 'bloc.allies': 'Aliados', 'bloc.axis39': 'Eje', 'bloc.comintern': 'Komintern',
+
+  // ---- guerra ----
+  'war.declare': 'Declarar la guerra', 'war.open': 'Abrir la sala de guerra', 'war.day': 'Día {n}', 'war.attacking': 'Estás atacando', 'war.defending': 'Te estás defendiendo', 'war.endedOn': 'Esta guerra terminó el {d}.',
+  'war.vs': 'contra', 'war.atFront': 'divisiones en el frente', 'war.atFrontTransit': 'divisiones en el frente, {n} en camino', 'war.divisions': 'divisiones', 'war.score': 'Puntuación de guerra', 'war.scoreHint': 'De −100 (victoria total suya) a +100 (victoria total tuya)',
+  'war.casualties': 'Bajas', 'war.exhaustion': 'Agotamiento', 'war.vsPair': '{a} contra {b}', 'war.posture': 'Postura', 'war.commitment': 'Implicación',
+  'war.commitHint': 'Envía el {p} de tu ejército a esta guerra. Las tropas de retaguardia refuerzan por ferrocarril los sectores más amenazados.', 'war.offensives': 'Ofensivas', 'war.army': 'Ejército', 'war.momentum': 'Ímpetu: se agota al atacar',
+  'war.plan': 'Planificar ofensiva', 'war.planHold': 'Desactiva «Mantener» para atacar.', 'war.planMax': 'Tu estado mayor no puede dirigir más de tres ofensivas a la vez.', 'war.planHint': 'Después haz clic en un objetivo en territorio enemigo. El ejército más cercano atacará hasta agotar su ímpetu.',
+  'war.peace': 'Paz', 'war.aim': 'Haz clic en territorio enemigo para fijar el objetivo de la ofensiva',
+  'posture.hold': 'Mantener', 'posture.advance': 'Avanzar', 'posture.offensive': 'Ofensiva total', 'posture.hold.hint': 'Atrincherarse. Menos bajas, sin ofensivas.', 'posture.advance.hint': 'Presión constante a lo largo de todo el frente.', 'posture.offensive.hint': 'Presionar en todas partes. Gana terreno, cuesta hombres.',
+  'commit.token': 'Simbólica', 'commit.normal': 'Normal', 'commit.total': 'Total',
+  'peace.white': 'Paz blanca', 'peace.ceasefire': 'Alto el fuego en el frente', 'peace.annex': { one: 'Anexionar {n} provincia controlada', other: 'Anexionar {n} provincias controladas' }, 'peace.wouldAccept': 'Aceptarían.',
+  'off.outside': 'Elige un objetivo dentro de la zona de guerra', 'off.launched': 'Ofensiva lanzada', 'off.notInWar': 'No formas parte de esta guerra', 'off.allBusy': 'Todos los ejércitos de este frente ya están atacando',
+  'off.noUnits': 'Aún no hay divisiones en este frente', 'off.ownGround': 'Elige un objetivo en territorio enemigo', 'off.tooFar': 'Demasiado lejos del frente (600 km como máximo)',
+  'declare.aria': 'Declarar la guerra a {c}', 'declare.claim': 'Tienes reclamaciones sobre territorio de {c}: la opinión pública respaldará esta guerra.', 'declare.rival': '{c} es un rival: la guerra se considera justificada.',
+  'declare.unprovoked': 'No hay reclamación ni agravio. El mundo verá una guerra no provocada.', 'declare.influence': '−{n} (tienes {have})', 'declare.opinion': 'Opinión mundial',
+  'declare.defenders': 'Acudirán en su defensa', 'declare.alone': 'Nadie está obligado a defenderlos.', 'declare.short': 'Influencia insuficiente',
+
+  // ---- crónica y timelapse ----
+  'chron.title': 'Historia de {c}', 'chron.since': 'Desde', 'chron.provinces': 'Provincias', 'chron.fromTo': '{a} → {b}', 'chron.wars': 'Guerras libradas', 'chron.copy': 'Copiar como texto', 'chron.copied': 'Copiado al portapapeles',
+  'chron.copyFailed': 'Aquí no se puede copiar. Selecciona el texto.', 'chron.empty': 'Aún no ha pasado nada. La historia espera.',
+  'lapse.empty': 'El timelapse registra el mapa cada mes. Vuelve tras unos meses de partida.', 'lapse.scrub': 'Mes', 'lapse.hint': { one: '{n} mes registrado en esta sesión.', other: '{n} meses registrados en esta sesión.' },
+
+  // ---- menú y ajustes ----
+  'menu.title': 'Menú', 'menu.paused': 'En pausa', 'menu.save': 'Guardar partida', 'menu.saved': 'Partida guardada', 'menu.saveFailed': 'Aquí no se puede guardar (el almacenamiento del navegador está bloqueado o lleno).',
+  'menu.loadFailed': 'No se pudo leer esa partida guardada', 'menu.delete': 'Borrar partida {s}', 'menu.exit': 'Salir al menú principal', 'menu.resume': 'Reanudar',
+  'set.language': 'Idioma', 'set.sound': 'Sonido', 'set.on': 'Activado', 'set.off': 'Desactivado', 'set.volume': 'Volumen', 'set.turns': 'Turnos', 'set.continuous': 'Continuo', 'set.monthly': 'Turnos mensuales', 'set.turnsHint': 'Los turnos mensuales pausan la partida al inicio de cada mes.',
+
+  // ---- mensajes de la simulación ----
+  'log.unitReady': '{unit} está lista', 'log.tech': 'Nueva tecnología militar: nivel {n}',
+  'log.reelected': '{leader} gana la reelección en {c}', 'log.votedOut': '{c} destituye a {old} en las urnas. {leader} asume el cargo', 'log.coup': 'Golpe militar en {c}: {old} es derrocado',
+  'log.peaceRejected': '{c} rechaza la oferta de paz', 'log.peaceOffer': '{c} ofrece la paz', 'log.warDeclared': '{a} declara la guerra a {b}',
+  'log.joinDefence': { one: '{cs} se une a la defensa', other: '{cs} se unen a la defensa' }, 'log.surrender': { one: '{n} división cercada de {c} se rinde', other: '{n} divisiones cercadas de {c} se rinden' }, 'log.cityFalls': '{city} cae en manos de {c}',
+  'log.joinsWar': '{c} se une a la {war} del lado de {b}', 'log.gone': '{c} deja de existir',
+  'log.peace.white': 'La {war} termina con una paz blanca', 'log.peace.ceasefire': 'La {war} termina con un alto el fuego a lo largo del frente',
+  'log.peace.treaty': { one: 'La {war} termina con un tratado que cede {n} provincia', other: 'La {war} termina con un tratado que cede {n} provincias' },
+  'log.denounce': '{a} denuncia a {b}', 'log.treatyBroken': '{a} rompe su {t} con {b}',
+  'log.treaty.trade': '{a} y {b} firman un acuerdo comercial', 'log.treaty.nap': '{a} y {b} firman un pacto de no agresión', 'log.treaty.guarantee': '{a} garantiza la independencia de {b}', 'log.treaty.alliance': '{a} y {b} forman una alianza',
+  'log.ev.protests': 'Protestas masivas en {c}', 'log.ev.disaster': 'Catástrofe en {c}',
+  'war.name': 'Guerra {a}–{b}', 'war.name.rusukr': 'Guerra ruso-ucraniana', 'war.name.ww1': 'Gran Guerra', 'war.name.ww2': 'Segunda Guerra Mundial',
+  'agenda.peace.title': '{c} ofrece la paz', 'agenda.peace.treaty': { one: 'Exigen {n} provincia que ya controlan.', other: 'Exigen {n} provincias que ya controlan.' },
+  'agenda.peace.ceasefire': 'Proponen un alto el fuego en el frente actual.', 'agenda.peace.white': 'Proponen volver a las fronteras de antes de la guerra.',
+  'agenda.diplo.title': 'Una propuesta de {c}', 'agenda.diplo.alliance': '{c} propone una alianza: cada uno defenderá al otro si es atacado.', 'agenda.diplo.nap': '{c} propone un pacto de no agresión por diez años.', 'agenda.diplo.trade': '{c} propone un acuerdo comercial.',
+  'opt.accept': 'Aceptar', 'opt.decline': 'Rechazar', 'opt.fightOn': 'Seguir luchando',
+  'why.white.ok': 'Están dispuestos a parar.', 'why.white.no': 'Creen que van ganando.', 'why.cease.ok': 'Ambos bandos están agotados.', 'why.cease.no': 'Primero quieren un resultado decisivo.',
+  'why.treaty.ok': 'Tus exigencias se ajustan a la situación sobre el terreno.', 'why.treaty.no': 'Aún no van a ceder eso (requiere una puntuación de {cost}; tienes {score}).',
+  'big.war': 'Guerra', 'big.peace': 'Paz', 'big.annexed': 'Anexión', 'big.coup': 'Golpe de Estado', 'big.electionLost': 'Elecciones perdidas', 'big.alliance': 'Alianza',
+
+  // ---- eventos ----
+  'ev.protests.title': 'Multitudes en las calles', 'ev.protests.text': 'Las protestas contra el gobierno se extienden por las ciudades de {c}. La policía pide órdenes.',
+  'ev.protests.o0': 'Hacer concesiones', 'ev.protests.h0': 'Más gasto social y estabilidad; cuesta 20 de influencia.', 'ev.protests.o1': 'Reprimir', 'ev.protests.h1': 'Orden restablecido por ahora; los trabajadores se vuelven contra ti y las democracias lo desaprueban.',
+  'ev.debtCrisis.title': 'Pánico en los mercados de bonos', 'ev.debtCrisis.text': 'Los acreedores dudan de que {c} pueda pagar. Los intereses se disparan.',
+  'ev.debtCrisis.o0': 'Austeridad', 'ev.debtCrisis.h0': 'Fin del endeudamiento, recortes sociales, menos estabilidad.', 'ev.debtCrisis.o1': 'Imprimir dinero', 'ev.debtCrisis.h1': 'La deuda se reduce en una quinta parte; los precios se disparan y la producción cae un 3 %.',
+  'ev.borderIncident.title': 'Disparos en la frontera', 'ev.borderIncident.text': 'Soldados de {c} y {o} intercambian disparos en un puesto fronterizo. Cada capital culpa a la otra.',
+  'ev.borderIncident.o0': 'Exigir disculpas', 'ev.borderIncident.h0': 'Las relaciones empeoran; la población cierra filas (más apoyo a la guerra).', 'ev.borderIncident.o1': 'Dejarlo pasar', 'ev.borderIncident.h1': 'Algunos lo ven como debilidad (menos estabilidad); más influencia.',
+  'ev.scandal.title': 'Escándalo en el ministerio', 'ev.scandal.text': 'Periodistas de {c} destapan que un ministro acepta sobornos.',
+  'ev.scandal.o0': 'Destituir al ministro', 'ev.scandal.h0': 'Cuesta 25 de influencia; la confianza se recupera un poco.', 'ev.scandal.o1': 'Negarlo todo', 'ev.scandal.h1': 'La estabilidad cae.',
+  'ev.boom.title': 'Años de bonanza', 'ev.boom.text': 'La economía de {c} crece con fuerza. Los asesores no se ponen de acuerdo sobre qué hacer con el excedente.',
+  'ev.boom.o0': 'Invertirlo', 'ev.boom.h0': 'Producción +2 %, a cambio de un mes de ingresos.', 'ev.boom.o1': 'Ahorrarlo', 'ev.boom.h1': 'Dos meses de ingresos al tesoro.',
+  'ev.warWeariness.title': 'La nación está cansada de la guerra', 'ev.warWeariness.text': 'Funerales, escasez y largas listas de nombres. El apoyo a la guerra en {c} se desploma.',
+  'ev.warWeariness.o0': 'Movilizar a la nación', 'ev.warWeariness.h0': 'Cuesta 30 de influencia; más apoyo a la guerra.', 'ev.warWeariness.o1': 'Buscar negociaciones de paz', 'ev.warWeariness.h1': 'Más estabilidad; la guerra te desgasta más deprisa.',
+  'ev.warHero.title': 'Un general se convierte en héroe', 'ev.warHero.text': 'Las victorias en el frente hacen de un comandante de {c} un nombre conocido por todos.',
+  'ev.warHero.o0': 'Ascenderlo y celebrarlo', 'ev.warHero.h0': 'Más estabilidad, más apoyo a la guerra y mejor ánimo entre los militares.', 'ev.warHero.o1': 'Mantener a raya a los generales', 'ev.warHero.h1': '15 de influencia.',
+  'ev.refugees.title': 'Refugiados en la frontera', 'ev.refugees.text': 'Miles de personas huyen de los combates en {o} y llegan a las fronteras de {c}.',
+  'ev.refugees.o0': 'Abrir las fronteras', 'ev.refugees.h0': '{o} lo agradece; cierta tensión interna.', 'ev.refugees.o1': 'Cerrar las fronteras', 'ev.refugees.h1': '{o} se resiente; el voto rural lo aprueba.',
+  'ev.disaster.title': 'Catástrofe', 'ev.disaster.text': 'Inundaciones y corrimientos de tierra devastan una región de {c}.',
+  'ev.disaster.o0': 'Destinar fondos a la ayuda', 'ev.disaster.h0': 'Un mes de ingresos; más estabilidad.', 'ev.disaster.o1': 'Una respuesta limitada', 'ev.disaster.h1': 'La estabilidad cae.',
+
+  // ---- nombres históricos de países ----
+  'cname.German Empire': 'Imperio alemán', 'cname.Austria-Hungary': 'Austria-Hungría', 'cname.Russian Empire': 'Imperio ruso', 'cname.Kingdom of Italy': 'Reino de Italia', 'cname.Ottoman Empire': 'Imperio otomano',
+  'cname.Dominican Republic': 'República Dominicana', 'cname.Union of South Africa': 'Unión Sudafricana', 'cname.Empire of Japan': 'Imperio del Japón', 'cname.Republic of China': 'República de China',
+  'cname.Tibet': 'Tíbet', 'cname.Persia': 'Persia', 'cname.Siam': 'Siam', 'cname.Nejd': 'Néyed', 'cname.German Reich': 'Reich alemán', 'cname.Soviet Union': 'Unión Soviética', 'cname.Yugoslavia': 'Yugoslavia',
+  'cname.Manchukuo': 'Manchukuo', 'cname.Slovakia': 'Eslovaquia', 'cname.United Kingdom': 'Reino Unido', 'cname.France': 'Francia', 'cname.Serbia': 'Serbia', 'cname.Montenegro': 'Montenegro', 'cname.Belgium': 'Bélgica',
 };

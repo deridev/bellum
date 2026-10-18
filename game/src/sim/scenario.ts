@@ -1,5 +1,9 @@
 // 2026 scenario specifics: ongoing conflicts and claims.
 import { msg } from './types';
+import { setupHistory, TABLES_1914, TABLES_1939 } from './history';
+import { TABLES_2026 } from './data';
+/** World-building tables for a scenario. */
+export const tablesFor = (id: string) => id === '1914' ? TABLES_1914 : id === '1939' ? TABLES_1939 : TABLES_2026;
 import type { MapStatic, World } from './types';
 import { declareWar, theatersOf } from './war/war';
 import { cellLonLat, deployAlongFront } from './war/theater';
@@ -14,6 +18,7 @@ function lineLon(lat: number) {
   return NaN;
 }
 export function setupScenario(w: World, S: MapStatic) {
+  if (w.scenario === '1914' || w.scenario === '1939') { setupHistory(w, S); return; }
   const ci: Record<string, number> = {}; w.countries.forEach(c => (ci[c.code] = c.id));
   for (const [a, b] of CLAIMS) if (ci[a] !== undefined && ci[b] !== undefined) for (const p of w.provinces) if (p.owner === ci[b] && !p.core.includes(ci[a])) p.core.push(ci[a]);
   // the Russia–Ukraine war is already under way

@@ -2,6 +2,7 @@ import { project } from '../geo';
 import type { Camera } from '../render/camera';
 import { MAX_TIPS, type TheaterLayer } from '../render/theaters';
 import type { MapAssets } from '../data/types';
+import type { Session } from './session';
 import type { LogEntry, World } from '../sim/types';
 import { cAt, cellLonLat, cellOf, offensiveTip, type Offensive, type Theater } from '../sim/war/theater';
 
@@ -36,7 +37,10 @@ export class WarFx {
   private SMOKE = sprite([[0, 'rgba(40,36,34,0.55)'], [0.6, 'rgba(40,36,34,0.2)'], [1, 'rgba(40,36,34,0)']]);
   private day = 0;
 
-  constructor(private A: MapAssets, private layer: TheaterLayer) {}
+  /** how much fighting is in view (0..1), for the battle ambience */
+  heatOnScreen = 0;
+  private get A(): MapAssets { return this.s.assets; }
+  constructor(private s: Session, private layer: TheaterLayer) {}
 
   /** after each simulated day */
   record(w: World) {
@@ -92,6 +96,12 @@ export class WarFx {
     }
     this.layer.tipN = n;
 
+    // ---- how much fighting is in view ----
+    let heat = 0;
+    for (const hot of this.hot) { const t = thById.get(hot.t); if (!t) continue;
+      const [x0, y0] = scr(t.lon0, t.lat0), [x1, y1] = scr(t.lon0 + t.W * t.cw, t.lat0 - t.H * t.ch);
+      if (x1 < 0 || y1 < 0 || x0 > cam.w || y0 > cam.h) continue; heat += hot.ks.length / 500; }
+    this.heatOnScreen = Math.min(1, heat) * Math.min(1, zoom / 3);
     // ---- artillery flashes along hot stretches ----
     if (playing && zoom > 1.2) for (const hot of this.hot) {
       const t = thById.get(hot.t); if (!t || !hot.ks.length) continue;
@@ -180,7 +190,7 @@ export class WarFx {
       // a new division pops in
       const pop = Math.min(1, (now - u.seen) / 0.35), ps = pop < 1 ? easeOutBack(pop) : 1, ww = fw * sx * ps, hh = fh * sy * ps;
       ctx.globalAlpha = (0.65 + 0.35 * Math.min(1, d.str / d.max)) * Math.min(1, pop * 2);
-      const fi = A.flagIndex[w.countries[d.country].code];
+      const code = w.countries[d.country].code, fi = A.flagIndex[this.s.flagOf[code] || code];
       if (fi) ctx.drawImage(A.flags, fi[0], fi[1], A.flagW, A.flagH, x - ww / 2, y - hh / 2, ww, hh); else { ctx.fillStyle = w.countries[d.country].color; ctx.fillRect(x - ww / 2, y - hh / 2, ww, hh); }
       ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.strokeRect(x - ww / 2 - 0.5, y - hh / 2 - 0.5, ww + 1, hh + 1);
       if (d.type === 'armor' || d.type === 'mechanized') { ctx.fillStyle = '#000'; ctx.fillRect(x - ww / 2, y + hh / 2 - 1.6 * s, ww, 1.6 * s); }

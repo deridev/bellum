@@ -1,5 +1,5 @@
 // Scenario tables for 2026 (approximate public figures; tuned for play, not a reference).
-import type { Gov, Personality } from './types';
+import type { Conscription, Gov, Personality, TreatyType } from './types';
 
 /** Active military personnel (thousands). Countries not listed get a size from population and wealth. */
 export const ACTIVE_K: Record<string, number> = {
@@ -109,3 +109,12 @@ export const NAMES: Record<string, [string[], string[]]> = {
 export const GOV_TITLE: Record<Gov, string> = { democracy: 'President', authoritarian: 'President', oneparty: 'General Secretary', junta: 'Head of the Council', monarchy: 'King', theocracy: 'Supreme Leader' };
 export const PM_COUNTRIES = new Set(['GBR', 'DEU', 'ITA', 'ESP', 'CAN', 'AUS', 'JPN', 'IND', 'NLD', 'BEL', 'SWE', 'NOR', 'DNK', 'NZL', 'IRL', 'GRC', 'HUN', 'CZE', 'ISR', 'PAK', 'BGD', 'THA', 'MYS', 'POL']);
 export const LEADER_TRAITS = ['Cautious', 'Bold', 'Reformer', 'Hardliner', 'Pragmatic', 'Populist', 'Technocrat', 'Charismatic', 'Corrupt', 'War Hero', 'Diplomat', 'Isolationist', 'Hawk', 'Dove', 'Industrialist'];
+
+/** Everything that differs between scenarios when the world is built. */
+export interface Tables {
+  active: Record<string, number>; milGdp: Record<string, number>; gov: Record<string, Gov>; ideology: Record<string, [number, number]>; personality: Record<string, Personality>;
+  blocs: Record<string, { name: string; members: string[]; alliance: boolean }>; treaties: [string, string, TreatyType][]; rivals: [string, string, number][]; friends: [string, string, number][];
+  pm: Set<string>; titles?: Record<string, string>; mix?: Record<string, [number, number]>; // [armor, mechanized] shares of new armies
+  tech?: Record<string, number>; conscription?: Record<string, Conscription>; warSupport?: Record<string, number>;
+}
+export const TABLES_2026: Tables = { active: ACTIVE_K, milGdp: MIL_GDP, gov: GOV, ideology: IDEOLOGY_NUDGE, personality: PERSONALITY, blocs: BLOCS, treaties: START_TREATIES, rivals: RIVALS, friends: FRIENDS, pm: PM_COUNTRIES };

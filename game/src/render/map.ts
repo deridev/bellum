@@ -81,7 +81,11 @@ void main(){
     col = land;
     vec3 cc = palette(own);
     float tint = uMode < 0.5 ? 0.6 : uMode < 1.5 ? 0.0 : 0.66;
-    if (uMode > 1.5) { float v = provVal(pid); cc = mix(vec3(0.12, 0.2, 0.45), vec3(0.98, 0.82, 0.25), v); }
+    if (uMode > 1.5 && uMode < 2.5) { float v = provVal(pid); cc = mix(vec3(0.12, 0.2, 0.45), vec3(0.98, 0.82, 0.25), v); }
+    if (uMode > 2.5) { // relations: 0 hostile .. 0.95 friendly; 0.97 ally; 1 the player
+      float v = provVal(pid);
+      cc = v > 0.985 ? vec3(0.85, 0.66, 0.27) : v > 0.955 ? vec3(0.31, 0.61, 0.91) : v < 0.475 ? mix(vec3(0.85, 0.22, 0.2), vec3(0.42, 0.44, 0.46), v / 0.475) : mix(vec3(0.42, 0.44, 0.46), vec3(0.36, 0.72, 0.42), (v - 0.475) / 0.475);
+    }
     float sl = dot(col, vec3(0.33));
     col = mix(col, cc * (0.22 + 1.05 * sl), tint);
     // THEATER_APPLY
@@ -99,7 +103,7 @@ void main(){
   o = vec4(col, 1.0);
 }`;
 
-export type MapMode = 'political' | 'terrain' | 'value';
+export type MapMode = 'political' | 'terrain' | 'value' | 'relations';
 
 export class MapRenderer {
   gl: WebGL2RenderingContext; canvas: HTMLCanvasElement; assets: MapAssets;
@@ -180,7 +184,7 @@ export class MapRenderer {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null); gl.viewport(0, 0, W, H);
     const c = this.comp; gl.useProgram(c.p); gl.bindVertexArray(this.quad);
     gl.uniform2f(c.u.uRes, W, H); gl.uniform2f(c.u.uCenter, cam.x, cam.y); gl.uniform1f(c.u.uUpp, upp); gl.uniform1f(c.u.uDpr, px);
-    gl.uniform1f(c.u.uTime, o.time); gl.uniform1f(c.u.uMode, o.mode === 'political' ? 0 : o.mode === 'terrain' ? 1 : 2);
+    gl.uniform1f(c.u.uTime, o.time); gl.uniform1f(c.u.uMode, o.mode === 'political' ? 0 : o.mode === 'terrain' ? 1 : o.mode === 'value' ? 2 : 3);
     gl.uniform1i(c.u.uSel, o.sel); gl.uniform1i(c.u.uHover, o.hover); gl.uniform1i(c.u.uPlayer, o.player);
     let unit = 0; const bind = (t: WebGLTexture, name: string) => { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); if (c.u[name]) gl.uniform1i(c.u[name], unit); unit++; };
     bind(this.idTex!, 'tId'); bind(this.tBaseW, 'tBaseW'); bind(this.tBaseE, 'tBaseE'); bind(this.tDem, 'tDem'); bind(this.tOwner, 'tOwner'); bind(this.tPal, 'tPal'); bind(this.tVal, 'tVal');

@@ -3,7 +3,7 @@ import * as topo from 'topojson-client';
 import { project } from '../geo';
 import type { CityData, CountryData, MapAssets, ProvinceData } from './types';
 
-const dataUrl = (f: string) => `${import.meta.env.BASE_URL}data/${f}`.replace(/^\.\//, './');
+export const dataUrl = (f: string) => `${import.meta.env.BASE_URL}data/${f}`.replace(/^\.\//, './');
 
 async function json<T>(f: string, progress: (f: string) => void): Promise<T> { const r = await fetch(dataUrl(f)); if (!r.ok) throw new Error(`Could not load ${f} (${r.status})`); const j = await r.json(); progress(f); return j; }
 async function bitmap(f: string, progress: (f: string) => void) {

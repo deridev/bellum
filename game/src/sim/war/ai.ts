@@ -15,6 +15,12 @@ export function theaterStrength(w: World, t: Theater): [number, number] {
 }
 const isAI = (w: World, c: number) => !w.countries[c].player;
 
+const aggrFor = (ratio: number) => ratio > 1.35 ? 1.22 : ratio > 1.0 ? 1.08 : ratio > 0.75 ? 0.98 : 0.9;
+/** Push strength on a front: the player's posture applies everywhere; AI sides use each front's own balance. */
+export function frontAggr(w: World, war: War, t: Theater): [number, number] {
+  const ai = (c: number) => !w.countries[c].player;
+  return [ai(war.leadA) && t.aggr ? t.aggr[0] : war.aggr[0], ai(war.leadD) && t.aggr ? t.aggr[1] : war.aggr[1]];
+}
 export function warAI(w: World, S: MapStatic) {
   for (const war of activeWars(w)) {
     const ths = theatersOf(w, war).filter(t => !t.frozen); if (!ths.length) continue;
@@ -24,8 +30,10 @@ export function warAI(w: World, S: MapStatic) {
       for (const side of [1, -1] as const) {
         const lead = side > 0 ? war.leadA : war.leadD; if (!isAI(w, lead)) continue;
         const ratio = side > 0 ? a / Math.max(1, b) : b / Math.max(1, a);
-        war.aggr[side > 0 ? 0 : 1] = ratio > 1.35 ? 1.22 : ratio > 1.0 ? 1.08 : ratio > 0.75 ? 0.98 : 0.9;
+        war.aggr[side > 0 ? 0 : 1] = aggrFor(ratio);
       }
+      // each front pushes by its own balance: strong where the army is concentrated, careful where it is thin
+      for (const t of ths) { const s = theaterStrength(w, t); t.aggr = [aggrFor(s[0] / Math.max(1, s[1])), aggrFor(s[1] / Math.max(1, s[0]))]; }
     }
     // logistics run for everyone, players included: reinforcements up to the committed share, rail moves to threatened sectors
     if (w.day % 4 === 0) for (const c of [...war.attackers, ...war.defenders]) reinforce(w, S, war, c, ths);
@@ -75,8 +83,9 @@ function redeploy(w: World, S: MapStatic, t: Theater, c: number) {
 function reached(t: Theater, o: Offensive) { const k = cellOf(t, o.to[0], o.to[1]); return k >= 0 && t.c[k] * o.side > 0.3; }
 
 function planOffensive(w: World, S: MapStatic, war: War, t: Theater, c: number) {
-  const side = t.sideOf[c]; const myAggr = war.aggr[side > 0 ? 0 : 1];
-  if (myAggr < 1.04) return;
+  const side = t.sideOf[c]; const myAggr = frontAggr(w, war, t)[side > 0 ? 0 : 1];
+  // on a front where we are not stronger overall, attack only where we clearly outnumber them locally
+  const localOnly = myAggr < 1.04;
   const mine = w.divisions.filter(d => d.country === c && d.theater === t.id && d.arrive <= w.day);
   if (mine.length < 3) return;
   const active = t.offensives.filter(o => !o.ended && o.country === c).length;
@@ -89,7 +98,7 @@ function planOffensive(w: World, S: MapStatic, war: War, t: Theater, c: number) 
   const wk = work(t);
   // targets: enemy-held cities near the front (capitals weigh double), else the weakest stretch of front
   let target: [number, number] | null = null, bestScore = -Infinity;
-  for (const city of t.cities) {
+  for (const city of localOnly ? [] : t.cities) {
     if (t.c[city.k] * side > 0) continue; const d = wk.distF[city.k]; if (d < 0) continue;
     const dKm = d * t.cellKm; if (dKm > 450) continue;
     const s = (city.tier === 1 ? 2 : 1) * 300 / (60 + dKm) + nextRand(w) * 0.5;
@@ -100,7 +109,7 @@ function planOffensive(w: World, S: MapStatic, war: War, t: Theater, c: number) 
     // weakest enemy front cell
     let bestW = Infinity;
     for (let k = 0; k < t.W * t.H; k += 3) { if (!t.land[k] || wk.distF[k] !== 0 || t.c[k] * side > 0) continue; const e = side > 0 ? wk.P1[k] : wk.P0[k], m = side > 0 ? wk.P0[k] : wk.P1[k]; const v = e / (m + 1) + nextRand(w) * 0.3; if (v < bestW) { bestW = v; fromK = k; } }
-    if (fromK < 0) return;
+    if (fromK < 0 || (localOnly && bestW > 0.55)) return;
     const [fx, fy] = cellLonLat(t, fromK);
     // push 150 km into enemy ground, away from our side
     const gx = cAtSafe(t, fx + t.cw, fy) - cAtSafe(t, fx - t.cw, fy), gy = cAtSafe(t, fx, fy + t.ch) - cAtSafe(t, fx, fy - t.ch);
@@ -109,17 +118,17 @@ function planOffensive(w: World, S: MapStatic, war: War, t: Theater, c: number) 
   }
   startOffensive(w, t, c, target, army);
 }
-/** Launch an offensive toward a target: it starts from our side of the front nearest the target. Returns why not, if it can't. */
+/** Launch an offensive toward a target: it starts from our side of the front nearest the target. Returns why not (a message key), if it can't. */
 export function startOffensive(w: World, t: Theater, c: number, target: [number, number], army?: number): string | null {
-  const side = t.sideOf[c]; if (!side) return 'Not part of this war';
+  const side = t.sideOf[c]; if (!side) return 'off.notInWar';
   const wk = work(t), mine = w.divisions.filter(d => d.country === c && d.theater === t.id && d.arrive <= w.day);
   const busy = new Set(t.offensives.filter(o => !o.ended && o.country === c).map(o => o.army));
   if (army === undefined) { const n = new Map<number, number>(); for (const d of mine) if (!busy.has(d.army)) n.set(d.army, (n.get(d.army) || 0) + 1); army = [...n.entries()].sort((a, b) => b[1] - a[1])[0]?.[0]; }
-  if (army === undefined) return mine.length ? 'Every army at this front is already attacking' : 'No divisions at this front yet';
-  const tk = cellOf(t, target[0], target[1]); if (tk >= 0 && t.c[tk] * side > 0) return 'Pick a target on enemy ground';
+  if (army === undefined) return mine.length ? 'off.allBusy' : 'off.noUnits';
+  const tk = cellOf(t, target[0], target[1]); if (tk >= 0 && t.c[tk] * side > 0) return 'off.ownGround';
   let from: [number, number] | null = null, bd = Infinity;
   for (let k = 0; k < t.W * t.H; k += 2) { if (!t.land[k] || wk.distF[k] < 2 || wk.distF[k] > 4 || t.c[k] * side < 0.5) continue; const [x, y] = cellLonLat(t, k); const d = km(x, y, target[0], target[1]); if (d < bd) { bd = d; from = [x, y]; } }
-  if (!from || bd > 600) return 'Too far from the front (600 km at most)';
+  if (!from || bd > 600) return 'off.tooFar';
   t.offensives.push({ id: w.nextId++, side: side as 1 | -1, country: c, army, from, to: target, created: w.day, org: 1, ended: 0 });
   return null;
 }

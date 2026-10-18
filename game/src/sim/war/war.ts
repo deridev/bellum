@@ -4,6 +4,7 @@ import { nextRand } from '../rng';
 import type { Division, MapStatic, Msg, War, WarGoal, World } from '../types';
 import { msg } from '../types';
 import { addRel, clamp01, rel, say } from '../world';
+import { frontAggr } from './ai';
 import { buildMasks, cellLonLat, cellOf, createTheater, stepTheater, T, work, type Theater } from './theater';
 
 export const sideOf = (war: War, c: number): 1 | -1 | 0 => war.attackers.includes(c) ? 1 : war.defenders.includes(c) ? -1 : 0;
@@ -32,7 +33,7 @@ export function warCost(w: World, a: number, b: number) {
   return { justified, claim, stability: justified ? 0.03 : 0.12, influence: justified ? 25 : 80, worldOpinion: justified ? -8 : -25, joiners: defendersOf(w, b).filter(x => x !== a && !allied(w, a, x)) };
 }
 
-export function declareWar(w: World, S: MapStatic, a: number, b: number, opts: { goal?: WarGoal; silent?: boolean; name?: Msg } = {}): War {
+export function declareWar(w: World, S: MapStatic, a: number, b: number, opts: { goal?: WarGoal; silent?: boolean; name?: Msg; sides?: { attackers: number[]; defenders: number[] }; alone?: boolean } = {}): War {
   const A = w.countries[a], B = w.countries[b];
   const cost = warCost(w, a, b);
   const war: War = {
@@ -41,10 +42,12 @@ export function declareWar(w: World, S: MapStatic, a: number, b: number, opts: {
     exhaustion: [0, 0], casualties: [0, 0], theaters: [], ended: 0,
   };
   w.wars.push(war);
+  // a scenario can set both coalitions at once (e.g. the July Crisis of 1914)
+  if (opts.sides) { for (const c of opts.sides.attackers) if (!war.attackers.includes(c)) war.attackers.push(c); for (const c of opts.sides.defenders) if (!war.defenders.includes(c)) war.defenders.push(c); }
   // the defender's allies are called to arms (unless they are friends of the attacker)
-  for (const d of defendersOf(w, b)) if (!war.attackers.includes(d) && !allied(w, a, d) && rel(w, d, a) < 40) war.defenders.push(d);
+  if (!opts.alone) for (const d of defendersOf(w, b)) if (!war.attackers.includes(d) && !war.defenders.includes(d) && !allied(w, a, d) && rel(w, d, a) < 40) war.defenders.push(d);
   // the attacker's allies may join an offensive war if they share the grudge
-  for (const d of defendersOf(w, a)) if (!war.defenders.includes(d) && rel(w, d, b) < -40 && nextRand(w) < 0.6) war.attackers.push(d);
+  if (!opts.alone) for (const d of defendersOf(w, a)) if (!war.defenders.includes(d) && rel(w, d, b) < -40 && nextRand(w) < 0.6) war.attackers.push(d);
   if (!opts.silent) {
     A.stability = clamp01(A.stability - cost.stability); A.polCap = Math.max(0, A.polCap - cost.influence);
     for (const c of w.countries) if (c.alive && c.id !== a && !war.attackers.includes(c.id)) addRel(w, c.id, a, cost.worldOpinion * (war.defenders.includes(c.id) ? 2 : 1), false);
@@ -65,19 +68,29 @@ export function openTheaters(w: World, S: MapStatic, war: War) {
     const sa = sideOf(war, p.controller); if (!sa) continue;
     if (S.provinces[p.id].nbr.some(n => sideOf(war, w.provinces[n].controller) === -sa)) contact.push(p.id);
   }
-  // cluster contact provinces (within ~700 km)
-  const groups: number[][] = [];
-  for (const p of contact) {
-    const [lon, lat] = S.provinces[p].label;
-    const g = groups.find(gr => gr.some(q => km(lon, lat, ...S.provinces[q].label) < 700));
-    if (g) g.push(p); else groups.push([p]);
-  }
+  // cluster contact provinces that lie within ~700 km of each other (union-find, so the order doesn't matter)
+  const parent = contact.map((_, i) => i), root = (i: number): number => parent[i] === i ? i : (parent[i] = root(parent[i]));
+  for (let i = 0; i < contact.length; i++) for (let j = i + 1; j < contact.length; j++) if (km(...S.provinces[contact[i]].label, ...S.provinces[contact[j]].label) < 700) parent[root(i)] = root(j);
+  const byRoot = new Map<number, number[]>(); contact.forEach((p, i) => { const r = root(i); if (!byRoot.has(r)) byRoot.set(r, []); byRoot.get(r)!.push(p); });
+  const groups = [...byRoot.values()];
+  const covered = (p: number) => theatersOf(w, war).some(t => cellOf(t, ...S.provinces[p].label) >= 0);
+  const boxes: [number, number, number, number][] = [];
   for (const g of groups) {
     if (g.length < 2 && groups.length > 1) continue;
+    if (g.every(covered)) continue; // this stretch of front already has a theater
     let x0 = 180, y0 = 90, x1 = -180, y1 = -90;
     for (const p of g) { const [lon, lat] = S.provinces[p].label; x0 = Math.min(x0, lon); x1 = Math.max(x1, lon); y0 = Math.min(y0, lat); y1 = Math.max(y1, lat); }
-    const m = 3.5; addTheater(w, S, war, [x0 - m / Math.cos(((y0 + y1) / 2) * Math.PI / 180), y0 - m, x1 + m / Math.cos(((y0 + y1) / 2) * Math.PI / 180), y1 + m]);
+    const m = 3.5, mx = m / Math.cos(((y0 + y1) / 2) * Math.PI / 180); boxes.push([x0 - mx, y0 - m, x1 + mx, y1 + m]);
   }
+  // overlapping boxes become one theater: two fields must never cover the same ground
+  for (let merged = true; merged;) {
+    merged = false;
+    for (let i = 0; i < boxes.length && !merged; i++) for (let j = i + 1; j < boxes.length && !merged; j++) {
+      const a = boxes[i], b = boxes[j];
+      if (a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]) { boxes[i] = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])]; boxes.splice(j, 1); merged = true; }
+    }
+  }
+  for (const b of boxes) addTheater(w, S, war, b);
 }
 export function addTheater(w: World, S: MapStatic, war: War, box: [number, number, number, number], name?: string): Theater {
   // clamp size; keep in -180..180
@@ -139,7 +152,7 @@ export function stepWars(w: World, S: MapStatic) {
     for (const t of theatersOf(w, war)) {
       if (t.frozen) continue;
       const units = w.divisions.filter(d => d.theater === t.id && d.arrive <= w.day);
-      stepTheater(w, S, t, units, { aggr: war.aggr });
+      stepTheater(w, S, t, units, { aggr: frontAggr(w, war, t) });
       cullUnits(w, t, units);
       if (w.day % 2 === 0) { updateOccupation(w, S, t, war); maybeExpand(w, S, t); }
       reportCities(w, t, war);
@@ -169,9 +182,15 @@ function updateOccupation(w: World, S: MapStatic, t: Theater, war: War) {
     let side: number = a >= b ? 1 : -1;
     if (k >= 0 && t.land[k]) side = t.c[k] >= 0 ? 1 : -1;
     const ownerSide = sideOf(war, prov.owner);
-    const ctrl = ownerSide === side ? prov.owner : side > 0 ? lead[0] : lead[1];
+    const ctrl = ownerSide === side ? prov.owner : (prov.controller >= 0 && sideOf(war, prov.controller) === side ? prov.controller : takerNear(w, t, lon, lat, side as 1 | -1, side > 0 ? lead[0] : lead[1]));
     if (ctrl >= 0 && prov.controller !== ctrl) { prov.controller = ctrl; prov.devastation = Math.min(1, prov.devastation + 0.15); }
   }
+}
+/** Who takes ground: the country of the nearest division of that side (so France, not Russia, takes Stuttgart). */
+function takerNear(w: World, t: Theater, lon: number, lat: number, side: 1 | -1, fallback: number) {
+  let best = fallback, bd = Infinity;
+  for (const d of w.divisions) { if (d.theater !== t.id || t.sideOf[d.country] !== side) continue; const dd = (d.x - lon) ** 2 + (d.y - lat) ** 2; if (dd < bd) { bd = dd; best = d.country; } }
+  return best;
 }
 function leaders(w: World, t: Theater): [number, number] {
   const n = new Map<number, number>(); for (const d of w.divisions) if (d.theater === t.id) n.set(d.country, (n.get(d.country) || 0) + d.str);
@@ -181,7 +200,7 @@ function leaders(w: World, t: Theater): [number, number] {
 function reportCities(w: World, t: Theater, war: War) {
   for (const city of t.cities) {
     const s = t.c[city.k] >= 0 ? 1 : -1;
-    if (s !== city.side) { city.side = s; const who = s > 0 ? t.lead[0] : t.lead[1]; if (who >= 0) say(w, msg('log.cityFalls', { city: city.name, c: { c: who } }), 'city', { who: [who, ...(s > 0 ? war.defenders : war.attackers)], at: cellLonLat(t, city.k) }); }
+    if (s !== city.side) { city.side = s; const [cx, cy] = cellLonLat(t, city.k), who = takerNear(w, t, cx, cy, s as 1 | -1, s > 0 ? t.lead[0] : t.lead[1]); if (who >= 0) say(w, msg('log.cityFalls', { city: city.name, c: { c: who } }), 'city', { who: [who, ...(s > 0 ? war.defenders : war.attackers)], at: cellLonLat(t, city.k) }); }
   }
 }
 /** grow a theater when the front nears its edge */
@@ -210,6 +229,7 @@ export function resample(w: World, S: MapStatic, t: Theater, box: [number, numbe
 export function joinWar(w: World, S: MapStatic, war: War, c: number, side: 1 | -1) {
   if (sideOf(war, c)) return; (side > 0 ? war.attackers : war.defenders).push(c);
   for (const t of theatersOf(w, war)) { t.sideOf[c] = side; buildMasks(t, w, S, false); for (let k = 0; k < t.W * t.H; k++) if (t.land[k] && t.c[k] === 0) t.c[k] = side; deployInto(w, S, t); }
+  openTheaters(w, S, war); // new fronts where the newcomer touches the enemy
   say(w, msg('log.joinsWar', { c: { c }, war: { m: war.name }, b: { c: side > 0 ? war.leadA : war.leadD } }), 'war', { who: [c] });
 }
 
