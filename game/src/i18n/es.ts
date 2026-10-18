@@ -151,4 +151,5 @@ export const es: Record<string, Entry> = {
   'cname.Dominican Republic': 'República Dominicana', 'cname.Union of South Africa': 'Unión Sudafricana', 'cname.Empire of Japan': 'Imperio del Japón', 'cname.Republic of China': 'República de China',
   'cname.Tibet': 'Tíbet', 'cname.Persia': 'Persia', 'cname.Siam': 'Siam', 'cname.Nejd': 'Néyed', 'cname.German Reich': 'Reich alemán', 'cname.Soviet Union': 'Unión Soviética', 'cname.Yugoslavia': 'Yugoslavia',
   'cname.Manchukuo': 'Manchukuo', 'cname.Slovakia': 'Eslovaquia', 'cname.United Kingdom': 'Reino Unido', 'cname.France': 'Francia', 'cname.Serbia': 'Serbia', 'cname.Montenegro': 'Montenegro', 'cname.Belgium': 'Bélgica',
+  'hud.decisions': { one: '{n} decisión pendiente', other: '{n} decisiones pendientes' }, 'dip.hover': 'Señala una acción para ver si aceptarían.',
 };

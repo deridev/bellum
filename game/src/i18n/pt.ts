@@ -151,4 +151,5 @@ export const pt: Record<string, Entry> = {
   'cname.Dominican Republic': 'República Dominicana', 'cname.Union of South Africa': 'União Sul-Africana', 'cname.Empire of Japan': 'Império do Japão', 'cname.Republic of China': 'República da China',
   'cname.Tibet': 'Tibete', 'cname.Persia': 'Pérsia', 'cname.Siam': 'Sião', 'cname.Nejd': 'Négede', 'cname.German Reich': 'Reich Alemão', 'cname.Soviet Union': 'União Soviética', 'cname.Yugoslavia': 'Iugoslávia',
   'cname.Manchukuo': 'Manchukuo', 'cname.Slovakia': 'Eslováquia', 'cname.United Kingdom': 'Reino Unido', 'cname.France': 'França', 'cname.Serbia': 'Sérvia', 'cname.Montenegro': 'Montenegro', 'cname.Belgium': 'Bélgica',
+  'hud.decisions': { one: '{n} decisão aguardando', other: '{n} decisões aguardando' }, 'dip.hover': 'Aponte para uma ação para ver se eles aceitariam.',
 };

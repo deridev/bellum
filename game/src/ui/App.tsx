@@ -102,5 +102,5 @@ export function HoverTip({ s }: { s: Session }) {
   if (hover < 0) return null;
   const p = s.assets.provinces[hover], c = s.countries[s.owner[hover]], occ = s.occupier?.(hover);
   if (!c) return null;
-  return <div class="tip panel" style={{ left: mouse[0], top: mouse[1] }}><b>{p.name}</b> <span>· {nameFor(c.code, c.name, c.iso2)}{occ ? <span class="bad"> · {t('tip.heldBy', { c: occ })}</span> : null} · {t('terrain.' + p.terrain)}</span></div>;
+  return <div class={`tip panel ${mouse[0] > s.cam.w - 320 ? 'flip' : ''}`} style={{ left: mouse[0], top: mouse[1] }}><b>{p.name}</b> <span>· {nameFor(c.code, c.name, c.iso2)}{occ ? <span class="bad"> · {t('tip.heldBy', { c: occ })}</span> : null} · {t('terrain.' + p.terrain)}</span></div>;
 }

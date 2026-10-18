@@ -145,4 +145,5 @@ export const en: Record<string, Entry> = {
   'ev.refugees.o0': 'Open the borders', 'ev.refugees.h0': '{o} is grateful; some strain at home.', 'ev.refugees.o1': 'Close the borders', 'ev.refugees.h1': '{o} resents it; rural voters approve.',
   'ev.disaster.title': 'Disaster', 'ev.disaster.text': 'Floods and landslides devastate a region of {c}.',
   'ev.disaster.o0': 'Spend on relief', 'ev.disaster.h0': 'A month of revenue; stability up.', 'ev.disaster.o1': 'A limited response', 'ev.disaster.h1': 'Stability falls.',
+  'hud.decisions': { one: '{n} decision waiting', other: '{n} decisions waiting' }, 'dip.hover': 'Point at an action to see whether they would agree.',
 };

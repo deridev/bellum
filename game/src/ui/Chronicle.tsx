@@ -21,7 +21,7 @@ export function ChroniclePanel({ g }: { g: Game }) {
   const nowProv = w.provinces.filter(p => p.owner === g.player).length, startProv = g.startProvinces;
   const text = () => [`${countryName(w, g.player)} — ${t('panel.chronicle')}`, ...[...years.entries()].flatMap(([y, es]) => [``, `${y}`, ...es.map(e => `${fmtDate(w, e.day)}  ${say(w, e.msg)}`)])].join('\n');
   const copy = async () => { try { await navigator.clipboard.writeText(text()); setNote(t('chron.copied')); } catch { setNote(t('chron.copyFailed')); } };
-  return <Sheet onClose={() => g.openPanel(null)} eyebrow={t('panel.chronicle')} title={<div class="h2">{t('chron.title', { c: countryName(w, g.player) })}</div>}>
+  return <Sheet onClose={() => g.openPanel(null)} icon="chronicle" eyebrow={t('panel.chronicle')} title={<div class="h2">{t('chron.title', { c: countryName(w, g.player) })}</div>}>
     <dl class="stat">
       <dt>{t('chron.since')}</dt><dd>{fmtDate(w, 0)}</dd>
       <dt>{t('chron.provinces')}</dt><dd class={nowProv < startProv ? 'bad' : nowProv > startProv ? 'good' : ''}>{t('chron.fromTo', { a: startProv, b: nowProv })}</dd>
@@ -49,7 +49,7 @@ export function TimelapsePanel({ g }: { g: Game }) {
     return () => clearInterval(id);
   }, [playing, n]);
   const snap = g.history[i];
-  return <Sheet onClose={() => g.openPanel(null)} eyebrow={t('panel.timelapse')} title={<div class="h2 num">{snap ? fmtDate(g.w, snap.day, 'month') : '—'}</div>}>
+  return <Sheet onClose={() => g.openPanel(null)} icon="timelapse" eyebrow={t('panel.timelapse')} title={<div class="h2 num">{snap ? fmtDate(g.w, snap.day, 'month') : '—'}</div>}>
     {n < 2 ? <p class="muted">{t('lapse.empty')}</p> : <>
       <div class="lapse-row">
         <button class="pp" aria-label={playing ? t('clock.pause') : t('clock.play')} onClick={() => { if (!playing && i >= n - 1) setI(0); setPlaying(!playing); }}><Icon name={playing ? 'pause' : 'play'} size={14} /></button>

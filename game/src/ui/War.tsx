@@ -5,7 +5,7 @@ import { commitShare } from '../sim/war/ai';
 import { acceptsPeace, heldDemand, sideOf, theatersOf, warCost, warsOf, type PeaceTerms } from '../sim/war/war';
 import type { War } from '../sim/types';
 import { armyName, countryName, fmtDate, say, t } from '../i18n';
-import { Flag, Icon, Seg, Sheet, SignedBar } from './common';
+import { Block, Flag, Icon, Sheet, Tug } from './common';
 import { fmtBig, fmtInt, pct } from './format';
 
 /** Postures map onto the same push strengths the AI uses. */
@@ -16,7 +16,7 @@ export function WarPanel({ g, id }: { g: Game; id: number }) {
   const w = g.w, me = g.player, war = w.wars.find(x => x.id === id);
   if (!war) return null;
   const close = () => g.openPanel(null);
-  if (war.ended) return <Sheet onClose={close} eyebrow={t('panel.war')} title={<div class="h2">{say(w, war.name)}</div>}><p>{t('war.endedOn', { d: fmtDate(w, war.ended) })}</p></Sheet>;
+  if (war.ended) return <Sheet onClose={close} icon="war" eyebrow={t('panel.war')} title={<div class="h2">{say(w, war.name)}</div>}><p>{t('war.endedOn', { d: fmtDate(w, war.ended) })}</p></Sheet>;
   const side = sideOf(war, me) as 1 | -1, si = side > 0 ? 0 : 1, oi = 1 - si;
   const ours = side > 0 ? war.attackers : war.defenders, theirs = side > 0 ? war.defenders : war.attackers;
   const score = war.score * side, ths = theatersOf(w, war);
@@ -25,43 +25,43 @@ export function WarPanel({ g, id }: { g: Game; id: number }) {
   const posture = POSTURES.reduce((b, p) => Math.abs(p.aggr - war.aggr[si]) < Math.abs(b.aggr - war.aggr[si]) ? p : b, POSTURES[1] as typeof POSTURES[number]);
   const offs = ths.flatMap(x => x.offensives.filter(o => !o.ended && o.country === me));
   const all = warsOf(w, me), commit = war.commit?.[me];
-  return <Sheet onClose={close} eyebrow={t('war.day', { n: w.day - war.start })} title={<div><div class="h2">{say(w, war.name)}</div><div class="sub">{t(side > 0 ? 'war.attacking' : 'war.defending')}</div></div>}>
+  const flags = (cs: number[]) => <span class="flags">{cs.slice(0, 4).map(c => <Flag key={c} s={g.s} code={w.countries[c].code} h={14} />)}{cs.length > 4 && <small>+{cs.length - 4}</small>}</span>;
+  const pair = (a: number, b: number, fmt: (v: number) => string, label: string, icon: string) => { const tot = a + b || 1;
+    return <div class="pair" data-tip={label}><Icon name={icon} size={14} /><b class="num">{fmt(a)}</b><span class="pair-bar"><i style={{ width: `${a / tot * 100}%` }} /></span><b class="num">{fmt(b)}</b></div>; };
+  return <Sheet onClose={close} icon="war" eyebrow={`${t(side > 0 ? 'war.attacking' : 'war.defending')} · ${t('war.day', { n: w.day - war.start })}`} title={<div class="h2">{say(w, war.name)}</div>}>
     {all.length > 1 && <div class="seg wrap">{all.map(x => <button key={x.id} aria-pressed={x.id === id} onClick={() => g.openPanel({ kind: 'war', id: x.id })}>{say(w, x.name)}</button>)}</div>}
-    <div class="sides">
-      <div class="side-col"><div class="flags">{ours.slice(0, 6).map(c => <Flag key={c} s={g.s} code={w.countries[c].code} h={16} />)}</div><b class="num">{fmtInt(oursD.length)}</b><small>{transit ? t('war.atFrontTransit', { n: transit }) : t('war.atFront')}</small></div>
-      <div class="vs">{t('war.vs')}</div>
-      <div class="side-col right"><div class="flags">{theirs.slice(0, 6).map(c => <Flag key={c} s={g.s} code={w.countries[c].code} h={16} />)}</div><b class="num">{fmtInt(theirsD.length)}</b><small>{t('war.divisions')}</small></div>
+    <div class="war-score" data-tip={t('war.scoreHint')}><span class="eyebrow">{t('war.score')}</span><b class={`num big ${score < -20 ? 'bad' : score > 20 ? 'good' : ''}`}>{score > 0 ? '+' : ''}{Math.round(score)}</b></div>
+    <Tug v={score} left={flags(ours)} right={flags(theirs)} />
+    <div class="pairs">
+      {pair(oursD.length, theirsD.length, fmtInt, transit ? t('war.atFrontTransit', { n: transit }) : t('war.atFront'), 'military')}
+      {pair(war.casualties[si], war.casualties[oi], fmtBig, t('war.casualties'), 'manpower')}
+      {pair(Math.min(1, war.exhaustion[si]), Math.min(1, war.exhaustion[oi]), pct, t('war.exhaustion'), 'trendDown')}
     </div>
-    <div class="sl-top"><span>{t('war.score')}</span><b class={`num ${score < -20 ? 'bad' : score > 20 ? 'good' : ''}`}>{score > 0 ? '+' : ''}{Math.round(score)}</b></div>
-    <SignedBar v={score} title={t('war.scoreHint')} />
-    <dl class="stat">
-      <dt>{t('war.casualties')}</dt><dd>{t('war.vsPair', { a: fmtBig(war.casualties[si]), b: fmtBig(war.casualties[oi]) })}</dd>
-      <dt>{t('war.exhaustion')}</dt><dd>{t('war.vsPair', { a: pct(Math.min(1, war.exhaustion[si])), b: pct(Math.min(1, war.exhaustion[oi])) })}</dd>
-    </dl>
-    <h3 class="h3">{t('war.posture')}</h3>
-    <Seg label={t('war.posture')} value={posture.id as string} options={POSTURES.map(p => ({ v: p.id as string, label: t('posture.' + p.id), title: t('posture.' + p.id + '.hint') }))} onPick={v => { war.aggr[si] = POSTURES.find(p => p.id === v)!.aggr; g.bump(); g.sound('click'); }} />
-    <small class="muted">{t('posture.' + posture.id + '.hint')}</small>
-    <h3 class="h3">{t('war.commitment')}</h3>
-    <Seg label={t('war.commitment')} value={commit === undefined ? 'normal' : COMMIT.find(c => c.v === commit)?.id || 'normal'} options={COMMIT.map(c => ({ v: c.id, label: t('commit.' + c.id) }))} onPick={v => { const c = COMMIT.find(x => x.id === v)!; war.commit ||= {}; if (c.v < 0) delete war.commit[me]; else war.commit[me] = c.v; g.bump(); }} />
-    <small class="muted">{t('war.commitHint', { p: pct(commitShare(w, war, me)) })}</small>
-    <h3 class="h3">{t('war.offensives')}</h3>
-    {offs.length > 0 && <ul class="offs">{offs.map(o => { const a = w.armies.find(x => x.id === o.army); return <li key={o.id}><span>{a ? armyName(a.num) : t('war.army')}</span><small>{t('war.day', { n: w.day - o.created })}</small><div class="meter" title={t('war.momentum')}><div class="fill amber" style={{ width: pct(o.org) }} /></div></li>; })}</ul>}
-    <button class="primary" disabled={posture.id === 'hold' || offs.length >= 3} onClick={() => g.setTool({ kind: 'offensive', war: war.id })}>{t('war.plan')}</button>
-    <small class="muted">{t(posture.id === 'hold' ? 'war.planHold' : offs.length >= 3 ? 'war.planMax' : 'war.planHint')}</small>
-    <h3 class="h3">{t('war.peace')}</h3>
-    <PeaceOptions g={g} war={war} side={side} />
+    <Block title={t('war.posture')} icon="hold">
+      <div class="big-toggles" role="group" aria-label={t('war.posture')}>{POSTURES.map(p => <button key={p.id} aria-pressed={posture.id === p.id} data-tip={t('posture.' + p.id + '.hint')} onClick={() => { war.aggr[si] = p.aggr; g.bump(); g.sound('click'); }}><Icon name={p.id} size={22} /><span>{t('posture.' + p.id)}</span></button>)}</div>
+    </Block>
+    <Block title={t('war.commitment')} icon="manpower" aside={<b class="num">{pct(commitShare(w, war, me))}</b>}>
+      <div class="steps" role="group" aria-label={t('war.commitment')}>{COMMIT.map((c, i) => { const cur = commit === undefined ? 'normal' : COMMIT.find(x => x.v === commit)?.id || 'normal', ci = COMMIT.findIndex(x => x.id === cur);
+        return <button key={c.id} aria-pressed={cur === c.id} class={ci >= i ? 'on' : ''} data-tip={t('war.commitHint', { p: pct(c.v < 0 ? commitShare(w, { ...war, commit: {} }, me) : c.v) })} onClick={() => { war.commit ||= {}; if (c.v < 0) delete war.commit[me]; else war.commit[me] = c.v; g.bump(); }}><i style={{ height: `${8 + i * 6}px` }} /><span>{t('commit.' + c.id)}</span></button>; })}</div>
+    </Block>
+    <Block title={t('war.offensives')} icon="offensive" aside={<b class="num">{offs.length}/3</b>}>
+      {offs.length > 0 && <ul class="offs">{offs.map(o => { const a = w.armies.find(x => x.id === o.army); return <li key={o.id}><Icon name="advance" size={14} /><span>{a ? armyName(a.num) : t('war.army')}</span><small class="num">{t('war.day', { n: w.day - o.created })}</small><div class="meter" data-tip={t('war.momentum')}><div class="fill amber" style={{ width: pct(o.org) }} /></div></li>; })}</ul>}
+      <button class="primary" disabled={posture.id === 'hold' || offs.length >= 3} data-tip={t(posture.id === 'hold' ? 'war.planHold' : offs.length >= 3 ? 'war.planMax' : 'war.planHint')} onClick={() => g.setTool({ kind: 'offensive', war: war.id })}><Icon name="target" size={16} />{t('war.plan')}</button>
+    </Block>
+    <Block title={t('war.peace')} icon="peace"><PeaceOptions g={g} war={war} side={side} /></Block>
   </Sheet>;
 }
 
 function PeaceOptions({ g, war, side }: { g: Game; war: War; side: 1 | -1 }) {
   const w = g.w, score = Math.max(0, war.score * side), demand = heldDemand(w, war, side, score);
-  const opts: { label: string; terms: PeaceTerms }[] = [
-    { label: t('peace.white'), terms: { type: 'white', provinces: [] } },
-    { label: t('peace.ceasefire'), terms: { type: 'ceasefire', provinces: [] } },
+  const opts: { label: string; icon: string; terms: PeaceTerms }[] = [
+    { label: t('peace.white'), icon: 'peace', terms: { type: 'white', provinces: [] } },
+    { label: t('peace.ceasefire'), icon: 'hold', terms: { type: 'ceasefire', provinces: [] } },
   ];
-  if (demand.length) opts.push({ label: t('peace.annex', { n: demand.length }), terms: { type: 'treaty', provinces: demand } });
+  if (demand.length) opts.push({ label: t('peace.annex', { n: demand.length }), icon: 'city', terms: { type: 'treaty', provinces: demand } });
   return <div class="peace">{opts.map(o => { const r = acceptsPeace(w, war, side, o.terms);
-    return <div class="peace-opt" key={o.label}><button class={r.ok ? 'primary' : ''} onClick={() => g.proposePeace(war, o.terms)}>{o.label}</button><small class={r.ok ? 'good' : 'muted'}>{r.ok ? t('peace.wouldAccept') + ' ' : ''}{say(w, r.why)}</small></div>; })}</div>;
+    return <button key={o.label} class={`peace-card ${r.ok ? 'ok' : 'no'}`} data-tip={say(w, r.why)} onClick={() => g.proposePeace(war, o.terms)}>
+      <Icon name={o.icon} size={20} /><span>{o.label}</span><span class="verdict"><Icon name={r.ok ? 'check' : 'cross'} size={16} /></span></button>; })}</div>;
 }
 
 export function DeclareDialog({ g, target }: { g: Game; target: number }) {
@@ -70,7 +70,7 @@ export function DeclareDialog({ g, target }: { g: Game; target: number }) {
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
   const short = me.polCap < cost.influence;
   return <div class="ui modal-wrap" onClick={e => { if (e.target === e.currentTarget) close(); }}>
-    <section class="panel modal" role="dialog" aria-label={t('declare.aria', { c: name })}>
+    <section class="plate modal" role="dialog" aria-label={t('declare.aria', { c: name })}>
       <header class="sheet-head"><div class="title-row"><Flag s={g.s} code={T.code} h={22} /><div><div class="eyebrow">{t('war.declare')}</div><div class="h2">{name}</div></div></div><button class="x" aria-label={t('ui.close')} onClick={close}><Icon name="x" /></button></header>
       <div class="sheet-body">
         <p>{t(cost.claim ? 'declare.claim' : cost.justified ? 'declare.rival' : 'declare.unprovoked', { c: name })}</p>
@@ -91,8 +91,8 @@ export function DeclareDialog({ g, target }: { g: Game; target: number }) {
 export function AgendaCards({ g }: { g: Game }) {
   const items = g.w.agenda.filter(a => a.country === g.player).slice(0, 2);
   if (!items.length) return null;
-  return <div class="ui agenda">{items.map(a => <section class={`agenda-card panel k-${a.kind}`} key={a.id} role="dialog" aria-label={say(g.w, a.title)}>
-    <div class="cable-head"><span class="eyebrow">{t('agenda.' + a.kind)}</span><time class="mono">{fmtDate(g.w, a.day)}</time></div>
+  return <div class="ui agenda">{items.map(a => <section class={`agenda-card plate k-${a.kind}`} key={a.id} role="dialog" aria-label={say(g.w, a.title)}>
+    <div class="cable-head"><Icon name={a.kind === 'peace' ? 'peace' : a.kind === 'diplo' ? 'diplomacy' : 'chronicle'} size={16} /><span class="eyebrow">{t('agenda.' + a.kind)}</span><time class="mono">{fmtDate(g.w, a.day)}</time></div>
     <div class="h3 plain">{say(g.w, a.title)}</div><p>{say(g.w, a.text)}</p>
     <div class="row">{a.options.map((o, i) => <button key={i} class={i === 0 ? 'primary' : ''} title={o.hint ? say(g.w, o.hint) : undefined} onClick={() => { resolveAgenda(g.w, g.S, a.id, i); g.afterOrder(); g.sound('click'); }}>{say(g.w, o.label)}</button>)}</div>
     {a.options.some(o => o.hint) && <ul class="hints">{a.options.map((o, i) => o.hint ? <li key={i}><b>{say(g.w, o.label)}:</b> {say(g.w, o.hint)}</li> : null)}</ul>}
@@ -102,7 +102,7 @@ export function AgendaCards({ g }: { g: Game }) {
 export function ToolHint({ g }: { g: Game }) {
   const st = g.st.get();
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') g.setTool(null); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
-  if (st.tool) return <div class="ui toolhint panel" role="status">{t('war.aim')} <button onClick={() => g.setTool(null)}>{t('ui.cancel')}</button></div>;
-  if (st.toast) return <div class="ui toolhint panel" role="status">{st.toast}</div>;
+  if (st.tool) return <div class="ui toolhint plate" role="status"><Icon name="target" size={16} />{t('war.aim')} <button onClick={() => g.setTool(null)}>{t('ui.cancel')}</button></div>;
+  if (st.toast) return <div class="ui toolhint plate" role="status">{st.toast}</div>;
   return null;
 }

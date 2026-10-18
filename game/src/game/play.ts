@@ -28,7 +28,7 @@ export class Game {
   acc = 0; private lastUi = 0; private mapSeen = ''; private now = 0; private dt = 0; private lastAssign = 0;
   layer: TheaterLayer; fx: WarFx;
   /** monthly snapshots of who holds each province, for the timelapse */
-  history: { day: number; ctrl: Uint16Array }[] = [];
+  history: { day: number; ctrl: Uint16Array; me: { gdp: number; treasury: number; stability: number; manpower: number; warSupport: number; divisions: number } }[] = [];
   startProvinces = 0;
   private snapshot: number | null = null;
 
@@ -121,7 +121,13 @@ export class Game {
   }
   /** after each simulated day: hand the new state to the war layer and effects */
   afterDay() { this.layer.record(this.w); this.fx.record(this.w); this.assignTheaters(); }
-  private record() { this.history.push({ day: this.w.day, ctrl: Uint16Array.from(this.w.provinces, p => p.controller) }); }
+  private record() {
+    const c = this.me;
+    this.history.push({ day: this.w.day, ctrl: Uint16Array.from(this.w.provinces, p => p.controller),
+      me: { gdp: c.gdp, treasury: c.treasury, stability: c.stability, manpower: c.manpower, warSupport: c.warSupport, divisions: this.w.divisions.filter(d => d.country === c.id).length } });
+  }
+  /** a recorded statistic of the player's nation, month by month */
+  series(k: keyof Game['history'][number]['me']) { return this.history.map(h => h.me[k]); }
   private assignTheaters() { const [lon, lat] = unproject(this.s.cam.x, this.s.cam.y); this.layer.assign(this.w, lon, lat); this.lastAssign = this.now; }
   /** show a timelapse frame on the map (null returns to the present) */
   showSnapshot(i: number | null) {

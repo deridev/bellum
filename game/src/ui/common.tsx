@@ -1,4 +1,4 @@
-// Shared UI pieces: flags, panels, meters, sliders, icons.
+// Shared UI pieces: flags, the dossier sheet, gauges, sparklines, unit symbols and the icon set.
 import { useEffect } from 'preact/hooks';
 import type { Session } from '../game/session';
 import { t } from '../i18n';
@@ -12,49 +12,143 @@ export function Flag({ s, code, h = 14 }: { s: Session; code: string; h?: number
 let _flagUrl = '';
 function flagUrl(s: Session) { if (_flagUrl) return _flagUrl; const c = document.createElement('canvas'); c.width = s.assets.flags.width; c.height = s.assets.flags.height; c.getContext('2d')!.drawImage(s.assets.flags, 0, 0); _flagUrl = c.toDataURL(); return _flagUrl; }
 
-/** A dossier panel on the right edge. Escape closes it. */
-export function Sheet({ title, onClose, children, wide, eyebrow }: { title: any; onClose: () => void; children: any; wide?: boolean; eyebrow?: any }) {
+/** The dossier on the right edge. Escape closes it. */
+export function Sheet({ title, onClose, children, eyebrow, icon, head }: { title: any; onClose: () => void; children: any; eyebrow?: any; icon?: string; head?: any }) {
   useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
-  return <section class={`ui sheet panel ui-scroll ${wide ? 'wide' : ''}`}>
-    <header class="sheet-head"><div class="sheet-title">{eyebrow && <div class="eyebrow">{eyebrow}</div>}{title}</div><button class="x" aria-label={t('ui.close')} onClick={onClose}><Icon name="x" /></button></header>
+  return <section class="ui sheet plate ui-scroll">
+    <header class="sheet-head">
+      {icon && <span class="sheet-icon"><Icon name={icon} size={18} /></span>}
+      <div class="sheet-title">{eyebrow && <div class="eyebrow">{eyebrow}</div>}{title}</div>
+      <button class="x" aria-label={t('ui.close')} onClick={onClose}><Icon name="x" /></button>
+    </header>
+    {head}
     <div class="sheet-body">{children}</div>
   </section>;
+}
+/** A titled block inside a sheet. */
+export function Block({ title, icon, aside, children }: { title?: string; icon?: string; aside?: any; children: any }) {
+  return <section class="block">{title && <h3 class="block-h">{icon && <Icon name={icon} size={14} />}<span>{title}</span>{aside && <span class="block-aside">{aside}</span>}</h3>}{children}</section>;
 }
 
 export function Bar({ v, tone, mark }: { v: number; tone?: string; mark?: number }) {
   return <div class="meter"><div class={`fill ${tone || ''}`} style={{ width: pct(Math.max(0, Math.min(1, v))) }} />{mark !== undefined && <div class="mark" style={{ left: pct(Math.max(0, Math.min(1, mark))) }} />}</div>;
 }
-/** A centred bar for values from -100 to 100 (opinion, war score). */
+/** A centred bar for values from -100 to 100 (opinion). */
 export function SignedBar({ v, title }: { v: number; title?: string }) {
-  return <div class="meter rel" title={title}><div class="fill" style={{ left: v < 0 ? pct(0.5 + v / 200) : '50%', width: pct(Math.abs(v) / 200), background: v < 0 ? 'var(--bad)' : 'var(--good)' }} /></div>;
+  return <div class="meter rel" title={title}><div class="fill" style={{ left: v < 0 ? pct(0.5 + v / 200) : '50%', width: pct(Math.abs(v) / 200), background: v < 0 ? 'var(--red)' : 'var(--green)' }} /></div>;
+}
+/** Ring gauge for a 0..1 value, with an optional target tick. */
+export function Ring({ v, size = 26, tone, target, children }: { v: number; size?: number; tone?: string; target?: number; children?: any }) {
+  const r = size / 2 - 2.5, c = 2 * Math.PI * r, x = Math.max(0, Math.min(1, v));
+  const col = tone || (x < 0.35 ? 'var(--red)' : x > 0.65 ? 'var(--green)' : 'var(--brass)');
+  const tick = target === undefined ? null : (() => { const a = -Math.PI / 2 + 2 * Math.PI * Math.max(0, Math.min(1, target)); return <line x1={size / 2 + Math.cos(a) * (r - 4)} y1={size / 2 + Math.sin(a) * (r - 4)} x2={size / 2 + Math.cos(a) * (r + 2.5)} y2={size / 2 + Math.sin(a) * (r + 2.5)} class="ring-tick" />; })();
+  return <span class="ring" style={{ width: size, height: size }}>
+    <svg width={size} height={size} aria-hidden="true"><circle cx={size / 2} cy={size / 2} r={r} class="ring-bg" /><circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={col} stroke-width="3" stroke-dasharray={`${c * x} ${c}`} transform={`rotate(-90 ${size / 2} ${size / 2})`} stroke-linecap="round" />{tick}</svg>
+    {children && <span class="ring-in">{children}</span>}
+  </span>;
+}
+/** A small line chart of recent values, with the last point marked. */
+export function Spark({ values, w = 120, h = 30, tone = 'var(--brass)' }: { values: number[]; w?: number; h?: number; tone?: string }) {
+  if (values.length < 2) return <svg class="spark" width={w} height={h} aria-hidden="true"><line x1="0" y1={h - 1} x2={w} y2={h - 1} class="spark-base" /></svg>;
+  const lo = Math.min(...values), hi = Math.max(...values), span = hi - lo || Math.abs(hi) || 1;
+  const pts = values.map((v, i) => [i / (values.length - 1) * (w - 4) + 2, h - 3 - (v - lo) / span * (h - 6)]);
+  const line = pts.map(p => p.join(',')).join(' '), last = pts[pts.length - 1];
+  return <svg class="spark" width={w} height={h} aria-hidden="true">
+    <polygon points={`2,${h} ${line} ${last[0]},${h}`} fill={tone} opacity="0.14" />
+    <polyline points={line} fill="none" stroke={tone} stroke-width="1.5" stroke-linejoin="round" />
+    <circle cx={last[0]} cy={last[1]} r="2.5" fill={tone} />
+  </svg>;
+}
+/** One bar split into coloured shares. */
+export function StackBar({ parts }: { parts: { v: number; color: string; label: string }[] }) {
+  return <div class="stackbar" role="img" aria-label={parts.map(p => `${p.label} ${pct(p.v)}`).join(', ')}>{parts.map(p => <i key={p.label} style={{ flexGrow: p.v, background: p.color }} title={`${p.label} ${pct(p.v)}`} />)}</div>;
+}
+/** Tug of war from -100 to 100, with each side's flags at the ends. */
+export function Tug({ v, left, right }: { v: number; left: any; right: any }) {
+  const x = 50 + Math.max(-100, Math.min(100, v)) / 2;
+  return <div class="tug"><span class="tug-end">{left}</span><div class="tug-bar"><i class="tug-us" style={{ width: `${x}%` }} /><i class="tug-mark" style={{ left: `${x}%` }} /></div><span class="tug-end">{right}</span></div>;
 }
 
-export function Slider({ id, label, value, min, max, step, fmt, onInput, hint }: { id: string; label: string; value: number; min: number; max: number; step: number; fmt: (v: number) => string; onInput: (v: number) => void; hint?: string }) {
-  return <label class="slider" for={id}><span class="sl-top"><span>{label}</span><b class="num">{fmt(value)}</b></span>
-    <input id={id} type="range" min={min} max={max} step={step} value={value} onInput={e => onInput(+(e.target as HTMLInputElement).value)} />
-    {hint && <small>{hint}</small>}</label>;
+/** Military map symbols (NATO style) for the unit types. */
+export function UnitSymbol({ type, size = 28 }: { type: string; size?: number }) {
+  const w = size, h = size * 0.68, inner = [];
+  const X = <path d={`M2 2L${w - 2} ${h - 2}M${w - 2} 2L2 ${h - 2}`} />;
+  const oval = <ellipse cx={w / 2} cy={h / 2} rx={w * 0.3} ry={h * 0.26} />;
+  if (type === 'infantry') inner.push(X);
+  if (type === 'armor') inner.push(oval);
+  if (type === 'mechanized') { inner.push(X); inner.push(oval); }
+  if (type === 'marines') { inner.push(X); inner.push(<path d={`M${w * 0.25} ${h * 0.82}q${w * 0.06} -${h * 0.12} ${w * 0.125} 0t${w * 0.125} 0t${w * 0.125} 0t${w * 0.125} 0`} />); }
+  if (type === 'airborne') { inner.push(X); inner.push(<path d={`M${w * 0.3} ${h * 0.78}q${w * 0.1} -${h * 0.2} ${w * 0.2} 0q${w * 0.1} -${h * 0.2} ${w * 0.2} 0`} />); }
+  return <svg class="unit-sym" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true"><rect x="1" y="1" width={w - 2} height={h - 2} rx="1" class="unit-frame" /><g class="unit-mark">{inner}</g></svg>;
 }
 
-/** Segmented control. */
-export function Seg<T extends string | number>({ value, options, onPick, label }: { value: T; options: { v: T; label: string; title?: string }[]; onPick: (v: T) => void; label: string }) {
-  return <div class="seg" role="group" aria-label={label}>{options.map(o => <button key={String(o.v)} aria-pressed={o.v === value} title={o.title} onClick={() => onPick(o.v)}>{o.label}</button>)}</div>;
-}
-
-const PATHS: Record<string, string> = {
-  x: 'M4 4l8 8M12 4l-8 8',
-  economy: 'M3 13V9M7 13V6M11 13V3M2 13.5h12',
-  politics: 'M2 6l6-3.5L14 6M3 6.5v5M6.3 6.5v5M9.7 6.5v5M13 6.5v5M2 13h12',
-  military: 'M8 2l5 2v4c0 3-2.2 5-5 6-2.8-1-5-3-5-6V4z',
-  diplomacy: 'M5.5 8a2.5 2.5 0 1 0 0-.01M10.5 8a2.5 2.5 0 1 0 0-.01',
-  war: 'M3 3l10 10M13 3L3 13M3 10.5L5.5 13M13 10.5L10.5 13',
-  chronicle: 'M3 3h4.5A1.5 1.5 0 0 1 9 4.5V13a1.5 1.5 0 0 0-1.5-1.5H3zM13 3H10.5A1.5 1.5 0 0 0 9 4.5V13a1.5 1.5 0 0 1 1.5-1.5H13z',
-  timelapse: 'M8 3a5 5 0 1 1-5 5M3 3v3h3M8 5.5V8l2 1.5',
-  menu: 'M2.5 4h11M2.5 8h11M2.5 12h11',
-  play: 'M5 3.5v9l7-4.5z', pause: 'M4.5 3.5h2.5v9H4.5zM9 3.5h2.5v9H9z',
-  sound: 'M3 6h2l3-2.5v9L5 10H3zM10.5 5.5a3.5 3.5 0 0 1 0 5M12 4a5.5 5.5 0 0 1 0 8', mute: 'M3 6h2l3-2.5v9L5 10H3zM10.5 6l3 4M13.5 6l-3 4',
-  copy: 'M5 5h7v8H5zM3.5 10.5V3h6',
+// Icons on a 24-unit grid, drawn with a 1.75 stroke.
+const P: Record<string, string> = {
+  x: 'M6 6l12 12M18 6L6 18',
+  menu: 'M4 7h16M4 12h16M4 17h16',
+  play: 'M8 5v14l11-7z', pause: 'M7 5h3.5v14H7zM13.5 5H17v14h-3.5z',
+  // resources
+  treasury: 'M5 7a7 2.5 0 1 0 14 0a7 2.5 0 1 0-14 0M5 7v5c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5V7M5 12v5c0 1.4 3.1 2.5 7 2.5s7-1.1 7-2.5v-5',
+  trend: 'M3 17l6-6 4 4 8-8M15 7h6v6', trendDown: 'M3 7l6 6 4-4 8 8M15 17h6v-6',
+  manpower: 'M4 15a8 8 0 0 1 16 0M2.5 15h19M7 15v2.5h10V15M12 7V5',
+  stability: 'M12 4v16M8 20h8M5 8h14M5 8l-3 6a3 3 0 0 0 6 0zM19 8l-3 6a3 3 0 0 0 6 0z',
+  warSupport: 'M5 21V3M5 4h12l-2.5 4 2.5 4H5',
+  influence: 'M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6l-5.4 2.9 1.2-6-4.5-4.2 6.1-.7z',
+  // panels
+  economy: 'M3 21V11l5 3v-3l5 3v-3l5 3V5h3v16zM3 21h18',
+  politics: 'M4 20h16M6 20v-7M18 20v-7M10 20v-4h4v4M5 13h14M7 13a5 5 0 0 1 10 0M12 8V4M12 4h3',
+  military: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM8 10l4 2.5 4-2.5M8 13.5l4 2.5 4-2.5',
+  diplomacy: 'M9 12a4.5 4.5 0 1 0-9 0a4.5 4.5 0 1 0 9 0M24 12a4.5 4.5 0 1 0-9 0a4.5 4.5 0 1 0 9 0M8 12h8',
+  war: 'M5 5l11 11M19 5L8 16M14 18l4-4M10 18l-4-4M17.5 17.5L20 20M6.5 17.5L4 20',
+  chronicle: 'M8 4h10a2 2 0 0 1 2 2v1h-4M8 4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7M9.5 10h5M9.5 13.5h5M9.5 17h3',
+  timelapse: 'M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9',
+  // map lenses
+  political: 'M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14',
+  terrain: 'M2 19l6.5-11 4.5 7 2.5-3.5L21 19z',
+  population: 'M9 11a3 3 0 1 0 0-6a3 3 0 1 0 0 6M3 20a6 6 0 0 1 12 0M17 11a2.5 2.5 0 1 0 0-5a2.5 2.5 0 1 0 0 5M15.5 14.2A5 5 0 0 1 21 20',
+  // feed and treaties
+  city: 'M4 21V10h2.5V7H9v3h2V7h2v3h2V7h2.5v3H20v11zM10 21v-4h4v4',
+  peace: 'M12 21C7 18 4 14 4 9c3 0 6 1.5 8 4 2-2.5 5-4 8-4 0 5-3 9-8 12zM12 13v8',
+  ballot: 'M4 11h16v9H4zM8 11V4h8v7M10 7.5l1.5 1.5 3-3',
+  coup: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM12 8v5M12 16v.5',
+  alliance: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM8.5 12l2.5 2.5 4.5-5',
+  nap: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM7 7l10 10',
+  guarantee: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM12 8.5l1.4 2.9 3.1.4-2.3 2.1.6 3.1-2.8-1.5-2.8 1.5.6-3.1-2.3-2.1 3.1-.4z',
+  trade: 'M3 9h14l-3-3M21 15H7l3 3',
+  puppet: 'M9 15l6-6M10.5 6.5l1.4-1.4a4 4 0 0 1 5.7 5.7l-1.4 1.4M13.5 17.5l-1.4 1.4a4 4 0 0 1-5.7-5.7l1.4-1.4',
+  improve: 'M6 15l6-6 6 6M6 20l6-6 6 6M6 10l6-6 6 6',
+  denounce: 'M3 10v4h3l7 4.5V5.5L6 10zM16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11',
+  break: 'M9 15l-1.5 1.5a3.5 3.5 0 0 1-5-5L4 10M15 9l1.5-1.5a3.5 3.5 0 0 1 5 5L20 14M8 3v3M3 8h3M16 21v-3M21 16h-3',
+  // postures
+  hold: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z',
+  advance: 'M5 12h13M13 6l6 6-6 6',
+  offensive: 'M3 12h9M8 6l6 6-6 6M12 12h9M17 6l6 6-6 6',
+  // interest groups
+  g_military: 'M4 15a8 8 0 0 1 16 0M2.5 15h19M7 15v2.5h10V15',
+  g_industry: 'M3 21V11l5 3v-3l5 3v-3l5 3V5h3v16z',
+  g_labor: 'M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.5-.5-.5-2.5z',
+  g_rural: 'M12 21V6M12 10c-2.5 0-4-1.5-4-4 2.5 0 4 1.5 4 4zm0 0c2.5 0 4-1.5 4-4-2.5 0-4 1.5-4 4zM12 15.5c-2.5 0-4-1.5-4-4 2.5 0 4 1.5 4 4zm0 0c2.5 0 4-1.5 4-4-2.5 0-4 1.5-4 4z',
+  // misc
+  copy: 'M8 8h11v12H8zM5 16V4h11', target: 'M12 12m-8 0a8 8 0 1 0 16 0a8 8 0 1 0-16 0M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0M12 2v4M12 18v4M2 12h4M18 12h4',
+  check: 'M5 12.5l4.5 4.5L19 7.5', cross: 'M7 7l10 10M17 7L7 17', save: 'M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6',
+  settings: 'M12 15a3 3 0 1 0 0-6a3 3 0 1 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
+  gdp: 'M3 20h18M6 17V11M10 17V7M14 17v-4M18 17V5', divisions: 'M3 7h18v10H3zM3 7l18 10M21 7L3 17', calendar: 'M4 6h16v14H4zM4 10h16M8 3v5M16 3v5',
 };
-export function Icon({ name, size = 16 }: { name: string; size?: number }) {
-  const fill = name === 'play' || name === 'pause';
-  return <svg class="icon" width={size} height={size} viewBox="0 0 16 16" aria-hidden="true"><path d={PATHS[name]} fill={fill ? 'currentColor' : 'none'} stroke={fill ? 'none' : 'currentColor'} stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>;
+const FILLED = new Set(['play', 'pause']);
+export function Icon({ name, size = 18 }: { name: string; size?: number }) {
+  const fill = FILLED.has(name);
+  return <svg class="icon" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true"><path d={P[name] || P.target} fill={fill ? 'currentColor' : 'none'} stroke={fill ? 'none' : 'currentColor'} stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" /></svg>;
+}
+/** An icon button whose label shows as a tooltip (and is its accessible name). */
+export function IconBtn({ icon, label, onClick, pressed, badge, cls, size = 20, disabled, kbd }: { icon: string; label: string; onClick: () => void; pressed?: boolean; badge?: any; cls?: string; size?: number; disabled?: boolean; kbd?: string }) {
+  return <button class={`icon-btn ${cls || ''}`} aria-label={label} data-tip={kbd ? `${label}  ·  ${kbd}` : label} aria-pressed={pressed} disabled={disabled} onClick={onClick}><Icon name={icon} size={size} />{badge ? <i class="badge">{badge}</i> : null}</button>;
+}
+
+export function Slider({ id, label, value, min, max, step, fmt, onInput, hint, color }: { id: string; label: string; value: number; min: number; max: number; step: number; fmt: (v: number) => string; onInput: (v: number) => void; hint?: string; color?: string }) {
+  return <label class="slider" for={id} title={hint}><span class="sl-top"><span>{color && <i class="chip-dot" style={{ background: color }} />}{label}</span><b class="num">{fmt(value)}</b></span>
+    <input id={id} type="range" min={min} max={max} step={step} value={value} style={color ? { accentColor: color } : undefined} onInput={e => onInput(+(e.target as HTMLInputElement).value)} /></label>;
+}
+/** Segmented control (text or icons). */
+export function Seg<T extends string | number>({ value, options, onPick, label }: { value: T; options: { v: T; label: string; icon?: string; title?: string }[]; onPick: (v: T) => void; label: string }) {
+  return <div class="seg" role="group" aria-label={label}>{options.map(o => <button key={String(o.v)} aria-pressed={o.v === value} title={o.title} aria-label={o.icon ? o.label : undefined} onClick={() => onPick(o.v)}>{o.icon && <Icon name={o.icon} size={16} />}{(!o.icon || o.title) && <span>{o.label}</span>}</button>)}</div>;
 }
