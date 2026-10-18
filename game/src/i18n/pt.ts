@@ -174,4 +174,6 @@ export const pt: Record<string, Entry> = {
   'pol.election': 'Próxima eleição', 'pol.government': 'Governo',
   'mil.armyFront': 'No front', 'mil.armyReserve': 'Na reserva', 'chron.replay': 'Rever o mapa',
   'group.want.military': 'Orçamento militar alto', 'group.want.industry': 'Impostos baixos, investimento', 'group.want.labor': 'Bem-estar e crescimento', 'group.want.rural': 'Impostos baixos e calma',
+  'mil.readiness': 'Prontidão (força × organização)', 'eco.gdpRank': 'Posição mundial do PIB', 'pol.angry': 'Irritado: agitação e greves', 'led.rankPlace': 'Sua posição',
+  'mil.ready': 'Prontidão',
 };

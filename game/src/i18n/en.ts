@@ -168,4 +168,6 @@ export const en: Record<string, Entry> = {
   'pol.election': 'Next election', 'pol.government': 'Government',
   'mil.armyFront': 'At the front', 'mil.armyReserve': 'In reserve', 'chron.replay': 'Replay the map',
   'group.want.military': 'A big military budget', 'group.want.industry': 'Low taxes, investment', 'group.want.labor': 'Welfare and growth', 'group.want.rural': 'Low taxes and calm',
+  'mil.readiness': 'Readiness (strength × organisation)', 'eco.gdpRank': 'World GDP rank', 'pol.angry': 'Angry: unrest and strikes', 'led.rankPlace': 'Your place',
+  'mil.ready': 'Readiness',
 };

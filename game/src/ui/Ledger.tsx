@@ -59,10 +59,12 @@ function Overview({ g }: { g: Game }) {
   const span = Math.max(1, (xs[xs.length - 1] ?? 1) - (xs[0] ?? 0)), spaced: typeof groups = [];
   for (const m of groups) { const last = spaced[spaced.length - 1]; if (last && (m.x - last.x) / span < 0.06) last.label += ' · ' + m.label; else spaced.push({ ...m }); }
   const marks = spaced.slice(0, 1).concat(spaced.slice(1).slice(-3)).map((m, i) => ({ ...m, n: i + 1 }));
+  // cities taken or lost: small unnumbered ticks along the bottom
+  const ticks = g.w.log.filter(e => e.kind === 'city' && e.who?.includes(c.id) && e.day >= (xs[0] ?? 0)).slice(-40).map(e => ({ x: e.day, label: say(g.w, e.msg), n: 0 }));
   const chart = (k: 'gdp' | 'debt' | 'manpower' | 'casualties' | 'stability' | 'warSupport', label: string) => {
     const v = g.series(k), last = v[v.length - 1] ?? 0, d = last - (v[0] ?? last), share = k === 'stability' || k === 'warSupport', worse = k === 'casualties' || k === 'debt', bad = worse ? d > 0 : d < 0;
     return <figure class="cell"><figcaption><span>{label}</span><span class="cap-v"><Delta v={d} invert={worse} fmt={share ? (x: number) => `${Math.round(x * 100)}` : FMT[k]} /><b class="num">{FMT[k](last)}</b></span></figcaption>
-      <LineChart series={[{ id: k, label, color: Math.abs(d) < 1e-9 ? SLOTS[0] : bad ? FALL : RISE, values: v }]} xs={xs} fmtX={monthX(g)} fmtY={FMT[k]} height={140} zero={worse} marks={marks} /></figure>;
+      <LineChart series={[{ id: k, label, color: Math.abs(d) < 1e-9 ? SLOTS[0] : bad ? FALL : RISE, values: v }]} xs={xs} fmtX={monthX(g)} fmtY={FMT[k]} height={140} zero={worse} marks={[...marks, ...ticks]} /></figure>;
   };
   return <>
     <div class="kpis">
@@ -98,7 +100,7 @@ function Rankings({ g }: { g: Game }) {
   const j = ({ gdp: 0, divisions: 1, provinces: 2, pop: 3 } as Record<string, number>)[by], h0 = g.history[0];
   const order0 = j === undefined || !h0 ? null : rows.map(r => r.id).sort((a, b) => h0.all[b * 4 + j] - h0.all[a * 4 + j]);
   const moved = (id: number) => order0 ? order0.indexOf(id) - rows.findIndex(r => r.id === id) : 0;
-  const mine = rows.findIndex(r => r.id === me), TOP = 12, shown = rows.slice(0, TOP);
+  const mine = rows.findIndex(r => r.id === me), TOP = 10, shown = rows.slice(0, TOP);
   if (mine >= TOP) shown.push(...rows.slice(Math.max(TOP, mine - 2), mine + 3)); // you and two neighbours each side
   return <table class="rank">
     <thead><tr><th class="r-n">#</th><th class="r-mv" data-tip={t('led.moved')}><Icon name="up" size={9} /></th><th class="r-name">{t('led.nation')}</th>{COLS.map(k => <th key={k} class={`r-col ${by === k ? 'on' : ''}`} data-tip={t('led.tip.' + k)}><button onClick={() => setBy(k)} aria-pressed={by === k}><Icon name={COL_ICON[k]} size={14} />{t('led.col.' + k)}<Icon name={by === k ? 'down' : 'flat'} size={9} /></button></th>)}</tr></thead>

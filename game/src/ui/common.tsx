@@ -195,7 +195,7 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
   const n = xs.length;
   if (n < 2) return <div ref={ref} class="chart empty" style={{ height }}><span>{t('led.empty')}</span></div>;
   const labels = series.length > 1, L = 54, R = labels ? 96 : 14, T = 10 + (marks.length ? 16 : 0), B = 24, w = Math.max(60, W - L - R), h = height - T - B;
-  const all = series.flatMap(s => s.values), mn = Math.min(...all), mx = Math.max(...all), pad = Math.max((mx - mn) * 0.15, Math.abs(mx) * 0.05, 1e-6);
+  const all = series.flatMap(s => s.values), mn = Math.min(...all), mx = Math.max(...all), pad = Math.max((mx - mn) * 0.08, Math.abs(mx) * 0.03, 1e-6);
   const tk0 = ticks(zero ? Math.min(0, mn) : (mn >= 0 && mn - pad < 0 ? 0 : mn - pad), mx + pad);
   const tk = tk0.filter((v, i) => i === 0 || fmtY(v) !== fmtY(tk0[i - 1])); // no repeated labels after rounding
   const y0 = tk0[0], y1 = tk0[tk0.length - 1], X = (i: number) => L + i / (n - 1) * w, Y = (v: number) => T + h - (v - y0) / (y1 - y0 || 1) * h;
@@ -204,7 +204,8 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
   for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 20) ends[i].y = ends[i - 1].y + 20;
   const path = (v: number[]) => smooth(v.map((y, i) => [X(i), Y(y)]));
   // event pins: the month each event fell in
-  const pins0 = marks.map(m => ({ ...m, i: Math.max(0, xs.findIndex((x, j) => j === n - 1 || xs[j + 1] > m.x)) }));
+  const minor = marks.filter(m => !m.n).map(m => Math.max(0, xs.findIndex((x, j) => j === n - 1 || xs[j + 1] > m.x)));
+  const pins0 = marks.filter(m => m.n).map(m => ({ ...m, i: Math.max(0, xs.findIndex((x, j) => j === n - 1 || xs[j + 1] > m.x)) }));
   const pins = pins0.filter((m, k) => pins0.findIndex(q => q.i === m.i) === k).map(m => ({ ...m, label: pins0.filter(q => q.i === m.i).map(q => q.label).join(' · '), px: Math.max(L + 10, X(m.i)) }));
   const move = (e: PointerEvent) => { const r = (e.currentTarget as SVGElement).getBoundingClientRect(); const i = Math.round((e.clientX - r.left - L) / w * (n - 1)); setHi(i >= 0 && i < n ? i : null); };
   const hx = hi === null ? 0 : X(hi);
@@ -212,6 +213,7 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
     <svg width={W} height={height} onPointerMove={move} onPointerLeave={() => setHi(null)} role="img" aria-label={series.map(s => `${s.label} ${fmtY(s.values[n - 1])}`).join(', ')}>
       {tk.map(v => <g key={v}><line x1={L} x2={L + w} y1={Y(v)} y2={Y(v)} class="grid" /><text x={L - 8} y={Y(v) + 4} class="axis" text-anchor="end">{fmtY(v)}</text></g>)}
       <text x={L} y={height - 6} class="axis">{fmtX(xs[0])}</text><text x={L + w} y={height - 6} class="axis" text-anchor="end">{fmtX(xs[n - 1])}</text>
+      {[...new Set(minor)].map(i => <line key={'m' + i} x1={X(i)} x2={X(i)} y1={T + h - 6} y2={T + h} class="minor-tick" />)}
       {pins.map((m, k) => <g key={k} class="pin"><line x1={m.px} x2={m.px} y1={T + 8} y2={T + h} /><path d={`M${m.px} ${T - 7}l8 8-8 8-8-8z`} /><text x={m.px} y={T + 5} text-anchor="middle">{m.n}</text></g>)}
       {!labels && <path d={`${path(series[0].values)}L${X(n - 1)},${T + h}L${X(0)},${T + h}Z`} fill={series[0].color} opacity="0.16" />}
       {series.map((s, i) => <path key={s.id} d={path(s.values)} fill="none" stroke={s.color} stroke-width={i === 0 ? 3 : 2} stroke-dasharray={DASH[i % DASH.length]} stroke-linejoin="round" stroke-linecap="round" />)}
@@ -219,7 +221,8 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
       {labels && ends.map(({ s, y }) => <g key={s.id}>{Math.abs(y - Y(s.values[n - 1])) > 3 && <line x1={L + w + 4} x2={L + w + 9} y1={Y(s.values[n - 1])} y2={y} stroke={s.color} stroke-width="1.5" />}<text x={L + w + 12} y={y + 4} class="end-label">{s.label}</text></g>)}
       {hi !== null && <g><line x1={hx} x2={hx} y1={T} y2={T + h} class="cross" />{series.map(s => <circle key={s.id} cx={hx} cy={Y(s.values[hi])} r="4" fill={s.color} class="end-dot" />)}</g>}
     </svg>
-    {hi !== null && <div class={`chart-tip ${hx > W / 2 ? 'left' : ''}`} style={{ left: hx }}><b>{fmtX(xs[hi])}</b>{pins.filter(m => m.i === hi).map((m, k) => <em key={k}>{m.n}. {m.label}</em>)}{series.slice().sort((a, b) => b.values[hi] - a.values[hi]).map(s => <span key={s.id}><i style={{ background: s.color }} />{s.label}<b class="num">{fmtY(s.values[hi])}</b></span>)}</div>}
+    {hi !== null && <div class="chart-tip" style={hx > L + w / 2 ? { left: L + 6 } : { right: R + 6 }}><b>{fmtX(xs[hi])}</b>{pins.filter(m => m.i === hi).map((m, k) => <em key={k}>{m.n}. {m.label}</em>)}
+      {series.slice().sort((a, b) => b.values[hi] - a.values[hi]).map(s => { const d = hi > 0 ? s.values[hi] - s.values[hi - 1] : 0; return <span key={s.id}><i style={{ background: s.color }} />{labels ? s.label : ''}<b class="num">{fmtY(s.values[hi])}</b>{hi > 0 && <small class={`num ${d > 0 ? 'up' : d < 0 ? 'dn' : ''}`}>{d > 0 ? '▴' : d < 0 ? '▾' : '·'}{d ? fmtY(Math.abs(d)) : ''}</small>}</span>; })}</div>}
   </div>;
 }
 /** An icon button whose label shows as a tooltip (and is its accessible name). */
