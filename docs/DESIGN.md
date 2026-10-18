@@ -140,7 +140,15 @@ The sim core resolves "a set of orders → next state." Sequential mode is the s
 - **Heat**: where both sides are in contact and the line is moving, the front glows hotter, flickers, gets battle haze, and its edge moves slightly. Quiet fronts stay calm and thin.
 - **Artillery flashes and smoke** along hot stretches of front.
 - **Fresh ground** shines in the winner's colour for about ten days, so you can read where the war just moved.
-- **Offensive arrows** are drawn automatically from where the front is advancing (history-map style), and fade when the push stops.
+- **Offensive arrows are events, animated with the classic principles**:
+  - *Anticipation*: when a real push starts, a stub winds back from a tail anchored in its own lines.
+  - *Thrust with overshoot*: it then shoots to the front.
+  - *Squash on impact*: the head squashes against the line, with a flash and a ring.
+  - *Follow the front*: the tip is locked to the visible front, so the arrow grows as the line moves and is **still when the front is still**.
+  - *Stretch*: the head stretches with speed, and sparks fly at the point of the push (secondary action).
+  - *Arcs*: the body bends along the route the push actually took.
+  - *Follow-through*: when the push stops, the head settles and the arrow drains away from the tail.
+- **Staging: nothing covers the front.** Troop totals sit inside each side's territory, clear of the line, the band of unit flags, city names and the HUD. They hold their spot unless a clearly better one appears, and they cross-fade rather than sweep across the map. Banners use the free strip between HUD panels (on small screens, a card over the HUD).
 - **Turning points** get a cinematic banner and a small camera shake. **Cities changing hands** ripple in the new owner's colour. **Surrendering divisions** leave a white flag; broken ones a cross.
 - **Troop totals** pulse when they change fast.
 - Respect *reduced motion*: no shake, simpler banners. Adaptive resolution keeps the map smooth on weaker GPUs.

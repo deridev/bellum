@@ -19,7 +19,7 @@
     sim = new S.Sim(window.REGION);
     if (ren) ren.setSim(sim);
     state.acc = 0; state.logSeen = 0; state.shown = sim.stats.men.slice();
-    if (typeof fx !== 'undefined') { fx.sparks = []; fx.smoke = []; fx.ghosts = []; fx.ripples = []; fx.arrows = []; fx.hotHist = []; fx.banners = []; }
+    if (typeof fx !== 'undefined') { fx.sparks = []; fx.smoke = []; fx.ghosts = []; fx.ripples = []; fx.hotHist = []; fx.banners = []; fx.cLag = []; OFF.list = []; NUM.forEach(n => { n.ok = false; n.a = 0; }); }
     $('feed').innerHTML = ''; pushFeed();
     $('seed').textContent = s === HISTORY_SEED ? 'Historical replay' : 'Alternate war \u00b7 seed ' + s;
     $('armistice').hidden = true;
@@ -143,7 +143,7 @@
   }
   const FLASH = sprite([[0, 'rgba(255,250,235,1)'], [0.22, 'rgba(255,205,130,0.9)'], [0.55, 'rgba(255,110,40,0.28)'], [1, 'rgba(255,80,20,0)']]);
   const SMOKE = sprite([[0, 'rgba(40,36,34,0.55)'], [0.6, 'rgba(40,36,34,0.2)'], [1, 'rgba(40,36,34,0)']]);
-  const fx = { sparks: [], smoke: [], ghosts: [], ripples: [], arrows: [], hotHist: [], banners: [], banner: null, shake: 0, pulse: [0, 0] };
+  const fx = { cLag: [], sparks: [], smoke: [], ghosts: [], ripples: [], arrows: [], hotHist: [], banners: [], banner: null, shake: 0, pulse: [0, 0] };
 
   // a unit's on-screen position: Catmull-Rom through its last four daily positions,
   // drawn a day or two behind the sim, in step with the map
@@ -158,7 +158,8 @@
     // hot cells, kept a day back so flashes sit on the visible front
     const ks = new Int32Array(sim.hot), hs = new Float32Array(ks.length); ks.forEach((k, i) => (hs[i] = sim.heat[k]));
     fx.hotHist.push({ ks, hs }); if (fx.hotHist.length > 2) fx.hotHist.shift();
-    updateArrows();
+    updateOffensives();
+    fx.cLag.push(new Float32Array(sim.c)); if (fx.cLag.length > 3) fx.cLag.shift(); // what the map is showing
   }
   function onLog(e) {
     if (e.big) { fx.banners.push({ day: e.day, title: e.big, text: e.text }); }
@@ -166,25 +167,89 @@
     if (e.kind === 'pocket') fx.shake = Math.max(fx.shake, 3);
   }
 
-  function updateArrows() {
-    const raw = sim.advances.slice().sort((a, b) => b.size - a.size).slice(0, 6);
-    for (const a of fx.arrows) a.matched = false;
-    for (const r of raw) {
-      let best = null, bd = 0.6;
-      for (const a of fx.arrows) if (!a.matched && a.side === r.side) { const d = Math.hypot(a.tx - r.x, a.ty - r.y); if (d < bd) { bd = d; best = a; } }
-      const len = Math.min(1.15, Math.max(0.38, Math.sqrt(r.size) * S.CELL * 1.5)), ta = Math.min(1, r.size / 110);
-      if (best) Object.assign(best, { tx: r.x, ty: r.y, tdx: r.dx, tdy: r.dy, tlen: len, ta, matched: true });
-      else fx.arrows.push({ side: r.side, x: r.x, y: r.y, dx: r.dx, dy: r.dy, len: len * 0.5, tx: r.x, ty: r.y, tdx: r.dx, tdy: r.dy, tlen: len, a: 0, ta, matched: true });
+  // ---------- offensives: arrows that push the front ----------
+  // An arrow is an event. It is born when a real push starts (tail anchored in its own
+  // lines), its tip is locked to the visible front so it grows as the line moves, it
+  // stays still when the front is still, and it drains away when the push stops.
+  const OFF = { list: [], next: 1 };
+  const shownDayOf = mix => sim.day - 2 + mix; // the map is drawn two days behind the sim
+  function cAt(x, y) { // bilinear control value at a world point (NaN off Korean land)
+    const gx = (x - S.GX0) / S.CELL - 0.5, gy = (y - S.GY0) / S.CELL - 0.5, i = Math.floor(gx), j = Math.floor(gy);
+    if (i < 0 || j < 0 || i >= S.GW - 1 || j >= S.GH - 1) return NaN;
+    const k = j * S.GW + i, fx_ = gx - i, fy = gy - j; let sum = 0, w = 0;
+    const add = (kk, ww) => { if (sim.kor[kk]) { sum += sim.c[kk] * ww; w += ww; } };
+    add(k, (1 - fx_) * (1 - fy)); add(k + 1, fx_ * (1 - fy)); add(k + S.GW, (1 - fx_) * fy); add(k + S.GW + 1, fx_ * fy);
+    return w > 0.1 ? sum / w : NaN;
+  }
+  function march(x, y, dx, dy, sg, maxD) { // from own ground along a direction to the front line
+    const st = S.CELL * 0.3; let px = x, py = y, pv = cAt(x, y) * sg;
+    for (let d = 0; d < maxD; d += st) {
+      const nx = px + dx * st, ny = py + dy * st, v = cAt(nx, ny) * sg;
+      if (!(v > 0)) { if (v <= 0 && pv > 0) { const t = pv / (pv - v); return [px + dx * st * t, py + dy * st * t]; } return [px, py]; }
+      px = nx; py = ny; pv = v;
     }
-    for (const a of fx.arrows) if (!a.matched) a.ta = 0;
+    return [px, py];
+  }
+  function updateOffensives() {
+    const L = sim.day, blobs = sim.advances.filter(b => b.size >= 35).sort((a, b) => b.size - a.size).slice(0, 6);
+    const live = OFF.list.filter(o => !o.endDay);
+    for (const b of blobs) {
+      const sg = b.side === 0 ? 1 : -1; let best = null, bd = 0.6;
+      for (const o of live) if (o.side === b.side) { const t = o.tips[o.tips.length - 1]; const d = Math.hypot(t.x - b.x, t.y - b.y); if (d < bd) { bd = d; best = o; } }
+      if (best) { best.last = L; best.size = Math.max(best.size * 0.95, b.size); best.dx += (b.dx - best.dx) * 0.15; best.dy += (b.dy - best.dy) * 0.15; const l = Math.hypot(best.dx, best.dy); best.dx /= l; best.dy /= l; continue; }
+      if (b.size < 55 || live.filter(o => o.side === b.side).length >= 3) continue;
+      let tx = b.x - b.dx * 0.5, ty = b.y - b.dy * 0.5;
+      for (let n = 0; n < 12 && !(cAt(tx, ty) * sg > 0.6); n++) { tx -= b.dx * 0.06; ty -= b.dy * 0.06; }
+      if (!(cAt(tx, ty) * sg > 0)) continue;
+      const [hx, hy] = march(tx, ty, b.dx, b.dy, sg, 2.2);
+      if (Math.hypot(hx - tx, hy - ty) < 0.18) continue;
+      const o = { id: OFF.next++, side: b.side, tail: [tx, ty], dx: b.dx, dy: b.dy, tips: [{ d: L, x: hx, y: hy }], bornDay: L, last: L, size: b.size, endDay: 0, t0: 0, tEnd: 0, vs: 0, prev: null, impact: false };
+      OFF.list.push(o); live.push(o);
+    }
+    for (const o of live) {
+      if (o.bornDay === L) continue;
+      const sg = o.side === 0 ? 1 : -1, t = o.tips[o.tips.length - 1], back = S.CELL * 0.5;
+      let nx, ny;
+      if (cAt(t.x - o.dx * back, t.y - o.dy * back) * sg > 0) [nx, ny] = march(t.x - o.dx * back, t.y - o.dy * back, o.dx, o.dy, sg, 2.2);
+      else { // the enemy pushed back: the tip gives ground toward the tail
+        let px = t.x, py = t.y; const bx = o.tail[0] - px, by = o.tail[1] - py, bl = Math.hypot(bx, by) || 1, st = S.CELL * 0.3;
+        for (let d = 0; d < bl && !(cAt(px, py) * sg > 0); d += st) { px += bx / bl * st; py += by / bl * st; }
+        nx = px; ny = py;
+      }
+      o.tips.push({ d: L, x: nx, y: ny }); if (o.tips.length > 500) o.tips.shift();
+      const len = Math.hypot(nx - o.tail[0], ny - o.tail[1]), maxLen = 1.7; // very long drives: the tail follows
+      if (len > maxLen) { const k = (len - maxLen) / len; o.tail[0] += (nx - o.tail[0]) * k; o.tail[1] += (ny - o.tail[1]) * k; }
+      if (L - o.last > 3 || sim.frozen) o.endDay = L;
+    }
+  }
+  function tipAt(o, sd) { // Catmull-Rom through daily tips, in step with the map
+    const T = o.tips; if (sd <= T[0].d) return [T[0].x, T[0].y];
+    let i = T.length - 2; while (i > 0 && T[i].d > sd) i--;
+    if (i < 0) i = 0; const a = T[Math.max(0, i - 1)], b = T[i], c = T[Math.min(T.length - 1, i + 1)], d = T[Math.min(T.length - 1, i + 2)];
+    const t = Math.min(1, Math.max(0, (sd - b.d) / Math.max(1, c.d - b.d)));
+    return [cr(a.x, b.x, c.x, d.x, t), cr(a.y, b.y, c.y, d.y, t)];
+  }
+  function offPath(o, sd) { // tail → route taken → head, kept moving forward and smoothed (arcs)
+    const head = tipAt(o, sd), proj = p => (p[0] - o.tail[0]) * o.dx + (p[1] - o.tail[1]) * o.dy, ph = proj(head);
+    let pts = [o.tail]; let lastP = 0;
+    for (const t of o.tips) { if (t.d >= sd) break; const q = [t.x, t.y], pq = proj(q); if (pq > lastP + 0.05 && pq < ph - 0.05) { pts.push(q); lastP = pq; } }
+    pts.push(head);
+    for (let it = 0; it < 2; it++) { const n = [pts[0]]; for (let k = 0; k < pts.length - 1; k++) { const a = pts[k], b = pts[k + 1]; n.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]); } n.push(pts[pts.length - 1]); pts = n; }
+    return pts;
   }
   function stepEffects(dt, now, mix) {
-    const k = 1 - Math.exp(-dt * 2.5);
-    for (const a of fx.arrows) {
-      a.x += (a.tx - a.x) * k; a.y += (a.ty - a.y) * k; a.len += (a.tlen - a.len) * k; a.a += (a.ta - a.a) * k * 1.4;
-      a.dx += (a.tdx - a.dx) * k; a.dy += (a.tdy - a.dy) * k; const l = Math.hypot(a.dx, a.dy) || 1; a.dx /= l; a.dy /= l;
+    const sd = shownDayOf(mix);
+    for (const o of OFF.list) {
+      if (!o.t0 && sd >= o.bornDay) o.t0 = now;
+      if (o.endDay && !o.tEnd && o.t0 && sd >= o.endDay) o.tEnd = now;
+      if (!o.t0) continue;
+      // tip speed (px/s) drives squash and stretch and the sparks at the point of the push
+      const h = toScreen(...tipAt(o, sd)); if (o.prev) { const v = Math.hypot(h[0] - o.prev[0], h[1] - o.prev[1]) / Math.max(dt, 1e-3); o.vs += (Math.min(v, 400) - o.vs) * Math.min(1, dt * 6); } o.prev = h;
+      if (!o.tEnd && now - o.t0 > 0.6 && state.playing && o.vs > 8 && Math.random() < o.vs * dt * 0.35) {
+        const [x, y] = tipAt(o, sd); fx.sparks.push({ x: x + (Math.random() - 0.5) * S.CELL * 2, y: y + (Math.random() - 0.5) * S.CELL * 2, t0: now, life: 0.35, big: Math.random() < 0.3 });
+      }
     }
-    fx.arrows = fx.arrows.filter(a => a.ta > 0 || a.a > 0.02);
+    OFF.list = OFF.list.filter(o => !(o.tEnd && now - o.tEnd > 1.0));
     // artillery flashes along hot stretches of front
     const hot = fx.hotHist[0];
     if (hot && hot.ks.length && state.playing && !sim.frozen) {
@@ -201,6 +266,7 @@
     fx.ghosts = fx.ghosts.filter(g => now - g.t0 < 1.6);
     const shownDay = sim.day - 2 + mix;
     for (const r of fx.ripples) if (!r.t0 && shownDay >= r.day - 0.3) r.t0 = now;
+    readHud(now);
     fx.ripples = fx.ripples.filter(r => !r.t0 || now - r.t0 < 1.4);
     fx.shake *= Math.exp(-dt * 7);
     if (!fx.banner && fx.banners.length) showBanner(fx.banners.shift(), now);
@@ -213,28 +279,83 @@
     if (!reduceMotion) fx.shake = Math.max(fx.shake, 5);
   }
 
-  function drawArrow(a) {
-    const L = a.len, nx = -a.dy, ny = a.dx, bend = L * 0.14 * (a.side ? 1 : -1);
-    const T = [a.x - a.dx * L * 0.62, a.y - a.dy * L * 0.62], H = [a.x + a.dx * L * 0.48, a.y + a.dy * L * 0.48];
-    const C = [(T[0] + H[0]) / 2 + nx * bend, (T[1] + H[1]) / 2 + ny * bend];
-    const P = [toScreen(...T), toScreen(...C), toScreen(...H)];
-    const bz = t => { const u = 1 - t; return [u * u * P[0][0] + 2 * u * t * P[1][0] + t * t * P[2][0], u * u * P[0][1] + 2 * u * t * P[1][1] + t * t * P[2][1]]; };
-    const lenPx = Math.hypot(P[2][0] - P[0][0], P[2][1] - P[0][1]); if (lenPx < 12) return;
-    const w0 = Math.max(7, Math.min(28, lenPx * 0.14)), cut = 0.74, left = [], right = [];
-    for (let i = 0; i <= 14; i++) {
-      const t = cut * i / 14, p = bz(t), q = bz(Math.min(1, t + 0.01)); let tx = q[0] - p[0], ty = q[1] - p[1]; const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
-      const w = w0 * (0.3 + 0.7 * (t / cut)) / 2; left.push([p[0] - ty * w, p[1] + tx * w]); right.push([p[0] + ty * w, p[1] - tx * w]);
+  const easeOutBack = q => { const c1 = 1.9, c3 = c1 + 1; return 1 + c3 * Math.pow(q - 1, 3) + c1 * Math.pow(q - 1, 2); };
+  const easeOut = q => 1 - (1 - q) * (1 - q), easeInCubic = q => q * q * q;
+  function drawOffensive(o, sd, now) {
+    if (!o.t0) return;
+    const e = now - o.t0, f = o.tEnd ? now - o.tEnd : -1;
+    let s = 1, u = 0, alpha = 1, wind = 0, hw = 1, hl = 1;
+    // anticipation: a short stub winds back, then the arrow thrusts forward and overshoots
+    if (e < 0.22) { s = 0.07 * easeOut(e / 0.22); wind = Math.sin(Math.PI * e / 0.22); alpha = e / 0.22; }
+    else if (e < 0.62) s = 0.07 + 0.93 * easeOutBack((e - 0.22) / 0.4);
+    // impact: the head squashes against the front, then rings out
+    if (e > 0.5) { const q = e - 0.5, damp = Math.exp(-q * 7) * Math.cos(q * 24); hw *= 1 + 0.5 * damp; hl *= 1 - 0.32 * damp;
+      if (!o.impact) { o.impact = true; const [x, y] = tipAt(o, sd); fx.sparks.push({ x, y, t0: now, life: 0.6, big: true }); fx.ripples.push({ lon: 0, lat: 0, wx: x, wy: y, side: o.side, tier: 3, t0: now, day: 0 }); } }
+    // stretch with speed (volume kept: longer head, slimmer)
+    const st = 1 + Math.min(0.4, o.vs / 260); hl *= st; hw /= Math.sqrt(st);
+    // follow-through: the head settles, then the arrow drains from the tail
+    if (f >= 0) { if (f < 0.25) hw *= 1 + 0.22 * Math.sin(Math.PI * f / 0.25); else u = easeInCubic(Math.min(1, (f - 0.25) / 0.6)); alpha = 1 - Math.min(1, Math.max(0, (f - 0.6) / 0.3)); }
+    if (alpha <= 0.01) return;
+    let P = offPath(o, sd).map(p => toScreen(p[0] - o.dx * 0.04 * wind, p[1] - o.dy * 0.04 * wind));
+    const cum = [0]; for (let k = 1; k < P.length; k++) cum.push(cum[k - 1] + Math.hypot(P[k][0] - P[k - 1][0], P[k][1] - P[k - 1][1]));
+    const total = cum[cum.length - 1]; if (total < 10) return;
+    const at = d => { // point + tangent at arc length d (extends past the head for the overshoot)
+      if (d >= total) { const a = P[P.length - 2], b = P[P.length - 1], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, tx = (b[0] - a[0]) / l, ty = (b[1] - a[1]) / l; return [b[0] + tx * (d - total), b[1] + ty * (d - total), tx, ty]; }
+      let k = 1; while (k < cum.length - 1 && cum[k] < d) k++;
+      const a = P[k - 1], b = P[k], l = (cum[k] - cum[k - 1]) || 1, q = (d - cum[k - 1]) / l, tx = (b[0] - a[0]) / l, ty = (b[1] - a[1]) / l;
+      return [a[0] + (b[0] - a[0]) * q, a[1] + (b[1] - a[1]) * q, tx, ty];
+    };
+    const W = Math.max(10, Math.min(22, 8 + Math.sqrt(o.size) * 0.7)), headL = W * 1.7 * hl, headW = W * 2.2 * hw;
+    const d0 = u * total, d1 = s * total, bodyEnd = Math.max(d0, d1 - headL);
+    if (d1 - d0 < 4) return;
+    const left = [], right = [], N = 22;
+    for (let k = 0; k <= N; k++) {
+      const d = d0 + (bodyEnd - d0) * k / N, [x, y, tx, ty] = at(d), a = (d - d0) / Math.max(1, d1 - d0);
+      const w = W * (0.22 + 0.78 * Math.min(1, a * 1.15)) / 2; left.push([x - ty * w, y + tx * w]); right.push([x + ty * w, y - tx * w]);
     }
-    const pc = bz(cut), pq = bz(cut + 0.01); let tx = pq[0] - pc[0], ty = pq[1] - pc[1]; const l = Math.hypot(tx, ty) || 1; tx /= l; ty /= l;
-    const hw = w0 * 1.15, tip = bz(1);
-    ctx.beginPath(); ctx.moveTo(...left[0]); for (const p of left) ctx.lineTo(...p);
-    ctx.lineTo(pc[0] - ty * hw, pc[1] + tx * hw); ctx.lineTo(...tip); ctx.lineTo(pc[0] + ty * hw, pc[1] - tx * hw);
-    for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(...right[i]); ctx.closePath();
-    const g = ctx.createLinearGradient(P[0][0], P[0][1], tip[0], tip[1]);
-    g.addColorStop(0, `rgba(${SIDE_RGB[a.side]},0)`); g.addColorStop(0.3, `rgba(${SIDE_RGB[a.side]},${0.7 * a.a})`); g.addColorStop(1, `rgba(${SIDE_RGB[a.side]},${0.95 * a.a})`);
-    ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 8; ctx.fillStyle = g; ctx.fill(); ctx.shadowBlur = 0; ctx.lineWidth = 1.8; ctx.strokeStyle = `rgba(255,255,255,${0.85 * a.a})`; ctx.stroke();
+    const [bx, by, btx, bty] = at(bodyEnd), [tipX, tipY] = at(d1 + 2);
+    ctx.save(); ctx.globalAlpha = alpha;
+    ctx.beginPath(); ctx.moveTo(...left[0]); for (const q of left) ctx.lineTo(...q);
+    ctx.lineTo(bx - bty * headW / 2, by + btx * headW / 2); ctx.lineTo(tipX, tipY); ctx.lineTo(bx + bty * headW / 2, by - btx * headW / 2);
+    for (let k = right.length - 1; k >= 0; k--) ctx.lineTo(...right[k]); ctx.closePath();
+    const [sx0, sy0] = at(d0), g = ctx.createLinearGradient(sx0, sy0, tipX, tipY);
+    g.addColorStop(0, `rgba(${SIDE_RGB[o.side]},0.15)`); g.addColorStop(0.45, `rgba(${SIDE_RGB[o.side]},0.75)`); g.addColorStop(1, `rgba(${SIDE_RGB[o.side]},1)`);
+    ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 2; ctx.fillStyle = g; ctx.fill();
+    ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; ctx.lineJoin = 'round'; ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,0.92)'; ctx.stroke();
+    // bow wave: the point glows while it is actually pushing
+    const push = Math.min(1, o.vs / 60);
+    if (push > 0.05 && f < 0) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = alpha * push * 0.8; const r = headW * 0.9; ctx.drawImage(FLASH, tipX - r, tipY - r, 2 * r, 2 * r); ctx.globalCompositeOperation = 'source-over'; }
+    ctx.restore();
   }
 
+  // ---------- troop totals: staged inside each side's territory, clear of the front and HUD ----------
+  const NUM = [{ x: 0, y: 0, a: 0, ok: false }, { x: 0, y: 0, a: 0, ok: false }];
+  let hudRects = [], hudT = 0;
+  function readHud(now) { if (now - hudT < 1) return; hudT = now; hudRects = [...document.querySelectorAll('.hud > *, .timeline')].filter(el => !el.hidden && el.offsetParent !== null).map(el => el.getBoundingClientRect()); }
+  function placeNumber(side, anchor, w, h, other) {
+    const sg = side === 0 ? 1 : -1, pad = 10, rCells = (Math.hypot(w, h) / 2 + 36) * view.upp / S.CELL + 2; // clear of the line and the band of unit flags along it
+    const cur = NUM[side]; let best = null, bs = Infinity;
+    const cityPx = sim.cities.filter(c => c.tier === 1).map(c => toScreen(...proj(c.lon, c.lat)));
+    const overlaps = (x, y) => {
+      if (x - w / 2 < pad || x + w / 2 > view.w - pad || y - h / 2 < pad || y + h / 2 > view.h - pad) return true;
+      for (const r of hudRects) if (x + w / 2 > r.left - 8 && x - w / 2 < r.right + 8 && y + h / 2 > r.top - 8 && y - h / 2 < r.bottom + 8) return true;
+      if (other && Math.abs(x - other.x) < (w + other.w) / 2 + 6 && Math.abs(y - other.y) < (h + other.h) / 2 + 6) return true;
+      return false;
+    };
+    const valid = k => k >= 0 && sim.main[k] && sim.c[k] * sg >= 0.5 && sim.distF[k] >= rCells && !(fx.cLag.length && fx.cLag.some(c => c[k] * sg < 0.5));
+    // hysteresis: keep the current spot while it stays valid unless another is clearly better
+    let keep = null;
+    if (cur.ok && cur.tx !== undefined) { const k = sim.cellAt(...toWorld(cur.tx, cur.ty)); if (valid(k) && !overlaps(cur.tx, cur.ty)) keep = Math.hypot(cur.tx - anchor[0], cur.ty - anchor[1]); }
+    for (let j = 0; j < S.GH; j += 2) for (let i = 0; i < S.GW; i += 2) {
+      const k = j * S.GW + i; if (!valid(k)) continue;
+      const [x, y] = toScreen(...sim.cellXY(k)); if (overlaps(x, y)) continue;
+      let sc = Math.hypot(x - anchor[0], y - anchor[1]) + (cur.ok ? 0.8 * Math.hypot(x - cur.x, y - cur.y) : 0);
+      for (const c of cityPx) if (Math.abs(c[0] - x) < w / 2 + 30 && Math.abs(c[1] - y) < h / 2 + 4) sc += 450; // keep city names readable
+      if (sc < bs) { bs = sc; best = [x, y]; }
+    }
+    if (keep !== null && (!best || bs > keep - 140)) return [cur.tx, cur.ty];
+    return best;
+  }
   function drawOverlay(mix, t) {
     const dpr = view.dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, view.w, view.h);
     const zoom = 0.012 / view.upp; // 1 = whole peninsula
@@ -250,8 +371,6 @@
     }
     if (sim.dmz) { const [x, y] = toScreen(...proj(126.2, 38.0)); label('DEMILITARIZED ZONE', x, y - 18, 11, 'rgba(255,255,255,0.85)'); }
 
-    // offensive arrows (under the units)
-    if (zoom < 6) for (const a of fx.arrows) if (a.a > 0.02) drawArrow(a);
 
     // smoke from big shell bursts
     for (const p of fx.smoke) {
@@ -291,6 +410,10 @@
     }
     ctx.globalAlpha = 1;
 
+    // offensives: arrows that push the front
+    const sdShown = shownDayOf(mix);
+    for (const o of OFF.list) drawOffensive(o, sdShown, t);
+
     // artillery flashes
     ctx.globalCompositeOperation = 'lighter';
     const fz = Math.min(3, Math.max(1, Math.sqrt(zoom)));
@@ -304,25 +427,36 @@
 
     // a city changes hands: ripple in the new owner's colour
     for (const r of fx.ripples) {
-      if (!r.t0) continue; const q = (t - r.t0) / 1.4, [x, y] = toScreen(...proj(r.lon, r.lat));
+      if (!r.t0) continue; const q = (t - r.t0) / 1.4, [x, y] = r.wx !== undefined ? toScreen(r.wx, r.wy) : toScreen(...proj(r.lon, r.lat));
       for (const d of [0, 0.18]) { const qq = q - d; if (qq < 0 || qq > 1) continue;
         ctx.strokeStyle = `rgba(${SIDE_RGB[r.side]},${(1 - qq) * 0.95})`; ctx.lineWidth = 3 * (1 - qq) + 1; ctx.beginPath(); ctx.arc(x, y, 5 + (r.tier === 1 ? 46 : 30) * qq, 0, 7); ctx.stroke(); }
       ctx.fillStyle = `rgba(255,255,255,${Math.max(0, 1 - q * 1.5)})`; ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fill();
     }
 
-    // big troop totals on each side of the front, as in the reference video (strategic zoom only)
+    // big troop totals, as in the reference video: inside each side's territory, never on the front
     const numAlpha = 1 - Math.min(1, Math.max(0, (zoom - 2.2) / 0.8));
     const mean = sums.map(a => a[2] > 0 ? [a[0] / a[2], a[1] / a[2]] : null);
+    const size = Math.max(30, Math.min(52, view.w / 22)); ctx.font = `italic 800 ${size}px "Barlow Condensed", "Arial Narrow", sans-serif`;
+    if (!fx.placeT || t - fx.placeT > 0.25) fx.placeT = t; const replace = fx.placeT === t;
+    let placed = null;
     for (let side = 0; side < 2; side++) {
       const target = sim.stats.men[side], gap = Math.abs(target - state.shown[side]) / Math.max(target, 1);
       fx.pulse[side] = Math.max(fx.pulse[side] * 0.9, Math.min(0.16, gap * 6));
       state.shown[side] += (target - state.shown[side]) * 0.12;
-      if (!numAlpha || !mean[side] || target < 1) continue;
-      let [x, y] = mean[side]; const o = mean[1 - side];
-      if (o) { const dx = x - o[0], dy = y - o[1], l = Math.hypot(dx, dy) || 1; const push = 58; x += dx / l * push; y += dy / l * push; }
-      else y += side === 0 ? -60 : 60;
-      x = Math.min(view.w - 120, Math.max(120, x)); y = Math.min(view.h - 110, Math.max(60, y));
-      ctx.globalAlpha = numAlpha; bigNumber(fmt(state.shown[side]), x, y, side, 1 + fx.pulse[side]); ctx.globalAlpha = 1;
+      const N_ = NUM[side], text = fmt(state.shown[side]), w = ctx.measureText(text).width * 1.18 + 12, h = size * 1.15;
+      if (replace) {
+        const spot = numAlpha && mean[side] && target >= 1 ? placeNumber(side, mean[side], w, h, placed) : null;
+        if (!spot) N_.want = false;
+        else { N_.want = true; N_.tx = spot[0]; N_.ty = spot[1]; if (!N_.ok) { N_.x = spot[0]; N_.y = spot[1]; N_.a = 0; N_.ok = true; } }
+      }
+      if (N_.ok) {
+        // small moves glide; a long move never sweeps across the front: fade out, jump, fade in
+        const far = Math.hypot(N_.tx - N_.x, N_.ty - N_.y) > 70;
+        if (far) { N_.a += (0 - N_.a) * 0.25; if (N_.a < 0.05) { N_.x = N_.tx; N_.y = N_.ty; } }
+        else { const k = 0.12; N_.x += (N_.tx - N_.x) * k; N_.y += (N_.ty - N_.y) * k; N_.a += ((N_.want ? 1 : 0) - N_.a) * 0.15; }
+      }
+      placed = { x: N_.tx || N_.x, y: N_.ty || N_.y, w, h };
+      if (N_.a > 0.02) { ctx.globalAlpha = N_.a * numAlpha; bigNumber(text, N_.x, N_.y, side, 1 + fx.pulse[side]); ctx.globalAlpha = 1; }
     }
   }
   function label(text, x, y, size, color) {
@@ -377,11 +511,12 @@
     requestAnimationFrame(t => { last = t; frame(t); });
   }
   // test hook: jump to a date, optionally zoom to a spot (used by headless screenshots)
-  window.__fx = () => ({ sparks: fx.sparks.length, smoke: fx.smoke.length, arrows: fx.arrows.map(a => +a.a.toFixed(2)), hot: fx.hotHist.map(h => h.ks.length), adv: sim.advances.map(a => a.size) });
+  window.__probe = (sx, sy) => { const [x, y] = toWorld(sx, sy), k = sim.cellAt(x, y); return { k, c: sim.c[k], distF: sim.distF[k], main: sim.main[k], upp: view.upp, lag: fx.cLag.map(c => +c[k].toFixed(2)) }; };
+  window.__fx = () => ({ sparks: fx.sparks.length, smoke: fx.smoke.length, offensives: OFF.list.map(o => ({ side: o.side, tips: o.tips.length, end: o.endDay })), nums: NUM.map(n => [Math.round(n.x), Math.round(n.y), +n.a.toFixed(2)]), hot: fx.hotHist.map(h => h.ks.length), adv: sim.advances.map(a => a.size) });
   window.__debugJump = (date, zoom, lon, lat, grid) => {
     setPlaying(false); const d = dayOf(date); if (d < sim.day) newSim(seed);
     const t = performance.now() / 1000;
-    while (sim.day < d) { sim.step(); if (sim.day >= d - 4) afterStep(t); }
+    while (sim.day < d) { sim.step(); if (sim.day >= d - 20) afterStep(t); }
     state.acc = 0.5; pushFeed(); fx.banners = []; updateHud();
     if (zoom) { fitKorea(); view.upp /= zoom; const w = proj(lon, lat); view.x = w[0]; view.y = w[1]; clampView(); }
     state.grid = !!grid;
