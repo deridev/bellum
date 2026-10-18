@@ -157,7 +157,7 @@ export const pt: Record<string, Entry> = {
   'led.atWar': 'em guerra', 'led.ally': 'aliado', 'led.add': 'Adicionar nação', 'led.metric': 'Medida', 'ui.remove': 'Remover',
   'hud.perMo': '/mês', 'hud.map': 'Mapa', 'clock.paused': 'Pausado',
   'eco.borrowWarn': 'Empréstimos pesados: a dívida vai subir rápido', 'eco.revenueIs': 'Receita {v}', 'eco.debtHigh': 'Perigosa: os juros consomem o orçamento', 'eco.debtMid': 'Administrável, mas fique de olho', 'eco.debtLow': 'Saudável',
-  'war.us': 'Nós', 'war.them': 'Eles', 'war.onTheWay': 'mais {n} divisões a caminho', 'war.winning': 'Vencendo', 'war.losing': 'Perdendo', 'war.even': 'Equilibrada',
+  'war.us': 'Nós', 'war.them': 'Eles', 'war.onTheWay': { one: 'mais {n} divisão a caminho', other: 'mais {n} divisões a caminho' }, 'war.winning': 'Vencendo', 'war.losing': 'Perdendo', 'war.even': 'Equilibrada',
   'peace.accepts': 'Aceita', 'peace.refuses': 'Recusa',
   'led.scale': 'Escala', 'led.growth': 'Crescimento', 'led.absolute': 'Absoluto', 'led.growthOf': '{m}: variação desde o início',
   'led.rankOf': 'Posição mundial entre {n} nações',
@@ -185,4 +185,5 @@ export const pt: Record<string, Entry> = {
   'eco.net': 'Saldo', 'eco.inOut': 'entra {i} · sai {o}', 'mil.moreArmies': { one: 'mais {n} exército', other: 'mais {n} exércitos' }, 'mil.inArmies': '{n} de {total} divisões em exércitos', 'led.barOf': '· barra: {m}', 'led.pinHint': 'Eventos numerados, marcados em todos os gráficos',
   'dip.needMore': 'Faltam {n}',
   'agenda.peaceShort': 'Oferta de paz', 'agenda.moreIn': '+{n} em Decisões ↑', 'led.andMore': '+{n}', 'mil.locate': 'Mostrar no mapa',
+  'mil.show': 'Ver',
 };

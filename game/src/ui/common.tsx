@@ -143,13 +143,13 @@ const P: Record<string, string> = {
   check: 'M5 12.5l4.5 4.5L19 7.5', cross: 'M7 7l10 10M17 7L7 17', save: 'M5 4h11l3 3v13H5zM8 4v5h7V4M8 20v-6h8v6',
   settings: 'M12 15a3 3 0 1 0 0-6a3 3 0 1 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
   gdp: 'M3 20h18M6 17V11M10 17V7M14 17v-4M18 17V5', divisions: 'M3 7h18v10H3zM3 7l18 10M21 7L3 17', calendar: 'M4 6h16v14H4zM4 10h16M8 3v5M16 3v5',
-  flat: 'M6 12h12', up: 'M12 5l7 9H5z',
+  flat: 'M5 12h14', up: 'M12 3l9 13H3z',
   // unit types
   u_infantry: 'M12 3.5a2.6 2.6 0 1 0 0 5.2a2.6 2.6 0 1 0 0-5.2M7.5 21v-6.5a4.5 4.5 0 0 1 9 0V21zM15.5 11.5L20 3',
   u_armor: 'M4.5 14.5h15a3 3 0 0 1 0 6h-15a3 3 0 0 1 0-6zM7 17.5h.01M12 17.5h.01M17 17.5h.01M6.5 14.5l1.5-4h8l1.5 4M11 10.5V8h4.5v2.5M15.5 9h6.5',
   u_mechanized: 'M2.5 16l2-6h11l3.5 3h2.5v3zM4 18.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0M10 18.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0M16 18.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0',
   u_marines: 'M10 5a2 2 0 1 0 4 0a2 2 0 1 0-4 0M12 7v14M8 10.5h8M4.5 13.5a7.5 7.5 0 0 0 15 0M4.5 13.5L3 15M19.5 13.5L21 15',
-  u_airborne: 'M3 11a9 7 0 0 1 18 0zM3 11l9 9 9-9M8.5 11l3.5 9 3.5-9M12 20v1.5', down: 'M12 19l7-9H5z',
+  u_airborne: 'M3 11a9 7 0 0 1 18 0zM3 11l9 9 9-9M8.5 11l3.5 9 3.5-9M12 20v1.5', down: 'M12 21l9-13H3z',
 };
 const FILLED = new Set(['play', 'pause', 'up', 'down']);
 const DUO = new Set(['treasury', 'manpower', 'stability', 'warSupport', 'influence', 'economy', 'politics', 'military', 'ledger', 'chronicle', 'timelapse', 'political', 'terrain', 'population', 'city', 'peace', 'ballot', 'coup', 'alliance', 'nap', 'guarantee', 'hold', 'g_military', 'g_industry', 'g_labor', 'save', 'calendar', 'divisions', 'denounce', 'treaty', 'u_infantry', 'u_armor', 'u_mechanized', 'u_airborne']);
@@ -179,7 +179,7 @@ function smooth(p: number[][]) {
 /** Round numbers for an axis between lo and hi. */
 function ticks(lo: number, hi: number, n = 5) {
   if (hi - lo < 1e-9) { hi = lo + 1; }
-  const raw = (hi - lo) / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw)!;
+  const raw = (hi - lo) / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), step = [1, 2, 5, 10].map(m => m * mag).find(s => s >= raw)!;
   const a = Math.floor(lo / step) * step, out: number[] = [];
   for (let v = a; v <= hi + step * 0.5; v += step) out.push(+v.toFixed(10));
   return out;
@@ -197,7 +197,7 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
   const minorMarks = marks.some(m => m.minor), labels = series.length > 1, L = 54, R = labels ? 96 : 14, T = 10 + (marks.length && !minorMarks ? 16 : 0), B = minorMarks ? 38 : 24, w = Math.max(60, W - L - R), h = height - T - B;
   const all = series.flatMap(s => s.values), mn = Math.min(...all), mx = Math.max(...all), pad = Math.max((mx - mn) * 0.12, Math.abs(mx) * 0.03, 1e-6);
   const y0 = zero ? Math.min(0, mn) : (mn >= 0 && mn - pad < 0 ? 0 : mn - pad), y1 = mx + pad; // the axis fits the data, not the round numbers
-  const tk0 = ticks(y0, y1, 5).filter(v => v >= y0 - 1e-9 && v <= y1 + 1e-9);
+  const tk0 = ticks(y0, y1, 6).filter(v => v >= y0 - 1e-9 && v <= y1 + 1e-9);
   const tk = tk0.filter((v, i) => i === 0 || fmtY(v) !== fmtY(tk0[i - 1])); // no repeated labels after rounding
   const X = (i: number) => L + i / (n - 1) * w, Y = (v: number) => T + h - (v - y0) / (y1 - y0 || 1) * h;
   // direct labels, nudged apart so they never collide
@@ -223,7 +223,8 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
     </svg>
     {hi !== null && <div class={`chart-tip ${labels ? '' : 'above'}`} style={(() => { // the top corner where the lines leave the most room
       const half = (a: number, b: number) => Math.min(...series.flatMap(s => s.values.slice(a, b).map(Y)));
-      return half(0, Math.ceil(n / 2)) > half(Math.floor(n / 2), n) ? { left: L + 6 } : { right: R + 6 }; })()}><b>{fmtX(xs[hi])}</b>{pins.filter(m => m.i === hi).map((m, k) => labels || m.minor ? <em key={k}>{m.n}. {m.label}</em> : <em key={k} class="pin-n">◆{m.n}</em>)}
+      const top = pins.length && !pins[0].minor ? T + 12 : undefined;
+      return half(0, Math.ceil(n / 2)) > half(Math.floor(n / 2), n) ? { left: L + 6, top } : { right: R + 6, top }; })()}><b>{fmtX(xs[hi])}</b>{pins.filter(m => m.i === hi).map((m, k) => <em key={k} class="pin-n">◆{m.n} {(s => s.length > 34 ? s.slice(0, 33) + '…' : s)(m.label.split(' · ')[0])}</em>)}
       {series.slice().sort((a, b) => b.values[hi] - a.values[hi]).map(s => { const d0 = hi > 0 ? s.values[hi] - s.values[hi - 1] : 0, d = Math.abs(d0) < Math.abs(s.values[hi]) * 0.01 ? 0 : d0; return <span key={s.id}><i style={{ background: s.color }} />{labels ? s.label : ''}<b class="num">{fmtY(s.values[hi])}</b>{hi > 0 && <small class={`num ${(d > 0) !== !!invert ? 'up' : 'dn'} ${d === 0 ? 'flat' : ''}`}>{d > 0 ? '▴' : d < 0 ? '▾' : '·'}{d ? fmtY(Math.abs(d)) : ''}</small>}</span>; })}</div>}
   </div>;
 }

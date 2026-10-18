@@ -33,6 +33,7 @@ export function LedgerScreen({ g }: { g: Game }) {
   </section></>;
 }
 
+const clip = (s: string, n = 40) => s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s;
 const monthX = (g: Game) => (d: number) => fmtDate(g.w, d, 'month');
 
 /** Your nation, month by month. */
@@ -52,24 +53,24 @@ function Overview({ g }: { g: Game }) {
   const evs = g.w.log.filter(e => e.who?.includes(c.id) && e.day >= (xs[0] ?? 0) && (e.big || e.kind === 'war' || e.kind === 'peace'));
   const byMonth = new Map<string, typeof evs>(); for (const e of evs) { const k = fmtDate(g.w, e.day, 'month'); if (!byMonth.has(k)) byMonth.set(k, []); byMonth.get(k)!.push(e); }
   const groups = [...byMonth.values()].map(es => { const lines = new Map<string, number>(); for (const e of es) { const l = say(g.w, e.msg); lines.set(l, (lines.get(l) || 0) + 1); }
-    return { x: es[0].day, label: [...lines].map(([l, n]) => n > 1 ? `${l} ×${n}` : l).join(' · ') }; });
+    return { x: es[0].day, w: es.some(e => e.kind === 'war' || e.kind === 'peace') ? 2 : 0, label: [...lines].map(([l, n]) => n > 1 ? `${l} ×${n}` : l).join(' · ') }; });
   // wars already under way when the record starts get a pin at the start
-  for (const war of g.w.wars) if ((war.attackers.includes(c.id) || war.defenders.includes(c.id)) && war.start <= (xs[0] ?? 0) && !war.ended) groups.unshift({ x: xs[0] ?? 0, label: say(g.w, war.name) });
+  for (const war of g.w.wars) if ((war.attackers.includes(c.id) || war.defenders.includes(c.id)) && war.start <= (xs[0] ?? 0) && !war.ended) groups.unshift({ x: xs[0] ?? 0, w: 3, label: say(g.w, war.name) });
   // turning points: the two months with the largest swing in provinces held, named by the cities that changed hands
   const held = g.nationSeries(c.id, 'provinces');
   const swings = held.map((v, i) => ({ i, d: i ? v - held[i - 1] : 0 })).filter(x => Math.abs(x.d) >= 1).sort((a, b) => Math.abs(b.d) - Math.abs(a.d)).slice(0, 2);
   for (const sw of swings) {
     const from = g.history[sw.i - 1].day, to = g.history[sw.i].day;
     const names = [...new Set(g.w.log.filter(e => e.kind === 'city' && e.who?.includes(c.id) && e.day > from && e.day <= to).map(e => String(e.msg.a?.city ?? '')).filter(Boolean))].slice(0, 2);
-    groups.push({ x: to, label: t(sw.d < 0 ? 'led.lost' : 'led.gained', { n: Math.abs(sw.d) }) + (names.length ? ': ' + names.join(', ') : '') });
+    groups.push({ x: to, w: 2, label: t(sw.d < 0 ? 'led.lost' : 'led.gained', { n: Math.abs(sw.d) }) + (names.length ? ': ' + names.join(', ') : '') });
   }
   // and any month the economy fell by more than a tenth
   const gdp = g.series('gdp');
-  gdp.forEach((v, i) => { if (i && gdp[i - 1] > 0 && v / gdp[i - 1] - 1 < -0.1) groups.push({ x: g.history[i].day, label: t('led.gdpFell', { p: pct(1 - v / gdp[i - 1]) }) }); });
+  gdp.forEach((v, i) => { if (i && gdp[i - 1] > 0 && v / gdp[i - 1] - 1 < -0.1) groups.push({ x: g.history[i].day, w: 4, label: t('led.gdpFell', { p: pct(1 - v / gdp[i - 1]) }) }); });
   groups.sort((a, b) => a.x - b.x);
   // at most four pins, at least a tenth of the timeline apart
   const span = Math.max(1, (xs[xs.length - 1] ?? 1) - (xs[0] ?? 0)), spaced: typeof groups = [];
-  for (const m of groups) { const last = spaced[spaced.length - 1]; if (last && (m.x - last.x) / span < 0.1) last.label += ' · ' + m.label; else spaced.push({ ...m }); }
+  for (const m of groups) { const last = spaced[spaced.length - 1]; if (last && (m.x - last.x) / span < 0.1) { last.label = m.w > last.w ? m.label + ' · ' + last.label : last.label + ' · ' + m.label; last.w = Math.max(last.w, m.w); } else spaced.push({ ...m }); }
   const marks = spaced.slice(0, 1).concat(spaced.slice(1).slice(-3)).map((m, i) => ({ ...m, n: i + 1 }));
   const chart = (k: 'gdp' | 'debt' | 'manpower' | 'casualties' | 'stability' | 'warSupport', label: string) => {
     const v = g.series(k), last = v[v.length - 1] ?? 0, d = last - (v[0] ?? last), share = k === 'stability' || k === 'warSupport', worse = k === 'casualties' || k === 'debt', bad = worse ? d > 0 : d < 0;
@@ -83,7 +84,7 @@ function Overview({ g }: { g: Game }) {
       {kpi('military', t('mil.divisions'), fmtInt(g.series('divisions').at(-1) ?? 0), since(g.series('divisions').at(-1) ?? 0, first?.divisions, fmtInt), 'divisions')}
       {kpi('political', t('led.col.provinces'), fmtInt(provs.at(-1) ?? 0), since(provs.at(-1) ?? 0, provs[0], fmtInt), 'provinces')}
     </div>
-    {marks.length > 0 && <ol class="pin-legend" title={t('led.pinHint')}>{marks.map(m => <li key={m.n} title={m.label}><i>{m.n}</i><time>{fmtDate(g.w, m.x, 'month')}</time><span>{m.label.split(' · ')[0]}{m.label.includes(' · ') && <em> {t('led.andMore', { n: m.label.split(' · ').length - 1 })}</em>}</span></li>)}</ol>}
+    {marks.length > 0 && <ol class="pin-legend" title={t('led.pinHint')}>{marks.map(m => { const parts = m.label.split(' · '); return <li key={m.n} data-tip={parts.join('\n')}><i>{m.n}</i><time>{fmtDate(g.w, m.x, 'month')}</time><span>{clip(parts[0])}{parts.length > 1 && <em> {t('led.andMore', { n: parts.length - 1 })}</em>}</span></li>; })}</ol>}
     {xs.length < 2 ? <p class="no-history">{t('led.noHistory')}</p> : <div class="cells">
       {chart('gdp', t('stat.gdp'))}{chart('debt', t('eco.debt'))}{chart('casualties', t('war.casualties'))}
       {chart('manpower', t('ledger.manpower'))}{chart('stability', t('ledger.stability'))}{chart('warSupport', t('ledger.warSupport'))}
@@ -110,7 +111,7 @@ function Rankings({ g }: { g: Game }) {
   const j = ({ gdp: 0, divisions: 1, provinces: 2, pop: 3 } as Record<string, number>)[by], h0 = g.history[0];
   const order0 = j === undefined || !h0 ? null : rows.map(r => r.id).sort((a, b) => h0.all[b * 4 + j] - h0.all[a * 4 + j]);
   const moved = (id: number) => order0 ? order0.indexOf(id) - rows.findIndex(r => r.id === id) : 0;
-  const mine = rows.findIndex(r => r.id === me), TOP = 11, shown = rows.slice(0, TOP);
+  const mine = rows.findIndex(r => r.id === me), TOP = 12, shown = rows.slice(0, TOP);
   if (mine >= TOP) shown.push(...rows.slice(Math.max(TOP, mine - 2), mine + 3)); // you and two neighbours each side
   return <table class="rank">
     <thead><tr><th class="r-n">#</th><th class="r-mv" data-tip={t('led.moved')}><Icon name="up" size={9} /></th><th class="r-name">{t('led.nation')} <span class="r-barh">{t('led.barOf', { m: t('led.col.' + by) })}</span></th>{COLS.map(k => <th key={k} class={`r-col ${by === k ? 'on' : ''}`} data-tip={t('led.tip.' + k)}><button onClick={() => setBy(k)} aria-pressed={by === k}><Icon name={COL_ICON[k]} size={14} />{t('led.col.' + k)}<Icon name={by === k ? 'down' : 'flat'} size={9} /></button></th>)}</tr></thead>
