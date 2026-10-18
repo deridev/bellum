@@ -129,7 +129,7 @@ const P: Record<string, string> = {
   alliance: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM8.5 12l2.5 2.5 4.5-5',
   nap: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM7 7l10 10',
   guarantee: 'M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6zM12 8.5l1.4 2.9 3.1.4-2.3 2.1.6 3.1-2.8-1.5-2.8 1.5.6-3.1-2.3-2.1 3.1-.4z',
-  trade: 'M3 9h14l-3-3M21 15H7l3 3',
+  trade: 'M3 9h14l-3-3M21 15H7l3 3', treaty: 'M6 3h9l4 4v14H6zM15 3v4h4M9 12h7M9 15.5h7M9 19h4',
   puppet: 'M9 15l6-6M10.5 6.5l1.4-1.4a4 4 0 0 1 5.7 5.7l-1.4 1.4M13.5 17.5l-1.4 1.4a4 4 0 0 1-5.7-5.7l1.4-1.4',
   improve: 'M6 15l6-6 6 6M6 20l6-6 6 6M6 10l6-6 6 6',
   denounce: 'M3 10v4h3l7 4.5V5.5L6 10zM16.5 9a4 4 0 0 1 0 6M19 6.5a7.5 7.5 0 0 1 0 11',
@@ -151,7 +151,7 @@ const P: Record<string, string> = {
   flat: 'M6 12h12', up: 'M12 5l7 9H5z', down: 'M12 19l7-9H5z',
 };
 const FILLED = new Set(['play', 'pause', 'up', 'down']);
-const DUO = new Set(['treasury', 'manpower', 'stability', 'warSupport', 'influence', 'economy', 'politics', 'military', 'ledger', 'chronicle', 'timelapse', 'political', 'terrain', 'population', 'city', 'peace', 'ballot', 'coup', 'alliance', 'nap', 'guarantee', 'hold', 'g_military', 'g_industry', 'g_labor', 'save', 'calendar', 'divisions', 'denounce']);
+const DUO = new Set(['treasury', 'manpower', 'stability', 'warSupport', 'influence', 'economy', 'politics', 'military', 'ledger', 'chronicle', 'timelapse', 'political', 'terrain', 'population', 'city', 'peace', 'ballot', 'coup', 'alliance', 'nap', 'guarantee', 'hold', 'g_military', 'g_industry', 'g_labor', 'save', 'calendar', 'divisions', 'denounce', 'treaty']);
 export function Icon({ name, size = 18 }: { name: string; size?: number }) {
   const d = P[name] || P.target, fill = FILLED.has(name);
   return <svg class="icon" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">

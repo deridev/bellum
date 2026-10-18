@@ -129,7 +129,7 @@ export class Game {
     const c = this.me, w = this.w, n = w.countries.length, all = new Float32Array(n * NATION_STATS.length);
     w.countries.forEach((x, i) => (all[i * 4] = x.alive ? x.gdp : 0));
     for (const d of w.divisions) all[d.country * 4 + 1]++;
-    for (const p of w.provinces) { all[p.owner * 4 + 2]++; all[p.owner * 4 + 3] += p.pop; }
+    for (const p of w.provinces) { all[p.controller * 4 + 2]++; all[p.owner * 4 + 3] += p.pop; } // provinces held (occupation counts)
     this.history.push({ day: w.day, ctrl: Uint16Array.from(w.provinces, p => p.controller), all,
       me: { gdp: c.gdp, treasury: c.treasury, stability: c.stability, manpower: c.manpower, warSupport: c.warSupport, divisions: all[c.id * 4 + 1], casualties: c.stats.casualties, debt: c.debt } });
   }

@@ -147,7 +147,7 @@ export const en: Record<string, Entry> = {
   'ev.disaster.o0': 'Spend on relief', 'ev.disaster.h0': 'A month of revenue; stability up.', 'ev.disaster.o1': 'A limited response', 'ev.disaster.h1': 'Stability falls.',
   'hud.decisions': { one: '{n} decision waiting', other: '{n} decisions waiting' }, 'dip.hover': 'Point at an action to see whether they would agree.',
   'panel.ledger': 'Ledger', 'led.overview': 'Your nation', 'led.rankings': 'World rankings', 'led.compare': 'Compare', 'led.empty': 'Charts fill in month by month', 'led.sinceStart': 'since start',
-  'led.nation': 'Nation', 'led.col.gdp': 'GDP', 'led.col.pop': 'Population', 'led.col.divisions': 'Divisions', 'led.col.provinces': 'Provinces', 'led.col.tech': 'Tech', 'led.col.stability': 'Stability',
+  'led.nation': 'Nation', 'led.col.gdp': 'GDP', 'led.col.pop': 'Population', 'led.col.divisions': 'Divisions', 'led.col.provinces': 'Provinces held', 'led.col.tech': 'Tech', 'led.col.stability': 'Stability',
   'led.atWar': 'at war', 'led.ally': 'ally', 'led.add': 'Add a nation', 'led.metric': 'Measure', 'ui.remove': 'Remove',
   'hud.perMo': '/mo', 'hud.decisionsShort': 'Decisions', 'hud.map': 'Map', 'clock.paused': 'Paused',
   'eco.borrowWarn': 'Heavy borrowing: debt will climb fast', 'eco.revenueIs': 'Revenue {v}', 'eco.debtHigh': 'Dangerous: interest eats the budget', 'eco.debtMid': 'Manageable, but watch it', 'eco.debtLow': 'Healthy',
@@ -162,4 +162,8 @@ export const en: Record<string, Entry> = {
   'war.orders': 'Orders',
   'agenda.review': 'Review', 'hud.pts': '{n} pt',
   'led.moved': 'Places gained or lost since the start', 'led.tip.gdp': 'Size of the economy', 'led.tip.pop': 'People living in the provinces held', 'led.tip.divisions': 'Divisions under arms', 'led.tip.provinces': 'Provinces owned', 'led.tip.tech': 'Technology level, raised by research spending', 'led.tip.stability': 'How settled the country is',
+  'mil.forces': 'Forces', 'mil.men': 'Soldiers', 'mil.fundsShort': 'Funds', 'mil.buildOne': 'Build one {u}',
+  'dip.atWar': 'At war with', 'dip.treaties': 'Your treaties', 'dip.noTreaties': 'No treaties yet. Open a nation on the map to propose one.',
+  'fx.endsWar': 'Ends the war', 'fx.provinces': { one: '−{n} province', other: '−{n} provinces' }, 'fx.noLand': 'No land changes hands', 'fx.warGoesOn': 'The war goes on', 'war.commitWhat': 'share of your army sent here',
+  'ideo.la': 'Socialist state', 'ideo.ca': 'Nationalist', 'ideo.ra': 'Corporatist', 'ideo.lc': 'Social democrat', 'ideo.cc': 'Centrist', 'ideo.rc': 'Conservative', 'ideo.ll': 'Libertarian left', 'ideo.cl': 'Liberal', 'ideo.rl': 'Libertarian',
 };

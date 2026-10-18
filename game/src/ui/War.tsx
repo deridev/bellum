@@ -40,13 +40,14 @@ export function WarPanel({ g, id }: { g: Game; id: number }) {
       {transit > 0 && <small class="muted">{t('war.onTheWay', { n: transit })}</small>}
     </div>
     <Block title={t('war.orders')} icon="hold" aside={<span class="muted">{t('war.commitment')} <b class="num">{pct(commitShare(w, war, me))}</b></span>}>
-      <div class="big-toggles" role="group" aria-label={t('war.posture')}>{POSTURES.map(p => <button key={p.id} aria-pressed={posture.id === p.id} data-tip={t('posture.' + p.id + '.hint')} onClick={() => { war.aggr[si] = p.aggr; g.bump(); g.sound('click'); }}><Icon name={p.id} size={22} /><span>{t('posture.' + p.id)}</span></button>)}</div>
-      <div class="steps commit" role="group" aria-label={t('war.commitment')}>{COMMIT.map((c, i) => { const cur = commit === undefined ? 'normal' : COMMIT.find(x => x.v === commit)?.id || 'normal', ci = COMMIT.findIndex(x => x.id === cur);
+      <small class="row-k">{t('war.posture')}</small><div class="big-toggles" role="group" aria-label={t('war.posture')}>{POSTURES.map(p => <button key={p.id} aria-pressed={posture.id === p.id} data-tip={t('posture.' + p.id + '.hint')} onClick={() => { war.aggr[si] = p.aggr; g.bump(); g.sound('click'); }}><Icon name={p.id} size={22} /><span>{t('posture.' + p.id)}</span></button>)}</div>
+      <small class="row-k">{t('war.commitment')} · {t('war.commitWhat')}</small><div class="steps commit" role="group" aria-label={t('war.commitment')}>{COMMIT.map((c, i) => { const cur = commit === undefined ? 'normal' : COMMIT.find(x => x.v === commit)?.id || 'normal', ci = COMMIT.findIndex(x => x.id === cur);
         return <button key={c.id} aria-pressed={cur === c.id} class={ci >= i ? 'on' : ''} data-tip={t('war.commitHint', { p: pct(c.v < 0 ? commitShare(w, { ...war, commit: {} }, me) : c.v) })} onClick={() => { war.commit ||= {}; if (c.v < 0) delete war.commit[me]; else war.commit[me] = c.v; g.bump(); }}><i style={{ height: `${8 + i * 6}px` }} /><span>{t('commit.' + c.id)}</span></button>; })}</div>
     </Block>
     <Block title={t('war.offensives')} icon="offensive" aside={<b class="num">{offs.length}/3</b>}>
       {offs.length > 0 && <ul class="offs">{offs.map(o => { const a = w.armies.find(x => x.id === o.army); return <li key={o.id}><Icon name="advance" size={14} /><span>{a ? armyName(a.num) : t('war.army')}</span><small class="num">{t('war.day', { n: w.day - o.created })}</small><div class="meter" data-tip={t('war.momentum')}><div class="fill amber" style={{ width: pct(o.org) }} /></div></li>; })}</ul>}
       <button class="primary wide" disabled={posture.id === 'hold' || offs.length >= 3} data-tip={t(posture.id === 'hold' ? 'war.planHold' : offs.length >= 3 ? 'war.planMax' : 'war.planHint')} onClick={() => g.setTool({ kind: 'offensive', war: war.id })}><Icon name="target" size={16} />{t('war.plan')}</button>
+      {posture.id === 'hold' && <small class="muted">{t('war.planHold')}</small>}
     </Block>
     <Block title={t('war.peace')} icon="peace"><PeaceOptions g={g} war={war} side={side} /></Block>
   </Sheet>;
@@ -88,6 +89,11 @@ export function DeclareDialog({ g, target }: { g: Game; target: number }) {
 }
 
 /** Decisions waiting for the player: peace offers, proposals, events. The newest is open, the rest wait as one-line slips. */
+/** what accepting or refusing a peace offer does, as short chips */
+function peaceFx(a: { data?: any }, i: number): [string, string][] {
+  const n = a.data?.terms?.provinces?.length ?? 0;
+  return i === 0 ? [[t('fx.endsWar'), 'good'], n ? [t('fx.provinces', { n }), 'bad'] : [t('fx.noLand'), '']] : [[t('fx.warGoesOn'), 'bad']];
+}
 const AGENDA_ICON: Record<string, string> = { peace: 'peace', diplo: 'diplomacy', event: 'chronicle' };
 export function AgendaCards({ g, slim }: { g: Game; slim?: boolean }) {
   const items = g.w.agenda.filter(a => a.country === g.player);
@@ -107,7 +113,7 @@ export function AgendaCards({ g, slim }: { g: Game; slim?: boolean }) {
     ? <section class={`agenda-card plate k-${a.kind}`} key={a.id} role="dialog" aria-label={say(g.w, a.title)}>
       <div class="cable-head"><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={18} /></span><span class="eyebrow">{t('agenda.' + a.kind)}</span><time class="mono">{fmtDate(g.w, a.day, 'short')}</time><button class="x" aria-label={t('agenda.fold')} onClick={() => setOpen(null)}><Icon name="down" size={12} /></button></div>
       <div class="h3 plain">{say(g.w, a.title)}</div><p>{say(g.w, a.text)}</p>
-      <div class="opts">{a.options.map((o, i) => <button key={i} onClick={() => decide(a.id, i)}><span>{say(g.w, o.label)}</span>{o.hint && <small>{say(g.w, o.hint)}</small>}</button>)}</div>
+      <div class="opts">{a.options.map((o, i) => <button key={i} onClick={() => decide(a.id, i)}><span>{say(g.w, o.label)}</span>{o.hint && <small>{say(g.w, o.hint)}</small>}{a.kind === 'peace' && <span class="fx">{peaceFx(a, i).map(([txt, tone]) => <i key={txt} class={tone}>{txt}</i>)}</span>}</button>)}</div>
     </section>
     : <div class={`agenda-slip plate k-${a.kind}`} key={a.id}><button class="slip-open" onClick={() => setOpen(a.id)}><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={16} /></span><span class="slip-t">{say(g.w, a.title)}</span></button>
       {a.kind === 'peace' ? <button class="slip-review" onClick={() => setOpen(a.id)}>{t('agenda.review')}</button> : a.options.length === 2 && <><button class="slip-yes" aria-label={say(g.w, a.options[0].label)} data-tip={say(g.w, a.options[0].label)} onClick={() => decide(a.id, 0)}><Icon name="check" size={16} /></button><button class="slip-no" aria-label={say(g.w, a.options[1].label)} data-tip={say(g.w, a.options[1].label)} onClick={() => decide(a.id, 1)}><Icon name="cross" size={16} /></button></>}</div>)}

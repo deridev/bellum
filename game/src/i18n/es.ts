@@ -153,7 +153,7 @@ export const es: Record<string, Entry> = {
   'cname.Manchukuo': 'Manchukuo', 'cname.Slovakia': 'Eslovaquia', 'cname.United Kingdom': 'Reino Unido', 'cname.France': 'Francia', 'cname.Serbia': 'Serbia', 'cname.Montenegro': 'Montenegro', 'cname.Belgium': 'Bélgica',
   'hud.decisions': { one: '{n} decisión pendiente', other: '{n} decisiones pendientes' }, 'dip.hover': 'Señala una acción para ver si aceptarían.',
   'panel.ledger': 'Estadísticas', 'led.overview': 'Tu nación', 'led.rankings': 'Clasificación mundial', 'led.compare': 'Comparar', 'led.empty': 'Los gráficos se llenan mes a mes', 'led.sinceStart': 'desde el inicio',
-  'led.nation': 'Nación', 'led.col.gdp': 'PIB', 'led.col.pop': 'Población', 'led.col.divisions': 'Divisiones', 'led.col.provinces': 'Provincias', 'led.col.tech': 'Tecnología', 'led.col.stability': 'Estabilidad',
+  'led.nation': 'Nación', 'led.col.gdp': 'PIB', 'led.col.pop': 'Población', 'led.col.divisions': 'Divisiones', 'led.col.provinces': 'Provincias controladas', 'led.col.tech': 'Tecnología', 'led.col.stability': 'Estabilidad',
   'led.atWar': 'en guerra', 'led.ally': 'aliado', 'led.add': 'Añadir nación', 'led.metric': 'Medida', 'ui.remove': 'Quitar',
   'hud.perMo': '/mes', 'hud.decisionsShort': 'Decisiones', 'hud.map': 'Mapa', 'clock.paused': 'En pausa',
   'eco.borrowWarn': 'Endeudamiento fuerte: la deuda subirá rápido', 'eco.revenueIs': 'Ingresos {v}', 'eco.debtHigh': 'Peligrosa: los intereses devoran el presupuesto', 'eco.debtMid': 'Manejable, pero vigílala', 'eco.debtLow': 'Saneada',
@@ -168,4 +168,8 @@ export const es: Record<string, Entry> = {
   'war.orders': 'Órdenes',
   'agenda.review': 'Revisar', 'hud.pts': '{n} pt',
   'led.moved': 'Puestos ganados o perdidos desde el inicio', 'led.tip.gdp': 'Tamaño de la economía', 'led.tip.pop': 'Personas en las provincias controladas', 'led.tip.divisions': 'Divisiones en armas', 'led.tip.provinces': 'Provincias poseídas', 'led.tip.tech': 'Nivel tecnológico, sube con el gasto en investigación', 'led.tip.stability': 'Cuán estable está el país',
+  'mil.forces': 'Fuerzas', 'mil.men': 'Soldados', 'mil.fundsShort': 'Fondos', 'mil.buildOne': 'Construir {u}',
+  'dip.atWar': 'En guerra con', 'dip.treaties': 'Tus tratados', 'dip.noTreaties': 'Aún no hay tratados. Abre una nación en el mapa para proponer uno.',
+  'fx.endsWar': 'Termina la guerra', 'fx.provinces': { one: '−{n} provincia', other: '−{n} provincias' }, 'fx.noLand': 'Ninguna tierra cambia de manos', 'fx.warGoesOn': 'La guerra continúa', 'war.commitWhat': 'parte del ejército enviada',
+  'ideo.la': 'Estado socialista', 'ideo.ca': 'Nacionalista', 'ideo.ra': 'Corporativista', 'ideo.lc': 'Socialdemócrata', 'ideo.cc': 'Centrista', 'ideo.rc': 'Conservador', 'ideo.ll': 'Izquierda libertaria', 'ideo.cl': 'Liberal', 'ideo.rl': 'Libertario',
 };

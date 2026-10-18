@@ -12,7 +12,7 @@ import { Bar, Block, Delta, Flag, Icon, IconBtn, Ring, Sheet, SignedBar, Slider,
 import { LedgerScreen } from './Ledger';
 import { fmtBig, fmtInt, fmtMoney, pct } from './format';
 import { listSaves, loadGame, saveGame, deleteSave } from '../game/save';
-import { AgendaCards, DeclareDialog, ToolHint, WarPanel } from './War';
+import { AgendaCards, DeclareDialog, POSTURES, ToolHint, WarPanel } from './War';
 import { ChroniclePanel, TimelapsePanel } from './Chronicle';
 import { Settings } from './Settings';
 import { enemies, sideOf, warsOf } from '../sim/war/war';
@@ -40,7 +40,6 @@ export function Hud({ g }: { g: Game }) {
     {p?.kind === 'timelapse' && <TimelapsePanel g={g} />}
     {p?.kind === 'ledger' && <LedgerScreen g={g} />}
     <Dock g={g} />
-    <LensRail g={g} />
     {p?.kind !== 'ledger' && agenda && <AgendaCards g={g} slim={!!p} />}
     <ToolHint g={g} />
     {st.declare >= 0 && <DeclareDialog g={g} target={st.declare} />}
@@ -77,7 +76,7 @@ const pts = (v: number) => t('hud.pts', { n: Math.round(v * 100) });
 function CommandStrip({ g, onDecisions }: { g: Game; onDecisions: () => void }) {
   const c = g.me, st = g.st.get(), bal = c.income - c.spending, wars = warsOf(g.w, g.player), waiting = g.w.agenda.filter(a => a.country === g.player).length;
   const war = wars[0], score = war ? war.score * sideOf(war, g.player) : 0;
-  return <><header class="ui strip strip-l plate">
+  return <><header class="ui topbar plate"><div class="strip strip-l">
     <button class="emblem" onClick={() => togglePanel(g, 'politics')} data-tip={`${t('title.' + c.leader.title)} ${c.leader.name}`}>
       <Flag s={g.s} code={c.code} h={30} /><span class="em-name">{countryName(g.w, c.id)}</span>
     </button>
@@ -89,8 +88,8 @@ function CommandStrip({ g, onDecisions }: { g: Game; onDecisions: () => void }) 
       <Res icon="warSupport" tone="rust" k="warSupport" v={pct(c.warSupport)} gauge={c.warSupport} sub={<Delta v={monthly(g, 'warSupport')} fmt={pts} />} onClick={() => togglePanel(g, 'politics')} />
       <Res minor icon="influence" tone="violet" k="influence" v={fmtInt(c.polCap)} onClick={() => togglePanel(g, 'diplomacy')} />
     </div>
-  </header>
-  <header class="ui strip strip-r plate">
+  </div>
+  <div class="strip strip-r">
     <div class="alerts">
       {war && <button class={`alert war phone-only ${score < -20 ? 'bad' : score > 20 ? 'good' : ''}`} onClick={() => togglePanel(g, 'war')}>
         <Icon name="war" size={20} /><span class="al-txt"><b class="num">{score > 0 ? '+' : ''}{Math.round(score)}</b><small>{t('war.score')}</small></span>{wars.length > 1 && <i class="badge">{wars.length}</i>}</button>}
@@ -103,41 +102,41 @@ function CommandStrip({ g, onDecisions }: { g: Game; onDecisions: () => void }) 
       {st.turnMode === 'monthly' && <span class="turn-tag" data-tip={t('set.turnsHint')}>M</span>}
       <IconBtn icon="menu" label={t('menu.title')} onClick={() => g.st.set({ menu: true, paused: true })} size={20} />
     </div>
-  </header>
+  </div></header>
   {war && <WarBanner g={g} war={war} more={wars.length - 1} />}</>;
 }
 /** The war you are fighting, always in view under the strip: both sides, the tug of war and the score. */
 function WarBanner({ g, war, more }: { g: Game; war: War; more: number }) {
   const side = sideOf(war, g.player), score = war.score * side, ours = side > 0 ? war.attackers : war.defenders, theirs = side > 0 ? war.defenders : war.attackers;
-  const x = 50 + Math.max(-100, Math.min(100, score)) / 2;
+  const x = 50 + Math.max(-100, Math.min(100, score)) / 2, si = side > 0 ? 0 : 1;
+  const posture = POSTURES.reduce((b, p) => Math.abs(p.aggr - war.aggr[si]) < Math.abs(b.aggr - war.aggr[si]) ? p : b, POSTURES[1] as typeof POSTURES[number]);
   const flags = (cs: number[]) => cs.slice(0, 3).map(c => <Flag key={c} s={g.s} code={g.w.countries[c].code} h={16} />);
   return <button class={`ui war-banner plate ${score < -20 ? 'bad' : score > 20 ? 'good' : ''}`} onClick={() => togglePanel(g, 'war')} data-tip={t('war.scoreHint')}>
-    <span class="wb-name"><Icon name="war" size={16} />{say(g.w, war.name)}{more > 0 && <i class="wb-more">+{more}</i>}</span>
+    <span class="wb-name"><Icon name="war" size={16} />{say(g.w, war.name)}<small class="wb-meta">{t('war.day', { n: g.w.day - war.start })} · <Icon name={posture.id} size={12} /> {t('posture.' + posture.id)}</small>{more > 0 && <i class="wb-more">+{more}</i>}</span>
     <span class="wb-row"><span class="wb-flags">{flags(ours)}</span><span class="wb-bar"><i style={{ width: `${x}%` }} /><b style={{ left: `${x}%` }} /></span><span class="wb-flags">{flags(theirs)}</span>
       <b class="wb-score num">{score > 0 ? '+' : ''}{Math.round(score)}</b></span>
   </button>;
 }
 function Res({ icon, k, v, tone, gauge, sub, danger, minor, onClick }: { icon: string; k: string; v: string; tone: string; gauge?: number; sub?: any; danger?: boolean; minor?: boolean; onClick: () => void }) {
   return <button class={`res-cell t-${tone} ${danger ? 'danger' : ''} ${minor ? 'minor' : ''}`} aria-label={`${t('ledger.' + k)} ${v}`} data-tip={`${t('ledger.' + k)} — ${t('ledger.' + k + '.hint')}`} onClick={onClick}>
-    {gauge !== undefined ? <Ring v={gauge} size={42} tone="currentColor"><Icon name={icon} size={20} /></Ring> : <span class="res-badge"><Icon name={icon} size={20} /></span>}
-    <span class="res-txt"><span class="res-top"><b class="res-v num">{v}</b>{sub}</span><span class="res-k">{t('ledger.' + k)}</span></span></button>;
+    <span class="res-badge"><Icon name={icon} size={20} /></span>
+    <span class="res-txt"><span class="res-top"><b class="res-v num">{v}</b>{sub}</span>{gauge !== undefined && <span class="res-meter"><i style={{ width: pct(Math.max(0, Math.min(1, gauge))) }} /></span>}<span class="res-k">{t('ledger.' + k)}</span></span></button>;
 }
 
 // ---------------------------------------------------------------- the dock and the map lenses
 function Dock({ g }: { g: Game }) {
-  const p = g.st.get().panel, wars = warsOf(g.w, g.player).length, lens = useStore(g.s.ui, u => u.mapMode);
+  const p = g.st.get().panel, wars = warsOf(g.w, g.player).length, lens = useStore(g.s.ui, u => u.mapMode), [lensOpen, setLensOpen] = useState(false);
+  const cur = LENSES.find(l => l.id === lens) || LENSES[0];
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'm' && !(e.target as HTMLElement).closest('input, textarea')) setLensOpen(o => !o); if (e.key === 'Escape') setLensOpen(false); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
   return <nav class="ui dock plate" aria-label={t('hud.panels')}>
     {panelOrder(g).map((kind, i) => <button key={kind} class={`dock-btn d-${kind}`} aria-pressed={p?.kind === kind} data-tip={`${t('panel.' + kind)}  ·  ${i + 1}`} onClick={() => togglePanel(g, kind)}>
       <Icon name={kind} size={26} /><span>{t('panel.' + kind)}</span><kbd>{i + 1}</kbd>{kind === 'war' && <i class="badge">{wars}</i>}</button>)}
-    <span class="dock-sep" aria-hidden="true"><span>{t('hud.map')}</span></span>
-    <span class="lenses" role="group" aria-label={t('modes.label')}>{LENSES.map(l => <button key={l.id} class="lens-btn" aria-pressed={lens === l.id} data-tip={t('modes.' + l.id)} aria-label={t('modes.' + l.id)} onClick={() => g.s.setMapMode(l.id)}><Icon name={l.icon} size={20} /><span>{t('modes.' + l.id)}</span></button>)}</span>
+    <span class="dock-sep" aria-hidden="true" />
+    <span class="map-pick">
+      <button class="dock-btn d-map" aria-expanded={lensOpen} aria-label={t('modes.label')} onClick={() => setLensOpen(!lensOpen)}><Icon name={cur.icon} size={26} /><span>{t('modes.' + cur.id)}</span><kbd>M</kbd></button>
+      {lensOpen && <span class="lens-pop plate" role="group" aria-label={t('modes.label')}><span class="eyebrow">{t('modes.label')}</span>{LENSES.map(l => <button key={l.id} class="lens-btn" aria-pressed={lens === l.id} onClick={() => { g.s.setMapMode(l.id); setLensOpen(false); }}><Icon name={l.icon} size={20} /><span>{t('modes.' + l.id)}</span></button>)}</span>}
+    </span>
   </nav>;
-}
-
-/** On phones the map lenses get their own rail on the right, since the dock has no room. */
-function LensRail({ g }: { g: Game }) {
-  const lens = useStore(g.s.ui, u => u.mapMode);
-  return <nav class="ui lens-rail plate" aria-label={t('modes.label')}>{LENSES.map(l => <button key={l.id} class="lens-btn" aria-pressed={lens === l.id} aria-label={t('modes.' + l.id)} onClick={() => g.s.setMapMode(l.id)}><Icon name={l.icon} size={20} /></button>)}</nav>;
 }
 
 // ---------------------------------------------------------------- news: short-lived dispatches with an icon each
@@ -180,10 +179,10 @@ function Banner({ g }: { g: Game }) {
 }
 
 // ---------------------------------------------------------------- panels
-function NationSheet({ g, children, kind }: { g: Game; children: any; kind: PanelKind }) {
-  const c = g.me;
-  return <Sheet onClose={() => g.openPanel(null)} icon={kind} eyebrow={t('panel.' + kind)} title={<div class="title-row"><Flag s={g.s} code={c.code} h={18} /><div class="h2">{countryName(g.w, c.id)}</div></div>}>{children}</Sheet>;
+function NationSheet({ g, children, kind, fig }: { g: Game; children: any; kind: PanelKind; fig?: any }) {
+  return <Sheet onClose={() => g.openPanel(null)} icon={kind} title={<div class="ribbon-t"><div class="h2">{t('panel.' + kind)}</div>{fig && <span class="ribbon-fig">{fig}</span>}</div>}>{children}</Sheet>;
 }
+const RibbonFig = ({ label, v, tone }: { label: string; v: string; tone?: string }) => <><small>{label}</small><b class={`num ${tone || ''}`}>{v}</b></>;
 /** Big figure with a label and an optional trend line. */
 function Figure({ label, value, tone, spark, icon, sub }: { label: string; value: string; tone?: string; spark?: number[]; icon?: string; sub?: any }) {
   return <div class={`figure ${tone || ''}`}><span class="fig-l">{icon && <Icon name={icon} size={15} />}{label}</span><b class="fig-v num">{value}</b>{sub && <span class="fig-sub">{sub}</span>}{spark && <Spark values={spark} w={150} h={34} tone={tone === 'bad' ? 'var(--red)' : tone === 'good' ? 'var(--green)' : 'var(--brass)'} />}</div>;
@@ -199,7 +198,7 @@ function EconomyPanel({ g }: { g: Game }) {
   };
   const free = Math.max(0, c.spending * c.budget.military - c.upkeep), bal = c.income - c.spending, debt = c.debt / Math.max(1, c.gdp);
   const hints: Record<string, string> = { military: t('eco.milHint', { up: fmtMoney(c.upkeep), prod: fmtMoney(free) }), investment: t('eco.invHint'), welfare: t('eco.welHint'), research: t('eco.resHint', { n: c.tech }) };
-  return <NationSheet g={g} kind="economy">
+  return <NationSheet g={g} kind="economy" fig={<RibbonFig label={t('ledger.monthly')} v={(bal >= 0 ? '+' : '−') + fmtMoney(Math.abs(bal))} tone={bal < 0 ? 'bad' : 'good'} />}>
     <div class="figures three">
       <Figure icon="gdp" label={t('led.col.gdp')} value={fmtMoney(c.gdp)} spark={g.series('gdp')} sub={<span class={c.growth < 0 ? 'bad' : 'good'}><Icon name={c.growth < 0 ? 'trendDown' : 'trend'} size={13} /> {t('eco.perYear', { v: pct(c.growth) })}</span>} />
       <Figure icon="treasury" label={t('ledger.treasury')} value={fmtMoney(c.treasury)} tone={c.treasury <= 0 ? 'bad' : ''} spark={g.series('treasury')} sub={<span class={bal < 0 ? 'bad' : 'good'}>{t('eco.perMonth', { v: (bal >= 0 ? '+' : '−') + fmtMoney(Math.abs(bal)) })}</span>} />
@@ -220,7 +219,7 @@ function EconomyPanel({ g }: { g: Game }) {
 function PoliticsPanel({ g }: { g: Game }) {
   const c = g.me, target = stabilityTarget(g.w, c), mood = groupMood(g.w, c), [ex, au] = c.ideology;
   const initials = c.leader.name.split(' ').map(x => x[0]).slice(0, 2).join('');
-  return <NationSheet g={g} kind="politics">
+  return <NationSheet g={g} kind="politics" fig={<RibbonFig label={t('ledger.stability')} v={pct(c.stability)} tone={c.stability < 0.35 ? 'bad' : ''} />}>
     <div class="leader-row">
       <div class="leader-card">
         <span class="monogram" style={{ borderColor: c.color }}>{initials}</span>
@@ -232,7 +231,7 @@ function PoliticsPanel({ g }: { g: Game }) {
         <rect x="-100" y="-100" width="200" height="200" class="cmp-bg" /><line x1="-100" y1="0" x2="100" y2="0" class="cmp-ax" /><line x1="0" y1="-100" x2="0" y2="100" class="cmp-ax" />
         <text x="0" y="-80" class="cmp-t" text-anchor="middle">{t('pol.order')}</text><text x="0" y="94" class="cmp-t" text-anchor="middle">{t('pol.liberty')}</text>
         <circle cx={ex * 90} cy={-au * 90} r="11" class="cmp-dot" style={{ fill: c.color }} />
-      </svg><small class="cmp-x"><span>{t('pol.collective')}</span><span>{t('pol.market')}</span></small></div>
+      </svg><small class="cmp-x"><span>{t('pol.collective')}</span><span>{t('pol.market')}</span></small><b class="cmp-name">{t('ideo.' + ['l', 'c', 'r'][ex < -0.33 ? 0 : ex > 0.33 ? 2 : 1] + ['a', 'c', 'l'][au > 0.33 ? 0 : au < -0.33 ? 2 : 1])}</b></div>
     </div>
     <div class="gauges">
       <div class="gauge" data-tip={t('ledger.stability.hint')}><Ring v={c.stability} size={60} target={target}><b class="num">{Math.round(c.stability * 100)}</b></Ring><span class="gauge-t"><b>{t('ledger.stability')}</b><small class={target < c.stability - 0.01 ? 'bad' : target > c.stability + 0.01 ? 'good' : 'muted'}>{t('pol.heading', { p: pct(target) })}</small></span></div>
@@ -257,18 +256,16 @@ function MilitaryPanel({ g }: { g: Game }) {
   const men = divs.reduce((a, d) => a + d.str, 0), front = divs.filter(d => d.theater >= 0).length;
   const free = Math.max(0, c.spending * c.budget.military - c.upkeep), pop = popOf(g.w, c.id);
   const laws: Conscription[] = ['volunteer', 'limited', 'extensive', 'total'];
-  return <NationSheet g={g} kind="military">
+  return <NationSheet g={g} kind="military" fig={<RibbonFig label={t('mil.divisions')} v={fmtInt(divs.length)} />}>
     <div class="figures three">
-      <Figure label={t('mil.divisions')} value={fmtInt(divs.length)} spark={g.series('divisions')} />
-      <Figure label={t('mil.atFront')} value={fmtInt(front)} />
+      <Figure label={t('mil.atFront')} value={`${fmtInt(front)}/${fmtInt(divs.length)}`} />
+      <Figure label={t('mil.men')} value={fmtBig(men)} />
       <Figure label={t('ledger.manpower')} value={fmtBig(c.manpower)} spark={g.series('manpower')} />
     </div>
-    <div class="order-of-battle">{(Object.keys(UNIT_SPEC) as UnitType[]).filter(k => byType[k]).map(k => <span key={k} class={`oob u-${k}`} data-tip={t('unitShort.' + k)}><UnitSymbol type={k} size={40} /><span class="oob-t"><b class="num">{byType[k]}</b><small>{t('unitShort.' + k)}</small></span></span>)}
-      <span class="oob-men" data-tip={t('mil.divCount', { n: divs.length, men: fmtBig(men) })}><Icon name="population" size={14} /> {fmtBig(men)}</span></div>
-    <Block title={t('mil.build')} icon="economy" aside={<span class={free <= 0 ? 'bad' : 'muted'} data-tip={t('mil.funds')}>{t('eco.perMonth', { v: fmtMoney(free) })}</span>}>
-      <div class="build">{(Object.keys(UNIT_SPEC) as UnitType[]).map(k => { const s = UNIT_SPEC[k];
-        return <button key={k} data-tip={t('mil.cost', { v: fmtMoney(c.unitCost * s.costMul), d: s.days, m: fmtBig(s.men) })} onClick={() => { const e = queueUnit(g.w, c, k); setNote(e ? t('mil.noManpower') : t('mil.queued', { u: t('unitShort.' + k) })); upd(); g.sound('click'); }} disabled={c.manpower < s.men}>
-          <UnitSymbol type={k} size={36} /><b>{t('unitShort.' + k)}</b><small class="num">{fmtMoney(c.unitCost * s.costMul)} · {s.days}d</small></button>; })}</div>
+    <Block title={t('mil.forces')} icon="military" aside={<span class={free <= 0 ? 'bad' : 'muted'} data-tip={t('mil.funds')}>{t('mil.fundsShort')} {t('eco.perMonth', { v: fmtMoney(free) })}</span>}>
+      <div class="forces">{(Object.keys(UNIT_SPEC) as UnitType[]).map(k => { const s = UNIT_SPEC[k], queued = c.production.filter(p => p.type === k).length;
+        return <div key={k} class={`force u-${k}`}><UnitSymbol type={k} size={40} /><span class="f-t"><b class="num">{byType[k] || 0}{queued > 0 && <small class="f-q">+{queued}</small>}</b><span>{t('unitShort.' + k)}</span><small class="num">{fmtMoney(c.unitCost * s.costMul)} · {s.days}d</small></span>
+          <button class="f-build" aria-label={t('mil.buildOne', { u: t('unitShort.' + k) })} data-tip={t('mil.cost', { v: fmtMoney(c.unitCost * s.costMul), d: s.days, m: fmtBig(s.men) })} disabled={c.manpower < s.men} onClick={() => { const e = queueUnit(g.w, c, k); setNote(e ? t('mil.noManpower') : t('mil.queued', { u: t('unitShort.' + k) })); upd(); g.sound('click'); }}><Icon name="improve" size={14} />{t('mil.build')}</button></div>; })}</div>
       {note && <small class="muted" role="status">{note}</small>}
       {c.production.length > 0 && <ol class="queue">{c.production.map(p => <li key={p.id}><UnitSymbol type={p.type} size={22} /><Bar v={p.progress / p.cost} tone="amber" /><button class="x" aria-label={t('ui.cancel')} onClick={() => { cancelUnit(g.w, c, p.id); upd(); }}><Icon name="x" size={12} /></button></li>)}</ol>}
       {c.production.length > 0 && free <= 0 && <small class="bad">{t('mil.noFunds')}</small>}
@@ -295,16 +292,20 @@ function DiplomacyPanel({ g }: { g: Game }) {
   const mine = w.treaties.filter(x => x.a === me || x.b === me);
   const other = (x: { a: number; b: number }) => x.a === me ? x.b : x.a;
   const others = w.countries.filter(c => c.alive && c.id !== me);
-  const rivals = others.slice().sort((a, b) => rel(w, me, a.id) - rel(w, me, b.id)).slice(0, 6);
-  const friends = others.filter(c => !mine.some(x => other(x) === c.id)).sort((a, b) => rel(w, b.id, me) - rel(w, a.id, me)).slice(0, 6);
+  const foes = others.filter(c => enemies(w, me, c.id)).map(c => c.id);
+  const rivals = others.filter(c => !foes.includes(c.id)).sort((a, b) => rel(w, me, a.id) - rel(w, me, b.id)).slice(0, 4);
+  const friends = others.filter(c => !mine.some(x => other(x) === c.id)).sort((a, b) => rel(w, b.id, me) - rel(w, a.id, me)).slice(0, 4);
   const Chip = ({ c }: { c: number }) => { const r = rel(w, c, me); return <button class="nation-chip" onClick={() => g.openPanel({ kind: 'country', id: c })}><Flag s={g.s} code={w.countries[c].code} h={14} /><span>{countryName(w, c)}</span><b class={`num ${r < -25 ? 'bad' : r > 25 ? 'good' : ''}`}>{r > 0 ? '+' : ''}{r}</b></button>; };
   const Row = ({ c }: { c: number }) => { const r = rel(w, c, me); return <button class="nation-row" onClick={() => g.openPanel({ kind: 'country', id: c })}><Flag s={g.s} code={w.countries[c].code} h={16} /><span class="nr-name">{countryName(w, c)}</span><SignedBar v={r} /><b class={`num ${r < -25 ? 'bad' : r > 25 ? 'good' : ''}`}>{r > 0 ? '+' : ''}{r}</b></button>; };
-  return <NationSheet g={g} kind="diplomacy">
-    <div class="figures two"><Figure icon="influence" label={t('ledger.influence')} value={fmtInt(g.me.polCap)} sub={<small class="muted">{t('dip.influenceHint')}</small>} /></div>
-    {(['alliance', 'guarantee', 'nap', 'trade', 'puppet'] as const).map(type => { const list = mine.filter(x => x.type === type).map(other); return list.length ? <Block key={type} title={t('treaty.' + type + '.list')} icon={TREATY_ICON[type]} aside={<b class="num">{list.length}</b>}><div class="chips">{list.map(c => <Chip key={c} c={c} />)}</div></Block> : null; })}
+  return <NationSheet g={g} kind="diplomacy" fig={<RibbonFig label={t('ledger.influence')} v={fmtInt(g.me.polCap)} />}>
+    {foes.length > 0 && <Block title={t('dip.atWar')} icon="war" aside={<b class="num bad">{foes.length}</b>}><div class="chips">{foes.map(c => <Chip key={c} c={c} />)}</div></Block>}
+    <Block title={t('dip.treaties')} icon="treaty" aside={<b class="num">{mine.length}</b>}>
+      {mine.length ? <div class="treaty-list">{(['alliance', 'guarantee', 'puppet', 'nap', 'trade'] as const).map(type => { const list = mine.filter(x => x.type === type).map(other); return list.length ? <div key={type} class="treaty-row"><span class="tr-k" data-tip={t('treaty.' + type + '.list')}><Icon name={TREATY_ICON[type]} size={18} />{t('treaty.' + type + '.list')}</span><div class="chips">{list.map(c => <Chip key={c} c={c} />)}</div></div> : null; })}</div>
+        : <small class="muted">{t('dip.noTreaties')}</small>}
+    </Block>
     <Block title={t('dip.rivals')} icon="war" aside={<small class="muted">{t('dip.opinion')}</small>}><div class="rows">{rivals.map(c => <Row key={c.id} c={c.id} />)}</div></Block>
     <Block title={t('dip.friends')} icon="peace" aside={<small class="muted">{t('dip.opinion')}</small>}><div class="rows">{friends.map(c => <Row key={c.id} c={c.id} />)}</div></Block>
-    <button class="ghost" onClick={() => g.s.setMapMode('diplomacy')}><Icon name="relations" size={18} />{t('modes.diplomacy')}</button>
+    <small class="muted">{t('dip.influenceHint')}</small>
   </NationSheet>;
 }
 
