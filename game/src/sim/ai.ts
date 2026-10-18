@@ -4,7 +4,7 @@ import { DIPLO, demandTarget, diploOdds, doDiplo, hasTreaty, power, type DiploAc
 import { nextRand } from './rng';
 import type { Country, MapStatic, UnitType, World } from './types';
 import { msg } from './types';
-import { rel } from './world';
+import { addRel, rel } from './world';
 import { aiPolicies } from './policies';
 import { activeWars, allied, declareWar, defendersOf, enemies, inTruce, overlordOf, sideOf, warCost, warsOf } from './war/war';
 
@@ -17,6 +17,7 @@ export function neighbours(w: World, S: MapStatic): Set<number>[] {
 
 export function aiMonthly(w: World, S: MapStatic) {
   const pw = w.countries.map(c => c.alive ? power(w, c.id) : 0), nb = neighbours(w, S);
+  friction(w, nb);
   for (const c of w.countries) {
     if (!c.alive || c.player) continue;
     const threats = [...nb[c.id]].filter(n => enemies(w, c.id, n) || (rel(w, c.id, n) < -40 && pw[n] > pw[c.id] * 1.2));
@@ -25,6 +26,25 @@ export function aiMonthly(w: World, S: MapStatic) {
     aiDiplomacy(w, S, c, pw, nb, threats);
   }
   aiWars(w, S, pw, nb);
+}
+
+/** Relations sour by themselves where neighbours are far apart in ideology (democracies excepted with each other, bloc partners spared),
+ *  and toward whoever holds a nation's land: about a point a month, so rivalries build over years. */
+function friction(w: World, nb: Set<number>[]) {
+  const odd = Math.floor(w.day / 30) % 2 === 1; // half a point a month for ideology
+  for (const a of w.countries) {
+    if (!a.alive) continue;
+    for (const b of nb[a.id]) {
+      const B = w.countries[b]; if (!B.alive || b < a.id) continue;
+      if (a.gov === 'democracy' && B.gov === 'democracy') continue;
+      if ((a.bloc && a.bloc === B.bloc) || allied(w, a.id, b)) continue;
+      const dist = Math.hypot(a.ideology[0] - B.ideology[0], a.ideology[1] - B.ideology[1]);
+      if (odd && dist > 0.9 && rel(w, a.id, b) > -60) addRel(w, a.id, b, -1);
+    }
+  }
+  const held = new Set<string>();
+  for (const p of w.provinces) for (const c of p.core) if (c !== p.owner && w.countries[c].alive && !p.core.includes(p.owner)) held.add(c + ':' + p.owner);
+  for (const k of held) { const [a, b] = k.split(':').map(Number); if (rel(w, a, b) > -80) addRel(w, a, b, -1, false); }
 }
 
 // ---- economy ----
@@ -107,7 +127,7 @@ function aiDiplomacy(w: World, S: MapStatic, c: Country, pw: number[], nb: Set<n
 // ---- war ----
 const GATE: Partial<Record<Country['personality'], { p: number; ratio: number }>> = { expansionist: { p: 0.04, ratio: 1.5 }, opportunist: { p: 0.02, ratio: 1.9 }, ideologue: { p: 0.015, ratio: 1.7 } };
 function aiWars(w: World, S: MapStatic, pw: number[], nb: Set<number>[]) {
-  if (w.day < 120 || activeWars(w).filter(x => x.start > 0).length >= 3) return;
+  if (w.day < 120 || activeWars(w).filter(x => x.start > 0).length >= 5) return;
   for (const c of w.countries) {
     const g = GATE[c.personality];
     if (!g || !c.alive || c.player || atWar(w, c.id) || c.stability < 0.45 || overlordOf(w, c.id) || nextRand(w) > g.p) continue;

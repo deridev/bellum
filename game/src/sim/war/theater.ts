@@ -20,6 +20,7 @@ export interface Theater {
   land: Uint8Array; prov: Int32Array; mtn: Float32Array; c: Float32Array; ent: Float32Array; flip: Uint8Array; heat: Float32Array; pocket: Uint8Array; main: Uint8Array;
   sideOf: Record<number, 1 | -1>; offensives: Offensive[]; cities: { name: string; k: number; side: number; tier: number }[];
   lead: [number, number]; frozen: boolean; dmz: Float32Array | null; created: number;
+  trench?: number; // how deep and fast this era digs in (the machine-gun years before 1918 dig in more than twice as much)
   aggr?: [number, number]; // how hard each AI side pushes on this front (from the local balance)
   beach?: [number, number][]; // beachheads supplied from the sea: [cell, side], while that side holds the cell
 }
@@ -73,7 +74,7 @@ export function createTheater(w: World, S: MapStatic, war: number, box: [number,
     id: w.nextId++, war, name, lon0: x0, lat0: y1, cw, ch, W, H, cellKm: ch * 111.2,
     land: new Uint8Array(N), prov: new Int32Array(N).fill(-1), mtn: new Float32Array(N), c: new Float32Array(N), ent: new Float32Array(N).fill(0.3),
     flip: new Uint8Array(N).fill(255), heat: new Float32Array(N), pocket: new Uint8Array(N), main: new Uint8Array(N), sideOf: { ...sideOf }, offensives: [], cities: [],
-    lead: [-1, -1], frozen: false, dmz: null, created: w.day,
+    lead: [-1, -1], frozen: false, dmz: null, created: w.day, trench: new Date(w.startDate + w.day * 864e5).getUTCFullYear() < 1918 ? 2.2 : 1,
   };
   buildMasks(t, w, S, true);
   return t;
@@ -236,7 +237,7 @@ export function stepTheater(w: World, S: MapStatic, t: Theater, units: Division[
   // entrenchment, flips, heat
   for (let k = 0; k < N; k++) {
     if (!land[k]) continue; const s = c[k] >= 0 ? 1 : 0, prevS = t.flip[k] & 128 ? 1 : 0; let age = t.flip[k] & 127;
-    if (s === prevS) { if (t.ent[k] < T.entMax) t.ent[k] += T.entRate * stanceDig(wk.aggr[1 - s]); if (age < 127) age++; } else { t.ent[k] = 0; age = 0; }
+    if (s === prevS) { const tr = t.trench ?? 1; if (t.ent[k] < T.entMax * tr) t.ent[k] += T.entRate * tr * stanceDig(wk.aggr[1 - s]); if (age < 127) age++; } else { t.ent[k] = 0; age = 0; }
     t.flip[k] = (s << 7) | age;
   }
   computeDist(t, wk);
@@ -261,7 +262,9 @@ function updateSupply(w: World, S: MapStatic, t: Theater, wk: Work) {
     for (const [cs, s] of Object.entries(t.sideOf)) if (s === side) { const cap = w.countries[+cs].capital, [lon, lat] = S.provinces[cap].label; const k = cellOf(t, lon, lat); if (k >= 0 && land[k] && c[k] * side > 0) caps.push(k); }
     for (const city of t.cities) if (city.tier <= 2 && land[city.k] && c[city.k] * side > 0 && isCoast(t, city.k)) ports.push(city.k);
     if (t.beach) for (const [k, s] of t.beach) if (s === side && land[k] && c[k] * side > 0) ports.push(k); // a beachhead is supplied from the sea
-    const groups: { ks: number[]; cap: number; rangeKm: number }[] = [{ ks: edge, cap: 0.95, rangeKm: 900 }, { ks: caps, cap: 1, rangeKm: 1100 }, { ks: ports, cap: 0.8, rangeKm: 450 }];
+    // railheads: the big cities of a side's own homeland (not land it has conquered) feed the fronts near them
+    const depots: number[] = []; for (const city of t.cities) { const p = w.provinces[t.prov[city.k]]; if (p && land[city.k] && c[city.k] * side > 0 && p.owner === p.controller && t.sideOf[p.owner] === side && p.core.includes(p.owner)) depots.push(city.k); }
+    const groups: { ks: number[]; cap: number; rangeKm: number }[] = [{ ks: edge, cap: 0.95, rangeKm: 900 }, { ks: caps, cap: 1, rangeKm: 1100 }, { ks: ports, cap: 0.8, rangeKm: 450 }, { ks: depots, cap: 0.9, rangeKm: 500 }];
     bfs(t, wk, groups.flatMap(g => g.ks), side, 0);
     for (let k = 0; k < N; k++) if (wk.dtmp[k] >= 0) eff[k] = 0.22;
     for (const g of groups) {

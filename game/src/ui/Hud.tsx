@@ -13,7 +13,7 @@ import { Bar, Block, Delta, Flag, Icon, IconBtn, MoreFooter, Ring, Sheet, Signed
 import { LedgerScreen } from './Ledger';
 import { fmt1, fmtBig, fmtInt, fmtMoney, fmtMoney2, pct, pct1, cssPct } from './format';
 import { listSaves, loadGame, saveGame, deleteSave } from '../game/save';
-import { EndScreen } from './Goals';
+import { EndScreen, Missions } from './Goals';
 import { Guide } from './Guide';
 import { AgendaCards, DeclareDialog, POSTURES, ToolHint, WarPanel } from './War';
 import { ChroniclePanel, TimelapsePanel } from './Chronicle';
@@ -43,6 +43,7 @@ export function Hud({ g }: { g: Game }) {
     {p?.kind === 'timelapse' && <TimelapsePanel g={g} />}
     {p?.kind === 'ledger' && <LedgerScreen g={g} />}
     <Dock g={g} />
+    {!p && !phone && <Missions g={g} />}
     {p?.kind !== 'ledger' && (drawer || !phone) && <AgendaCards g={g} slim={!!p} drawer={drawer} onDrawer={setDrawer} />}
     <ToolHint g={g} />
     {st.declare >= 0 && <DeclareDialog g={g} target={st.declare} />}

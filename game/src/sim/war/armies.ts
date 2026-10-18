@@ -57,8 +57,8 @@ export function sendArmy(w: World, S: MapStatic, t: Theater, divs: Division[], x
 export function deployLine(w: World, t: Theater, c: number, rail = true) {
   const side = t.sideOf[c], wk = work(t), divs = w.divisions.filter(d => d.country === c && d.theater === t.id && !d.op && (!d.goal || d.goal[2] === 2));
   const own = side > 0 ? wk.P0 : wk.P1, foe = side > 0 ? wk.P1 : wk.P0;
-  const cells: [number, number][] = [], weight: number[] = [];
-  for (let k = 0; k < t.W * t.H; k++) if (t.land[k] && t.main[k] && wk.distF[k] >= 2 && wk.distF[k] <= 3 && t.c[k] * side >= 0.5) { cells.push(cellLonLat(t, k)); weight.push(1 + 3 * foe[k] / (own[k] + foe[k] + T.P0)); }
+  const cells: [number, number][] = [], weight: number[] = [], near = homeReach(w, t, c);
+  for (let k = 0; k < t.W * t.H; k++) if (t.land[k] && t.main[k] && wk.distF[k] >= 2 && wk.distF[k] <= 3 && t.c[k] * side >= 0.5 && (!near || near[k])) { cells.push(cellLonLat(t, k)); weight.push((1 + 3 * foe[k] / (own[k] + foe[k] + T.P0)) * (w.provinces[t.prov[k]]?.owner === c ? 3 : 1)); } // a nation guards its own soil first, then its allies'
   if (!divs.length || !cells.length) return;
   // the front's long axis (principal direction of its cells), to order both the front and the armies along it
   const cl = Math.cos(cells.reduce((s, p) => s + p[1], 0) / cells.length * Math.PI / 180);
@@ -74,9 +74,22 @@ export function deployLine(w: World, t: Theater, c: number, rail = true) {
   ordered.forEach((d, i) => {
     const q = (i + 0.5) / ordered.length * tot; while (j < cum.length - 1 && cum[j] < q) j++;
     const [gx, gy] = cells[order[j]];
-    d.goal = [gx, gy, 2]; const dk = km(d.x, d.y, gx, gy);
+    const dk = km(d.x, d.y, gx, gy);
+    // a weekly re-balance never sends a division across the theater: it keeps its stretch while that is still ours
+    if (!rail && dk > 250 && d.goal) { const ok = cellOf(t, d.goal[0], d.goal[1]); if (ok >= 0 && t.c[ok] * side > 0) return; }
+    d.goal = [gx, gy, 2];
     if (rail && dk > 200) placeUnit(w, t, d, gx, gy, w.day + Math.round(2 + dk / 450));
   });
+}
+/** The cells within about 350 km of a nation's own soil in the theater, by land, or null when it has none there
+ *  (an expeditionary force goes where its allies need it). Keeps each nation's line on its own fronts. */
+function homeReach(w: World, t: Theater, c: number): Uint8Array | null {
+  const N = t.W * t.H, dist = new Int16Array(N).fill(-1), q = new Int32Array(N); let h = 0, tl = 0;
+  for (let k = 0; k < N; k++) if (t.land[k] && w.provinces[t.prov[k]]?.owner === c) { dist[k] = 0; q[tl++] = k; }
+  if (!tl) return null;
+  const R = Math.round(350 / t.cellKm);
+  while (h < tl) { const k = q[h++], i = k % t.W; if (dist[k] >= R) continue; for (const n of [i > 0 ? k - 1 : -1, i < t.W - 1 ? k + 1 : -1, k - t.W, k + t.W]) if (n >= 0 && n < N && t.land[n] && dist[n] < 0) { dist[n] = dist[k] + 1; q[tl++] = n; } }
+  const out = new Uint8Array(N); for (let k = 0; k < N; k++) out[k] = dist[k] >= 0 ? 1 : 0; return out;
 }
 /** Stop an army's attack without the exhaustion of a finished one (the army has new orders). */
 function cancelAttack(w: World, id: number) {

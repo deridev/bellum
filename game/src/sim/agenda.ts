@@ -5,6 +5,8 @@ import { makePeace } from './war/war';
 import { addRel, say } from './world';
 import { DIPLO, doDiplo, resolveDemand, type DiploAction } from './diplomacy';
 import { applyEvent } from './events';
+import { pickMission } from './missions';
+import { resolveHistory } from './history';
 
 /** Apply the option a country chose on an agenda item. */
 export function resolveAgenda(w: World, S: MapStatic, id: number, option: number) {
@@ -17,6 +19,8 @@ export function resolveAgenda(w: World, S: MapStatic, id: number, option: number
   else if (eff === 'diplo.accept') { const { from, act } = item.data; doDiplo(w, from, item.country, act, S); w.countries[from].polCap += DIPLO[act as DiploAction].cost; }
   else if (eff === 'diplo.decline') addRel(w, item.data.from, item.country, -5, false);
   else if (eff?.startsWith('event.')) applyEvent(w, item, option);
+  else if (eff?.startsWith('history.')) resolveHistory(w, S, item, option);
+  else if (eff === 'mission.pick') pickMission(w, item.data.offers, option);
   else if (eff === 'crisis.choose') chooseCrisis(w, w.countries[item.country], option as 0 | 1);
 }
 export function expireAgenda(w: World) {

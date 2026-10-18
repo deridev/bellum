@@ -1,9 +1,11 @@
 // Historical scenarios: 1914 and 1939. Tables for building the world, period economics, and the opening moves.
 import type { ProvinceData } from '../data/types';
 import { CULTURE_OF, type Tables } from './data';
-import type { MapStatic, World } from './types';
+import type { AgendaItem, MapStatic, War, World } from './types';
 import { msg } from './types';
-import { declareWar } from './war/war';
+import { declareWar, joinWar, leaveWar, sideOf } from './war/war';
+import { newLeader } from './politics';
+import { addRel, clamp01, say } from './world';
 import { cellLonLat, deployAlongFront } from './war/theater';
 import { nextRand } from './rng';
 
@@ -55,7 +57,7 @@ export function eraProvinces(provinces: ProvinceData[], year: '1914' | '1939', m
 const EUROPE_POWERS = { GER: 'expansionist', AUH: 'opportunist', RUS: 'opportunist', FRA: 'defensive', GBR: 'defensive', ITA: 'opportunist', OTT: 'opportunist', SRB: 'defensive', BGR: 'opportunist', ROU: 'opportunist', USA: 'isolationist', JPN: 'expansionist' } as const;
 export const TABLES_1914: Tables = {
   // standing armies on mobilization, thousands (a division is 12,000 men)
-  active: { GER: 1250, FRA: 1000, RUS: 1400, AUH: 650, GBR: 260, SRB: 250, BEL: 120, OTT: 400, ITA: 420, MNE: 40, USA: 100, JPN: 300, BGR: 220, ROU: 260, GRC: 110, CHN: 300, ESP: 120, NLD: 90, SWE: 80, CHE: 100, DNK: 50, NOR: 40, PRT: 40, BRA: 30, ARG: 30, MEX: 50 },
+  active: { GER: 1250, FRA: 1000, RUS: 1400, AUH: 1000, GBR: 260, SRB: 250, BEL: 120, OTT: 400, ITA: 420, MNE: 40, USA: 100, JPN: 300, BGR: 220, ROU: 260, GRC: 110, CHN: 300, ESP: 120, NLD: 90, SWE: 80, CHE: 100, DNK: 50, NOR: 40, PRT: 40, BRA: 30, ARG: 30, MEX: 50 },
   milGdp: { GER: 3.5, FRA: 4, RUS: 4.5, AUH: 3, GBR: 3.2, ITA: 3, OTT: 3, SRB: 5, JPN: 4 },
   gov: { GER: 'monarchy', AUH: 'monarchy', RUS: 'monarchy', ITA: 'monarchy', OTT: 'monarchy', SRB: 'monarchy', MNE: 'monarchy', BGR: 'monarchy', ROU: 'monarchy', GRC: 'monarchy', JPN: 'monarchy', ESP: 'monarchy', BEL: 'monarchy', NLD: 'monarchy', SWE: 'monarchy', NOR: 'monarchy', DNK: 'monarchy', THA: 'monarchy', IRN: 'monarchy', AFG: 'monarchy', NPL: 'monarchy', BTN: 'monarchy', NEJ: 'monarchy', ETH: 'monarchy', CHN: 'authoritarian', MEX: 'junta', TIB: 'theocracy', MNG: 'theocracy' },
   ideology: { GER: [0.3, 0.75], AUH: [0.2, 0.8], RUS: [0, 0.95], GBR: [0.6, 0.1], FRA: [0.3, -0.2], USA: [0.7, -0.1], OTT: [0, 0.8] },
@@ -74,7 +76,7 @@ export const TABLES_1914: Tables = {
 
 // ---------------------------------------------------------------- 1939
 export const TABLES_1939: Tables = {
-  active: { GER: 1250, POL: 450, FRA: 1000, GBR: 300, SOV: 2000, ITA: 700, JPN: 1100, CHN: 1700, USA: 190, MAN: 100, HUN: 200, ROU: 450, YUG: 400, TUR: 200, FIN: 130, SVK: 50, BEL: 250, NLD: 200, CZE: 0, GRC: 150, BGR: 120, ESP: 300, PRT: 50, SWE: 100, NOR: 30, DNK: 20, CHE: 120, IRN: 100, EGY: 30, IRQ: 30, THA: 60, MNG: 50, CAN: 50, AUS: 50, BRA: 80, ARG: 50 },
+  active: { GER: 1600, POL: 450, FRA: 1000, GBR: 300, SOV: 2000, ITA: 700, JPN: 1100, CHN: 1700, USA: 190, MAN: 100, HUN: 200, ROU: 450, YUG: 400, TUR: 200, FIN: 130, SVK: 50, BEL: 250, NLD: 200, CZE: 0, GRC: 150, BGR: 120, ESP: 300, PRT: 50, SWE: 100, NOR: 30, DNK: 20, CHE: 120, IRN: 100, EGY: 30, IRQ: 30, THA: 60, MNG: 50, CAN: 50, AUS: 50, BRA: 80, ARG: 50 },
   milGdp: { GER: 18, SOV: 12, JPN: 22, ITA: 8, FRA: 8, GBR: 7, POL: 6, USA: 1.5, CHN: 8 },
   gov: { GER: 'authoritarian', ITA: 'authoritarian', SOV: 'oneparty', JPN: 'monarchy', ESP: 'authoritarian', POL: 'authoritarian', HUN: 'monarchy', ROU: 'monarchy', YUG: 'monarchy', BGR: 'monarchy', GRC: 'authoritarian', TUR: 'oneparty', CHN: 'oneparty', MAN: 'monarchy', SVK: 'authoritarian', PRT: 'authoritarian', THA: 'junta', IRN: 'monarchy', IRQ: 'monarchy', EGY: 'monarchy', SAU: 'monarchy', YEM: 'monarchy', AFG: 'monarchy', NPL: 'monarchy', BTN: 'monarchy', MNG: 'oneparty', TIB: 'theocracy', BEL: 'monarchy', NLD: 'monarchy', NOR: 'monarchy', SWE: 'monarchy', DNK: 'monarchy' },
   ideology: { GER: [0.2, 1], ITA: [0.1, 0.95], SOV: [-1, 0.95], JPN: [0.2, 0.9], GBR: [0.5, 0.05], FRA: [0.1, -0.2], USA: [0.4, -0.2], POL: [0.2, 0.5], CHN: [0, 0.7] },
@@ -91,20 +93,117 @@ export const TABLES_1939: Tables = {
   warSupport: { GER: 0.55, POL: 0.85, FRA: 0.45, GBR: 0.55, JPN: 0.7, CHN: 0.85 },
 };
 
+// Equipment and training in each era's great armies, where money alone misjudges them: the German army of 1914 was the best
+// in Europe and Russia's ran short of guns and shells; in 1939 the Wehrmacht led, and the Red Army was still reeling from the purges.
+const QUALITY: Record<'1914' | '1939', Record<string, number>> = {
+  '1914': { GER: 1.3, AUH: 0.95, RUS: 0.78, FRA: 1.05, GBR: 1.2, BEL: 0.9, SRB: 0.85, MNE: 0.8, OTT: 0.8, ITA: 0.85, BGR: 0.85, ROU: 0.8, USA: 1.15, JPN: 1.05 },
+  '1939': { GER: 1.35, ITA: 0.85, SOV: 0.8, FRA: 1.0, GBR: 1.2, POL: 0.85, JPN: 1.15, CHN: 0.7, USA: 1.25, FIN: 1.0, HUN: 0.85, ROU: 0.8 },
+};
+
 // ---------------------------------------------------------------- scripted moments
-/** Daily: the few events history fixes in advance. Today: the Soviet invasion of Poland (17 September 1939). */
+/** The moments history fixes in advance, by date: nations entering the great war, Russia's revolution, Barbarossa, Pearl Harbor.
+ *  Each happens only if the world still allows it (the war goes on, the nation stands and is not already fighting). When it is the
+ *  player's nation that history would move, the player decides instead, on a card. */
+interface Moment {
+  date: string; id: string; c: string; side?: 1 | -1; kind: 'join' | 'revolution' | 'invade';
+  by?: string; with?: string[]; also?: string[]; // an invasion: the aggressor, who marches with it, and other nations attacked with the target
+  until?: string; when?: (w: World, war: War) => boolean; // if the world is not ready on the day, try again each month until then
+}
+const TIMELINE: Record<string, Moment[]> = {
+  '1914': [
+    { date: '1914-10-29', id: 'ott', c: 'OTT', side: 1, kind: 'join' },
+    { date: '1915-05-23', id: 'ita', c: 'ITA', side: -1, kind: 'join' },
+    { date: '1915-10-14', id: 'bgr', c: 'BGR', side: 1, kind: 'join' },
+    { date: '1916-08-27', id: 'rou', c: 'ROU', side: -1, kind: 'join' },
+    { date: '1917-04-06', id: 'usa', c: 'USA', side: -1, kind: 'join' },
+    { date: '1917-11-07', id: 'rus', c: 'RUS', kind: 'revolution' },
+  ],
+  '1939': [
+    { date: '1940-06-10', id: 'ita', c: 'ITA', side: 1, kind: 'join' },
+    { date: '1940-05-10', id: 'gelb', c: 'BEL', also: ['NLD', 'LUX'], side: -1, by: 'GER', kind: 'invade' },
+    { date: '1941-06-22', until: '1942-06-22', id: 'barbarossa', c: 'SOV', side: -1, by: 'GER', with: ['HUN', 'FIN'], kind: 'invade', when: (w, war) => war.score >= 40 || !war.defenders.some(c => w.countries[c].code === 'FRA') }, // only once the West is won
+    { date: '1941-12-07', id: 'pearl', c: 'USA', side: -1, by: 'JPN', kind: 'invade' },
+  ],
+};
+const dayOf = (w: World, date: string) => Math.round((Date.parse(date + 'T00:00:00Z') - w.startDate) / 864e5);
+/** Daily: today's moments, and the Soviet invasion of Poland (17 September 1939), which is a war of its own. */
 export function historyDaily(w: World, S: MapStatic) {
-  if (w.scenario !== '1939' || w.day !== 16) return;
-  const sov = w.countries.find(c => c.code === 'SOV'), pol = w.countries.find(c => c.code === 'POL');
-  if (!sov || !pol || !sov.alive || !pol.alive || sov.player) return;
-  if (w.wars.some(x => !x.ended && (x.attackers.includes(sov.id) || x.defenders.includes(sov.id)))) return;
-  const war = declareWar(w, S, sov.id, pol.id, { alone: true }); war.aggr = [1.22, 0.9];
+  if (w.scenario === '1939' && w.day === 16) {
+    const sov = w.countries.find(c => c.code === 'SOV'), pol = w.countries.find(c => c.code === 'POL');
+    if (sov && pol && sov.alive && pol.alive && !sov.player && !w.wars.some(x => !x.ended && (x.attackers.includes(sov.id) || x.defenders.includes(sov.id)))) { const war = declareWar(w, S, sov.id, pol.id, { alone: true }); war.aggr = [1.22, 0.9]; }
+  }
+  for (const m of TIMELINE[w.scenario] ?? []) {
+    const d0 = dayOf(w, m.date), d1 = m.until ? dayOf(w, m.until) : d0;
+    if (w.day < d0 || w.day > d1 || (w.day - d0) % 30 !== 0 || w.cooldowns[`hist:${m.id}`]) continue;
+    const war = w.wars.find(x => x.id === w.goalWar);
+    if (war && !war.ended && m.when && !m.when(w, war)) continue;
+    w.cooldowns[`hist:${m.id}`] = w.day; moment(w, S, m);
+  }
+}
+const code = (w: World, k: string) => w.countries.findIndex(c => c.code === k && c.alive);
+function moment(w: World, S: MapStatic, m: Moment) {
+  const war = w.wars.find(x => x.id === w.goalWar); if (!war || war.ended) return;
+  const c = code(w, m.c); if (c < 0) return;
+  if (m.kind === 'revolution') {
+    if (!sideOf(war, c)) return;
+    if (w.countries[c].player) return ask(w, war, m, c, -1);
+    return revolution(w, S, war, c);
+  }
+  const side = m.side!, foes = side > 0 ? war.defenders : war.attackers, friends = side > 0 ? war.attackers : war.defenders;
+  const ok = (k: number) => k >= 0 && !sideOf(war, k) && !w.wars.some(x => !x.ended && x !== war && (sideOf(x, k) !== 0) && [...friends, ...foes].some(f => sideOf(x, f) === -sideOf(x, k)));
+  if (m.kind === 'join') {
+    if (!ok(c)) return;
+    if (w.countries[c].player) return ask(w, war, m, c, side);
+    return enter(w, S, war, m, c, side);
+  }
+  // an invasion: the aggressors (or the one already in the war) attack the target, which joins the other side
+  const lead = code(w, m.by!);
+  if (lead < 0 || !ok(c) || (sideOf(war, lead) !== -side && !ok(lead))) return; // the aggressor must be in the war on the other side, or free to join it
+  if (w.countries[lead].player) return ask(w, war, m, c, side);
+  invade(w, S, war, m, c, side);
+}
+function enter(w: World, S: MapStatic, war: War, m: Moment, c: number, side: 1 | -1) {
+  joinWar(w, S, war, c, side);
+  const big = (side > 0 ? war.attackers : war.defenders).filter(k => k !== c).sort((a, b) => w.divisions.filter(d => d.country === b).length - w.divisions.filter(d => d.country === a).length)[0];
+  say(w, msg('hist.joins', { c: { c }, war: { m: war.name }, o: { c: big } }), 'war', { who: [c, ...war.attackers, ...war.defenders], big: 'big.war', prov: w.countries[c].capital });
+}
+function invade(w: World, S: MapStatic, war: War, m: Moment, c: number, side: 1 | -1) {
+  const lead = code(w, m.by!), targets = [c, ...(m.also ?? []).map(x => code(w, x)).filter(k => k >= 0 && !sideOf(war, k))];
+  w.treaties = w.treaties.filter(t => !(targets.includes(t.a) && t.b === lead) && !(targets.includes(t.b) && t.a === lead)); // the pact is torn up
+  if (!sideOf(war, lead)) joinWar(w, S, war, lead, -side as 1 | -1);
+  for (const k of (m.with ?? []).map(x => code(w, x))) if (k >= 0 && !sideOf(war, k)) joinWar(w, S, war, k, -side as 1 | -1);
+  for (const k of targets) joinWar(w, S, war, k, side);
+  say(w, msg('hist.' + m.id, { c: { c: lead }, o: { c } }), 'war', { who: [c, lead, ...war.attackers, ...war.defenders], big: 'big.war', prov: w.countries[c].capital });
+}
+function revolution(w: World, S: MapStatic, war: War, c: number) {
+  const C = w.countries[c];
+  C.gov = 'oneparty'; C.ideology = [-1, 0.9]; newLeader(w, C); C.stability = clamp01(C.stability - 0.1);
+  say(w, msg('hist.revolution', { c: { c } }), 'politics', { who: [c, ...war.attackers, ...war.defenders], big: 'big.revolution', prov: C.capital });
+  leaveWar(w, S, war, c);
+}
+/** The player's nation is the one history would move: a card. Option 0 does what history did. */
+function ask(w: World, war: War, m: Moment, c: number, side: 1 | -1) {
+  const lead = side > 0 ? war.leadA : war.leadD, foe = side > 0 ? war.leadD : war.leadA;
+  const k = m.kind === 'revolution' ? 'revolution' : m.kind === 'invade' ? m.id : 'join';
+  const a = { c: { c: w.countries.findIndex(x => x.player) }, o: { c: m.kind === 'invade' ? c : lead }, e: { c: foe }, war: { m: war.name } };
+  w.agenda.push({ id: w.nextId++, country: w.countries.findIndex(x => x.player), day: w.day, kind: 'history', title: msg(`hist.ask.${k}.title`, a), text: msg(`hist.ask.${k}.text`, a), expires: w.day + 30,
+    data: { moment: m.id, war: war.id, c, side }, options: [0, 1].map(i => ({ label: msg(`hist.ask.${k}.o${i}`, a), hint: msg(`hist.ask.${k}.h${i}`, a), effect: 'history.' + i })) });
+}
+/** The player's answer to a history card. */
+export function resolveHistory(w: World, S: MapStatic, item: AgendaItem, option: number) {
+  const war = w.wars.find(x => x.id === item.data.war); if (!war || war.ended) return;
+  const m = (TIMELINE[w.scenario] ?? []).find(x => x.id === item.data.moment); if (!m) return;
+  const { c, side } = item.data, me = item.country;
+  if (m.kind === 'revolution') { if (option === 0) revolution(w, S, war, c); else { const C = w.countries[c]; C.stability = clamp01(C.stability - 0.15); C.warSupport = clamp01(C.warSupport - 0.1); } return; }
+  if (option === 1) { if (m.kind === 'join') addRel(w, side > 0 ? war.leadA : war.leadD, me, -15, false); return; } // turning down an ally costs its goodwill
+  if (m.kind === 'join') enter(w, S, war, m, c, side); else invade(w, S, war, m, c, side);
 }
 
 // ---------------------------------------------------------------- opening moves
 export function setupHistory(w: World, S: MapStatic) {
   const ci: Record<string, number> = {}; w.countries.forEach(c => (ci[c.code] = c.id));
   const has = (...cs: string[]) => cs.every(c => ci[c] !== undefined);
+  const era = QUALITY[w.scenario as '1914' | '1939']; if (era) for (const [k, q] of Object.entries(era)) if (ci[k] !== undefined) w.countries[ci[k]].quality = q;
   const ids = (cs: string[]) => cs.filter(c => ci[c] !== undefined).map(c => ci[c]);
   /** Send each country's divisions to its fronts by plan: [lon, lat, share] picks the theater nearest that point. The rest stay in reserve. */
   const deploy = (war: ReturnType<typeof declareWar>, plans: Record<string, [number, number, number][]>) => {

@@ -19,7 +19,7 @@ describe('world over ten years', () => {
     const ms = (Date.now() - t0) / 3650;
     const alive = w.countries.filter(c => c.alive);
     const debt = alive.filter(c => c.gdp > 1000).map(c => c.debt / c.gdp).sort((a, b) => a - b), stab = alive.map(c => c.stability).sort((a, b) => a - b);
-    const growth = alive.map(c => { const n = w.divisions.filter(d => d.country === c.id).length; return n / Math.max(1, div0[c.id]); }).sort((a, b) => a - b);
+    const growth = alive.map(c => { const n = w.divisions.filter(d => d.country === c.id).length; return n / Math.max(1, div0[c.id]) / Math.max(1, c.gdp / c.gdpStart); }).sort((a, b) => a - b); // army growth beyond the economy's (a conquering empire's army grows with it)
     const wars = w.wars.filter(x => x.start > 0), events = w.log.filter(l => l.kind === 'event').length;
     console.log(`ms/day ${ms.toFixed(1)} | wars ${wars.length} (${wars.map(x => logText(w, x.name) + (x.ended ? ` ${Math.round((x.ended - x.start) / 30)}mo` : ' ongoing')).join('; ')})`);
     console.log(`treaties ${treaties0} -> ${w.treaties.length} (${['alliance', 'nap', 'guarantee', 'trade'].map(t => t + ' ' + w.treaties.filter(x => x.type === t).length).join(', ')}) | gone ${w.countries.filter(c => !c.alive).map(c => c.code).join(',')}`);

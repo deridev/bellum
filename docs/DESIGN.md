@@ -556,6 +556,37 @@ Feedback: *"Fix everything is weak and incomplete. Finish the game."*
 - There is no navy to build or command: sea power comes from the economy, the military budget and equipment.
 - Multiplayer (§12) is not built. It needs a server, and the game ships as a single page.
 
+## 21. Something is always happening (October 2026)
+
+Feedback: *"Boring."*
+
+Measured before the change, with a passive player:
+
+| Scenario | What happened |
+|---|---|
+| 2026, Brazil, 2 years | 2 decisions and 2 news items for the player in two years. In the world, no war at all in years 5–7 |
+| 1914 | The Great War over in two months: Austria-Hungary fell in seven weeks, then Germany signed a treaty on a stale war score with its army whole. Then four years without a war |
+| 1939 | Germany never invaded the Soviet Union and the United States never entered. A ceasefire in 1942 |
+
+| Change | How |
+|---|---|
+| **Decisions** | 15 more events, each asking for a choice with a cost either way: an election coming, a general strike, a foreign investor, an arms offer, spies, a breakthrough, troops on the border, separatists, drought, a summit, a trade dispute, chaos in a neighbouring country, corruption, a grand project, the press, hosting the games. The player's events come 2.5× as often, and after 50 quiet days the next one that fits comes for sure |
+| **Missions** | The player always has up to three national goals: grow the economy, build the army, reach a technology level, sign a trade deal, win an ally, take back lost land, restore order, cut debt, save, overtake a rival. Each comes as a choice between two, has a deadline and a reward; a mission that runs out costs 2 stability. Shown at the side of the map and in the Ledger |
+| **Uprisings** | A nation annexed in the game can rise again while its land is unsettled (about five years), most often when the conqueror is unstable or at war: it takes back its provinces with a militia and fights a war of independence. Twice at most |
+| **Rivalries build** | Neighbours far apart in ideology grow colder over the years (not two democracies, not bloc partners), and nations resent whoever holds their land. Up to five AI wars at once (was three) |
+| **History's timeline** | 1914: the Ottomans (Oct 1914), Italy (May 1915), Bulgaria (Oct 1915), Romania (Aug 1916), the United States (Apr 1917) enter; revolution takes Russia out (Nov 1917). 1939: Germany strikes through the Low Countries (May 1940), Italy enters (Jun 1940), Barbarossa (from Jun 1941, once the West is won), Pearl Harbor (Dec 1941). Each happens only if the world still allows it; when it is the player's nation, the player decides on a card |
+| **The great wars hold** | The war score is recomputed when a member makes a separate peace, and the last member of a side gives in only when worn out. Before 1918 trenches dig in 2.2× deeper and faster. Period equipment for the great armies (Germany 1914 ×1.3, Russia ×0.78; Germany 1939 ×1.35, Soviet Union ×0.8) and period army sizes (Austria-Hungary 1914, Germany 1939) |
+| **Generals keep their fronts** | A nation's line covers its own fronts (within 350 km of its soil) and weighs its own soil three times; a weekly re-balance never sends a division across the theater. Before, German armies marched for weeks between France and Galicia while the front collapsed |
+| **Railheads** | The big cities of a side's homeland supply the fronts near them (0.9, 500 km): armies far from the capital are no longer starved at their own border |
+| **Homelands, not empires** | A nation surrenders when its capital and three quarters of its homeland (1000 km around the capital) are taken; colonies no longer keep it fighting. In a world war every member is checked, so Belgium and the Netherlands fall in 1940 |
+
+After, with a passive player: about 8 decisions a year (events and missions). Over four seeds the Great War lasts 2 to 2.7 years with every entry on its date, and the Second World War 2 to 5 years.
+
+### 21.1 Known issues
+- France has only three home provinces on this map and Paris rarely falls, so the West in 1940 usually becomes a long front and Barbarossa often never comes.
+- The Entente won the Great War in every seed tried; the Central Powers can win only with a player's help.
+- The 2026 world still has quiet years (about 1.3 AI wars a year).
+
 ---
 
 ## Decision log
@@ -600,3 +631,6 @@ Feedback: *"Fix everything is weak and incomplete. Finish the game."*
 | 37 | 2026-10-18 | **The world wars are total**: fallen nations make separate peace; alliances accept no treaty until exhausted |
 | 38 | 2026-10-18 | **The sea is crossed by landings, not fleets**: odds from sea power, defenders and marines, shown before the order; beachheads supply like ports |
 | 39 | 2026-10-18 | **Crises ask for a choice**: four kinds, two answers each, the same rules for the AI |
+| 40 | 2026-10-18 | **The player is never left without a decision for long**: events come often and a quiet spell ends with one; missions give direction (§21) |
+| 41 | 2026-10-18 | **The world changes by itself**: annexed nations rise again, rivalries build, history's timeline brings nations into the great wars |
+| 42 | 2026-10-18 | **A nation's generals defend its own fronts first**; railheads supply the homeland; nations surrender when their homeland falls, not their empire |
