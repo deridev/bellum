@@ -7,6 +7,7 @@ import { allied, enemies } from '../sim/war/war';
 import { countryName, fmtDate, say, t } from '../i18n';
 import { dashOf, Delta, Flag, Icon, LineChart, MoreFooter, SignedBar, useMore, type Series } from './common';
 import { fmtBig, fmtInt, fmtMoney, pct } from './format';
+import { Goals } from './Goals';
 
 type Tab = 'overview' | 'rankings' | 'compare';
 /** Categorical slots for compared nations (validated for the dark surface); you are always the first. */
@@ -80,6 +81,7 @@ function Overview({ g }: { g: Game }) {
       <LineChart series={[{ id: k, label, color: Math.abs(d) < 1e-9 ? SLOTS[0] : bad ? FALL : RISE, values: v }]} xs={xs} fmtX={monthX(g)} fmtY={FMT[k]} height={160} zero={worse} marks={k === 'gdp' ? marks : marks.map(m => ({ ...m, minor: true }))} invert={worse} /></figure>;
   };
   return <>
+    <Goals g={g} />
     <div class="kpis">
       {kpi('gdp', t('stat.gdp'), fmtMoney(c.gdp), since(c.gdp, first?.gdp, fmtMoney), 'gdp')}
       {kpi('treasury', t('ledger.treasury'), fmtMoney(c.treasury), <span class={bal < 0 ? 'bad' : 'good'}>{t('eco.perMonth', { v: (bal >= 0 ? '+' : '−') + fmtMoney(Math.abs(bal)) })}</span>)}

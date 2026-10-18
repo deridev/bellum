@@ -599,3 +599,19 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
   .res-cell { padding: 0 6px; gap: 6px; } .res-badge, .res-cell.minor .res-badge { width: 28px; height: 28px; } .res-badge .icon { width: 16px; height: 16px; }
   .res-v, .res-cell.minor .res-v { font-size: 16px; }
 }
+
+/* ---------- goals and the end of the game ---------- */
+.goals { display: grid; gap: 6px; padding: 10px 12px; border-radius: 6px; background: rgba(255, 252, 244, 0.55); }
+.goals .h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 2px; }
+.goal { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; font-size: 14px; }
+.goal-bar { width: 140px; height: 6px; border-radius: 3px; background: rgba(70, 50, 20, 0.12); overflow: hidden; } .goal-bar i { display: block; height: 100%; background: #b97d00; }
+.goal-top { display: inline-flex; gap: 6px; } .goal-top span { display: inline-flex; align-items: center; gap: 2px; opacity: 0.7; } .goal-top span.me { opacity: 1; font-weight: 700; }
+.goal-st { font-size: 13px; } .goal-st.s-winning, .goal-st.s-won { color: #2f8a3c; } .goal-st.s-losing, .goal-st.s-lost { color: #c2412f; }
+.goal-out { margin-left: auto; font: 700 12px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 8px; border-radius: 9px; background: rgba(70, 50, 20, 0.1); }
+.end-wrap { z-index: 8; background: rgba(3, 6, 10, 0.72); }
+.end { width: min(520px, 100%); text-align: center; padding: 22px 22px 18px; gap: 12px; display: flex; flex-direction: column; }
+.end-title { font: italic 800 52px/1.05 var(--display); color: var(--brass-hi); letter-spacing: 0.01em; } .end.o-defeat .end-title { color: var(--red); } .end.o-end .end-title { color: var(--paper); }
+.end-head p { margin: 6px 0 0; font-size: 16px; }
+.end-stats { text-align: left; margin: 0 auto; width: 100%; max-width: 380px; }
+.end-powers { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; text-align: left; } .end-powers li { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; padding: 4px 8px; border-radius: 4px; } .end-powers li.me { background: rgba(232, 192, 99, 0.14); }
+.end-acts { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }

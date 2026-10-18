@@ -65,6 +65,8 @@ export interface War {
   exhaustion: [number, number]; casualties: [number, number]; theaters: number[]; ended: number;
   commit?: Record<number, number>; // share of its army a country sends to this war (players choose; AI decides by role)
   lost?: [number, number]; // divisions each side has lost outright (destroyed, or captured in a pocket)
+  winner?: 1 | -1 | 0; // set when it ends: the side that dictated the peace (0: white peace or ceasefire)
+  total?: boolean; // a world war: the great powers fight it out rather than settle early
 }
 export interface Bloc { name: string; members: number[]; alliance: boolean; leader: number }
 export interface Treaty { type: TreatyType; a: number; b: number; since: number; until: number }
@@ -91,6 +93,8 @@ export interface World {
   log: LogEntry[]; agenda: AgendaItem[];
   cooldowns: Record<string, number>; // diplomacy and event cooldowns: key -> day it ends
   settings: { turnMode: 'continuous' | 'monthly'; difficulty: number };
+  goalWar?: number; // the scenario's great war, whose outcome is a goal (1914, 1939)
+  outcome?: { kind: 'victory' | 'defeat' | 'end'; reason: string; day: number; rank?: number; playOn?: boolean }; // how the game ended for the player
 }
 
 export const DAY0 = Date.UTC(2026, 0, 1);

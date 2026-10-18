@@ -13,6 +13,7 @@ import { Bar, Block, Delta, Flag, Icon, IconBtn, MoreFooter, Ring, Sheet, Signed
 import { LedgerScreen } from './Ledger';
 import { fmt1, fmtBig, fmtInt, fmtMoney, fmtMoney2, pct, pct1, cssPct } from './format';
 import { listSaves, loadGame, saveGame, deleteSave } from '../game/save';
+import { EndScreen } from './Goals';
 import { AgendaCards, DeclareDialog, POSTURES, ToolHint, WarPanel } from './War';
 import { ChroniclePanel, TimelapsePanel } from './Chronicle';
 import { Settings } from './Settings';
@@ -45,6 +46,7 @@ export function Hud({ g }: { g: Game }) {
     <ToolHint g={g} />
     {st.declare >= 0 && <DeclareDialog g={g} target={st.declare} />}
     {st.menu && <Menu g={g} />}
+    <EndScreen g={g} />
   </>;
 }
 

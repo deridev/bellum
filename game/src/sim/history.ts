@@ -123,14 +123,14 @@ export function setupHistory(w: World, S: MapStatic) {
   if (w.scenario === '1914' && has('AUH', 'SRB')) {
     // the July Crisis: Austria-Hungary attacks Serbia; Russia mobilises; Germany strikes France through Belgium
     const war = declareWar(w, S, ci.AUH, ci.SRB, { name: msg('war.name.ww1'), sides: { attackers: ids(['GER']), defenders: ids(['RUS', 'FRA', 'GBR', 'BEL', 'MNE']) } });
-    war.aggr = [1.15, 1.0];
+    war.aggr = [1.15, 1.0]; war.total = true; w.goalWar = war.id;
     const W = [6, 49.5], E = [21, 52], B = [20, 44.5];
     deploy(war, { GER: [[W[0], W[1], 0.72], [E[0], E[1], 0.22]], FRA: [[W[0], W[1], 0.88]], GBR: [[W[0], W[1], 0.6]], BEL: [[W[0], W[1], 0.9]], RUS: [[E[0], E[1], 0.75]], AUH: [[E[0], E[1], 0.5], [B[0], B[1], 0.35]], SRB: [[B[0], B[1], 0.95]], MNE: [[B[0], B[1], 0.9]] });
   }
   if (w.scenario === '1939' && has('GER', 'POL')) {
     // Fall Weiss: Germany invades Poland; Britain and France stand by their guarantee
     const war = declareWar(w, S, ci.GER, ci.POL, { name: msg('war.name.ww2'), sides: { attackers: ids(['SVK']), defenders: ids(['GBR', 'FRA']) } });
-    war.aggr = [1.22, 0.95];
+    war.aggr = [1.22, 0.95]; war.total = true; w.goalWar = war.id;
     // the German army masses on the Polish border; France waits behind the Maginot line, Germany behind the West Wall
     const P = [19, 52], W = [7, 49.5];
     deploy(war, { GER: [[P[0], P[1], 0.6], [W[0], W[1], 0.36]], POL: [[P[0], P[1], 0.95]], SVK: [[P[0], P[1], 0.8]], FRA: [[W[0], W[1], 0.7]], GBR: [[W[0], W[1], 0.35]] });

@@ -212,6 +212,7 @@ export class Game {
   private frame(dt: number, tt: number) {
     this.dt = dt; this.now = tt;
     const g = this.st.get();
+    if (this.w.outcome && !this.w.outcome.playOn && !g.paused) this.st.set({ paused: true }); // the end screen holds the clock
     if (!g.paused && this.snapshot === null) {
       this.acc += dt * SPEEDS[g.speed];
       // simulate as many days as fit in a frame's time budget, so the map stays smooth at top speed
