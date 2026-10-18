@@ -378,6 +378,14 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 .big-toggles button { display: flex; justify-content: center; gap: 8px; padding: 9px 4px; font: 700 14px/1 var(--display); letter-spacing: 0.06em; text-transform: uppercase; }
 .offs li { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 8px; align-items: center; } .offs .meter { grid-column: 1 / -1; } .offs .icon { color: var(--brass-hi); }
 .force { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; } .force > span { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.04); } .force small { color: var(--mute); }
+.army-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.army-list button { width: 100%; display: grid; grid-template-columns: 1fr auto; grid-template-areas: "n c" "s b"; gap: 2px 10px; align-items: center; padding: 7px 10px; text-align: left; }
+.army-list button[aria-pressed="true"] { border-color: var(--brass-hi); background: rgba(232, 192, 99, 0.12); }
+.army-n { grid-area: n; font-weight: 700; } .army-list .num { grid-area: c; font-size: 13px; } .army-st { grid-area: s; color: var(--mute); font-size: 12px; }
+.army-st.s-attack { color: var(--brass-hi); } .army-st.s-moving { font-style: italic; }
+.army-str { grid-area: b; width: 64px; height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.1); overflow: hidden; } .army-str i { display: block; height: 100%; background: var(--green); }
+.v-move { background: rgba(207, 227, 242, 0.14); color: #cfe3f2; }
+.toolhint { width: max-content; } .toolhint > b, .toolhint > small { white-space: nowrap; } /* centred with left: 50%, it would otherwise wrap at half the screen */
 .aim { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; color: var(--paper); } .aim small { color: var(--mute); }
 .aim .verdict { font: 700 12px/1 var(--display); letter-spacing: 0.08em; text-transform: uppercase; padding: 5px 8px; border-radius: 10px; }
 .v-open, .v-likely { background: rgba(130, 196, 116, 0.2); color: var(--green); } .v-hard { background: rgba(232, 192, 99, 0.18); color: #e8c063; } .v-stall { background: rgba(224, 100, 90, 0.15); color: var(--red); }

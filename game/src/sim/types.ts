@@ -50,6 +50,7 @@ export interface Division {
   sup: number; retreat: number; // supply 0..1, retreating flag
   arrive: number; // day it reaches its theater (in transit until then)
   op?: number; // the offensive it is fighting in (0 or missing: holding the line)
+  goal?: [number, number, number]; // where it stands (lon, lat, how): 1 = hold the front there (the player's order), 2 = its general's place in the line, 0 = wait there in reserve
 }
 export interface General { name: string; skill: number; traits: string[]; born: number }
 export interface Army { id: number; country: number; num: number; general: General; theater: number; posture: Posture }
@@ -70,7 +71,7 @@ export type TreatyType = 'alliance' | 'nap' | 'guarantee' | 'access' | 'trade' |
 
 /** A message the UI renders in the player's language: a dictionary key and its arguments. */
 export interface Msg { k: string; a?: Record<string, MsgArg> }
-/** Arguments: plain values, a country ({c}), a list of countries ({cs}), a date ({d}), a nested message ({m}), a division ({u}: type, number) or a province ({p}). */
+/** Arguments: plain values, a country ({c}), a list of countries ({cs}), a date ({d}), a nested message ({m}), a division or army ({u}: type or 'army', number) or a province ({p}). */
 export type MsgArg = string | number | { c: number } | { cs: number[] } | { d: number } | { m: Msg } | { u: [string, number] } | { p: number };
 export const msg = (k: string, a?: Record<string, MsgArg>): Msg => (a ? { k, a } : { k });
 

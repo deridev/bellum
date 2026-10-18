@@ -8,10 +8,11 @@ import type { Session } from './session';
 import { createStore } from './store';
 import { TheaterLayer } from '../render/theaters';
 import { WarFx } from './warfx';
-import { countryName, say, t } from '../i18n';
-import { acceptsPeace, allied, declareWar, makePeace, sideOf, theatersOf, type PeaceTerms } from '../sim/war/war';
+import { armyName, countryName, say, t } from '../i18n';
+import { acceptsPeace, activeWars, allied, declareWar, makePeace, sideOf, theatersOf, type PeaceTerms } from '../sim/war/war';
 import { startOffensive, strikeOdds } from '../sim/war/ai';
-import { cellOf } from '../sim/war/theater';
+import { armyWhere, orderArmy } from '../sim/war/armies';
+import { cellOf, provAtLonLat, work, type Theater } from '../sim/war/theater';
 import { diploOdds, doDiplo, type DiploAction } from '../sim/diplomacy';
 import { loadScenario, staticFor } from './scenarios';
 import { audio, type Cue } from './audio';
@@ -19,8 +20,10 @@ import { audio, type Cue } from './audio';
 export type Panel = { kind: 'economy' | 'politics' | 'military' | 'diplomacy' | 'ledger' | 'chronicle' | 'timelapse' } | { kind: 'province'; id: number } | { kind: 'country'; id: number } | { kind: 'war'; id: number } | null;
 export type Tool = { kind: 'offensive'; war: number } | null;
 /** What a strike at the pointer would be, while aiming (see strikeOdds). */
-export interface Aim { err: string | null; odds: number; n: number; reserves: number; foes: number; def: number; from: [number, number] | null; to: [number, number] | null; ids: number[] }
-export interface GameState { day: number; speed: number; paused: boolean; tick: number; panel: Panel; turnMode: World['settings']['turnMode']; menu: boolean; tool: Tool; toast: string; declare: number; aim: Aim | null }
+export interface Aim { kind?: 'attack' | 'hold' | 'wait' | 'station'; err: string | null; odds: number; n: number; reserves: number; foes: number; def: number; from: [number, number] | null; to: [number, number] | null; ids: number[] }
+export interface GameState { day: number; speed: number; paused: boolean; tick: number; panel: Panel; turnMode: World['settings']['turnMode']; menu: boolean; tool: Tool; toast: string; declare: number; aim: Aim | null; army: number | null }
+/** a cell of ours within 80 km of the front: an army sent there holds it (further back, it waits in reserve) */
+const nearFront = (th: Theater, k: number) => { const d = work(th).distF[k]; return d >= 0 && d * th.cellKm <= 80; };
 export const SPEEDS = [0.5, 1.5, 4, 10, 25]; // days per second
 
 /** Owns the world and the clock; bridges simulation -> renderer and UI. */
@@ -30,7 +33,7 @@ export type NationStat = typeof NATION_STATS[number];
 
 export class Game {
   w: World; S: MapStatic; player: number;
-  st = createStore<GameState>({ day: 0, speed: 1, paused: true, tick: 0, panel: null, turnMode: 'continuous', menu: false, tool: null, toast: '', declare: -1, aim: null });
+  st = createStore<GameState>({ day: 0, speed: 1, paused: true, tick: 0, panel: null, turnMode: 'continuous', menu: false, tool: null, toast: '', declare: -1, aim: null, army: null });
   acc = 0; private lastUi = 0; private mapSeen = ''; private now = 0; private dt = 0; private lastAssign = 0;
   layer: TheaterLayer; fx: WarFx;
   /** monthly snapshots of who holds each province, for the timelapse */
@@ -78,10 +81,38 @@ export class Game {
   toast(text: string) { this.st.set({ toast: text }); clearTimeout(this.toastT); this.toastT = setTimeout(() => this.st.set({ toast: '' }), 3500); }
   private toastT: any = 0;
   sound(c: Cue) { audio.cue(c); }
-  setTool(tool: Tool) { this.st.set({ tool, aim: null }); this.aimAt = ''; this.s.stage.style.cursor = tool ? 'crosshair' : ''; }
+  setTool(tool: Tool) { this.st.set({ tool, aim: null, army: null }); this.aimAt = ''; this.s.stage.style.cursor = tool ? 'crosshair' : ''; }
+  /** pick up one of the player's armies (null puts it down); the next click on the map gives it an order */
+  selectArmy(id: number | null) { this.st.set({ army: id, tool: null, aim: null }); this.aimAt = ''; this.s.stage.style.cursor = id !== null ? 'crosshair' : ''; if (id !== null) this.sound('click'); }
+  /** pan the map to an army */
+  focusArmy(id: number) { const a = this.w.armies.find(x => x.id === id), at = a && armyWhere(this.w, this.S, a); if (at) this.focusLog({ day: 0, msg: { k: '' }, kind: 'war', at: [at.x, at.y] }); }
+  private orderSelected(lon: number, lat: number) {
+    const id = this.st.get().army!, a = this.w.armies.find(x => x.id === id)!, r = orderArmy(this.w, this.S, id, lon, lat);
+    if (r.err) { this.toast(t(r.err)); return; }
+    const p = provAtLonLat(this.S, lon, lat);
+    this.toast(t('army.done.' + (r.kind === 'station' ? 'station' : r.kind === 'attack' ? 'attack' : 'move'), { a: armyName(a.num), p: p >= 0 ? this.S.provinces[p].name : '' }));
+    this.selectArmy(null); this.afterDay(); this.bump(); this.sound('order');
+  }
   private aimAt = '';
+  /** with an army picked up: what clicking at the pointer would do (hold the front, wait in reserve, station, or attack with the odds) */
+  private updateArmyAim() {
+    if (this.s.overUi) return;
+    const id = this.st.get().army!, a = this.w.armies.find(x => x.id === id), at = a && armyWhere(this.w, this.S, a); if (!a || !at) { this.selectArmy(null); return; }
+    const m = this.s.ui.get().mouse, key = `${Math.round(m[0] / 4)},${Math.round(m[1] / 4)},${this.w.day},${this.s.cam.upp}`; if (key === this.aimAt) return; this.aimAt = key;
+    const [lon, lat] = unproject(...this.s.cam.toWorld(m[0], m[1]));
+    const base = { odds: 0, n: at.total, reserves: 0, foes: 0, def: 1, from: [at.x, at.y] as [number, number], to: [lon, lat] as [number, number], ids: at.divs.map(d => d.id) };
+    for (const war of activeWars(this.w)) for (const th of theatersOf(this.w, war)) {
+      const k = cellOf(th, lon, lat); if (k < 0 || !th.land[k] || !th.sideOf[this.player] || th.frozen) continue;
+      if (th.c[k] * th.sideOf[this.player] > 0) { this.st.set({ aim: { ...base, kind: nearFront(th, k) ? 'hold' : 'wait', err: null } }); return; }
+      const r = strikeOdds(this.w, war, th, this.player, [lon, lat], id);
+      this.st.set({ aim: { kind: 'attack', err: r.err, odds: r.odds, n: r.units.length, reserves: 0, foes: r.foes, def: r.def, from: r.from, to: r.to ?? null, ids: r.units.filter(d => d.theater === th.id).map(d => d.id) } }); return;
+    }
+    const p = provAtLonLat(this.S, lon, lat), pr = p >= 0 ? this.w.provinces[p] : null;
+    this.st.set({ aim: pr && pr.owner === this.player && pr.controller === this.player ? { ...base, kind: 'station', err: null, to: this.S.provinces[p].label } : { ...base, err: 'army.notOurs', from: null, to: null } });
+  }
   /** while aiming: what a strike at the pointer would be (recomputed when the pointer moves or a day passes) */
   private updateAim() {
+    if (this.st.get().army !== null) { this.updateArmyAim(); return; }
     const tool = this.st.get().tool, war = tool && this.w.wars.find(x => x.id === tool.war); if (!war || war.ended || this.s.overUi) return;
     const m = this.s.ui.get().mouse, key = `${Math.round(m[0] / 4)},${Math.round(m[1] / 4)},${this.w.day},${this.s.cam.upp}`; if (key === this.aimAt) return; this.aimAt = key;
     const [lon, lat] = unproject(...this.s.cam.toWorld(m[0], m[1]));
@@ -124,6 +155,10 @@ export class Game {
   }
   click(p: number) {
     if (this.st.get().tool) { this.aimOffensive(); return; }
+    // an army marker under the pointer: pick it up (or put it down); with an army picked up, the click is its order
+    const [sx, sy] = this.s.cam.toScreen(...this.s.clickWorld), hit = this.fx.armyAt(sx, sy), sel = this.st.get().army;
+    if (hit !== null) { this.selectArmy(hit === sel ? null : hit); return; }
+    if (sel !== null) { const [lon, lat] = unproject(...this.s.clickWorld); this.orderSelected(lon, lat); return; }
     if (p < 0) { this.openPanel(null); this.s.ui.set({ selected: -1 }); return; }
     const owner = this.w.provinces[p].owner;
     this.s.ui.set({ selected: owner });
@@ -175,7 +210,7 @@ export class Game {
       if (n) this.syncMap(false);
     }
     this.layer.mix = Math.min(1, this.acc);
-    if (g.tool) this.updateAim();
+    if (g.tool || g.army !== null) this.updateAim();
     if (tt - this.lastAssign > 1) this.assignTheaters();
     audio.ambience(this.fx.heatOnScreen, !g.paused);
     const now = performance.now();
@@ -195,7 +230,8 @@ export class Game {
     const g = this.st.get();
     if (this.snapshot !== null) return;
     this.fx.draw(ctx, this.s.cam, this.w, this.layer.mix, this.now, this.dt, !g.paused, SPEEDS[g.speed]);
-    if (g.tool && g.aim) this.fx.drawAim(ctx, this.s.cam, this.w, g.aim, this.now);
+    if ((g.tool || g.army !== null) && g.aim) this.fx.drawAim(ctx, this.s.cam, this.w, g.aim, this.now);
+    this.fx.drawArmies(ctx, this.s.cam, this.w, this.S, this.player, g.army, this.now);
     const cam = this.s.cam, zoom = 0.12 / cam.upp; if (zoom < 1.6) return;
     const stacks = new Map<number, { c: number; n: number }>();
     for (const d of this.w.divisions) { if (d.theater >= 0) continue; const k = d.prov * 1000 + d.country; const s = stacks.get(k); if (s) s.n++; else stacks.set(k, { c: d.country, n: 1 }); }
@@ -203,7 +239,7 @@ export class Game {
     // nearby garrisons of one nation merge into a single chip, so they never pile onto the map's labels
     const chips: { c: number; n: number; x: number; y: number; w: number }[] = [];
     for (const [k, s] of stacks) {
-      if (s.c !== this.player && zoom < 8) continue; // other nations' garrisons only up close
+      if (s.c === this.player || zoom < 8) continue; // our armies have their own markers; other nations' garrisons only up close
       const prov = Math.floor(k / 1000), [lon, lat] = A.provinces[prov].label, [x, y] = cam.toScreen(...project(lon, lat - 0.25));
       if (x < -30 || y < -30 || x > cam.w + 30 || y > cam.h + 30) continue;
       const near = chips.find(q => q.c === s.c && Math.hypot(q.x / q.w - x, q.y / q.w - y) < 70);

@@ -3,9 +3,10 @@ import type { Game } from '../game/play';
 import { resolveAgenda } from '../sim/agenda';
 import { commitShare, warReserve } from '../sim/war/ai';
 import { aimVerdict } from '../game/warfx';
+import { armyWhere } from '../sim/war/armies';
 import { acceptsPeace, heldDemand, sideOf, theatersOf, truceKey, warCost, warsOf, type PeaceTerms } from '../sim/war/war';
 import type { War } from '../sim/types';
-import { countryName, fmtDate, say, t } from '../i18n';
+import { armyName, countryName, fmtDate, say, t } from '../i18n';
 import { Block, Flag, Icon, Sheet, Tug } from './common';
 import { fmt1, fmtBig, fmtInt, pct, cssPct } from './format';
 
@@ -46,6 +47,7 @@ export function WarPanel({ g, id }: { g: Game; id: number }) {
         return <button key={c.id} aria-pressed={cur === c.id} class={ci >= i ? 'on' : ''} data-tip={t('war.commitHint', { p: pct(c.v < 0 ? commitShare(w, { ...war, commit: {} }, me) : c.v) })} onClick={() => { war.commit ||= {}; if (c.v < 0) delete war.commit[me]; else war.commit[me] = c.v; g.bump(); }}><i style={{ height: `${8 + i * 6}px` }} /><span>{t('commit.' + c.id)}</span></button>; })}</div>
       <div class="force" data-tip={t('war.reserveHint')}><span><small>{t('war.onFront')}</small><b class="num">{fmtInt(onFront)}</b></span><span><small>{t('war.reserve')}</small><b class={`num ${reserve ? '' : 'muted'}`}>{fmtInt(reserve)}</b></span></div>
     </Block>
+    <ArmyList g={g} />
     <Block title={t('war.offensives')} icon="offensive" aside={<b class="num">{offs.length}/3</b>}>
       {offs.length > 0 && <ul class="offs">{offs.map(o => { const us = w.divisions.filter(d => d.op === o.id), coming = us.some(d => d.arrive > w.day); return <li key={o.id}><Icon name="advance" size={14} /><span>{t('off.divs', { n: us.length })}</span><small class="num">{coming ? t('off.gathering') : t('war.day', { n: w.day - o.created })}</small><div class="meter" data-tip={t('war.momentum')}><div class="fill amber" style={{ width: cssPct(o.org) }} /></div></li>; })}</ul>}
       <button class="primary wide" disabled={offs.length >= 3} data-tip={t(offs.length >= 3 ? 'war.planMax' : 'war.planHint')} onClick={() => g.setTool({ kind: 'offensive', war: war.id })}><Icon name="target" size={16} />{t('war.plan')}</button>
@@ -137,9 +139,27 @@ export function AgendaCards({ g, slim, drawer, onDrawer }: { g: Game; slim?: boo
   </div>;
 }
 
+/** The player's armies: what each is doing, its size and strength; a click picks it up on the map. */
+export function ArmyList({ g, title = true }: { g: Game; title?: boolean }) {
+  const w = g.w, sel = g.st.get().army;
+  const rows = w.armies.filter(a => a.country === g.player).map(a => ({ a, at: armyWhere(w, g.S, a) })).filter(r => r.at) as { a: typeof w.armies[number]; at: NonNullable<ReturnType<typeof armyWhere>> }[];
+  if (!rows.length) return null;
+  const list = <ul class="army-list">{rows.map(({ a, at }) => <li key={a.id}><button aria-pressed={sel === a.id} data-tip={t('army.hint')} onClick={() => { g.selectArmy(sel === a.id ? null : a.id); g.focusArmy(a.id); }}>
+    <span class="army-n">{armyName(a.num)}</span><small class={`army-st s-${at.state}`}>{t('army.st.' + at.state)}</small>
+    <span class="num">{t('army.size', { n: at.total })}</span><span class="army-str"><i style={{ width: cssPct(Math.min(1, at.str)) }} /></span></button></li>)}</ul>;
+  return title ? <Block title={t('war.armies')} icon="military" aside={<span class="num muted">{rows.length}</span>}>{list}</Block> : list;
+}
+
 export function ToolHint({ g }: { g: Game }) {
   const st = g.st.get();
-  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') g.setTool(null); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') { g.setTool(null); g.selectArmy(null); } }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
+  if (st.army !== null) { const a = g.w.armies.find(x => x.id === st.army), at = a && armyWhere(g.w, g.S, a), m = st.aim, v = m && !m.err && m.kind === 'attack' ? aimVerdict(m) : null;
+    if (!a || !at) return null;
+    return <div class="ui toolhint plate" role="status"><Icon name="military" size={16} /><b class="army-n">{armyName(a.num)}</b><small class="muted">{t('army.size', { n: at.total })} · {t('army.st.' + at.state)}</small>
+      {!m ? <span class="muted">{t('army.hint')}</span> : m.err ? <span class="muted">{t(m.err)}</span>
+        : m.kind === 'attack' ? <span class="aim"><b class={`verdict v-${v}`}>{t('aim.' + v)}</b><span>{t('aim.force', { n: m.n, m: m.foes })}<small> · {t('aim.def', { x: fmt1(m.def) })}</small></span>{m.foes > 0 && <b class="num">{m.odds >= 10 ? '10+' : fmt1(m.odds)} : 1</b>}</span>
+        : <span class="aim"><b class="verdict v-move">{t('army.go.' + m.kind)}</b></span>}
+      <button onClick={() => g.selectArmy(null)}>{t('ui.cancel')}</button></div>; }
   if (st.tool) { const a = st.aim, v = a && !a.err ? aimVerdict(a) : null;
     return <div class="ui toolhint plate" role="status"><Icon name="target" size={16} />
       {!a ? <span>{t('war.aim')}</span> : a.err ? <span class="muted">{t(a.err)}</span>

@@ -2,7 +2,7 @@
 // `npm run warlab -- <attacker> <defender> [days] [seeds] [scenario]` plays the same war under several player strategies and prints the outcome of each.
 // The player is the attacker (DEF=1: the defender; scores stay from the attacker's view). Peace offers are refused, so the war runs its course (or until a capitulation).
 // Strategies (STRATS=a,b picks some): ai (the AI plays), idle, hold, push (All-out), reckless (All-out, total commitment, offensives at cities),
-// smart (strike where the odds are best, one at a time), smart3 (up to three at once), sharp (only at 1.5 : 1 or better), pro (All-out plus sharp strikes), allin (Total commitment plus sharp strikes), digin (Hold, plus smart strikes).
+// smart (strike where the odds are best, one at a time), smart3 (up to three at once), sharp (only at 1.5 : 1 or better), pro (All-out plus sharp strikes), allin (Total commitment plus sharp strikes), commander (sends whole armies to attack, like a player using army orders), careful (the same, only at cities or 2 : 1, resting troops between attacks), digin (Hold, plus smart strikes).
 // Prints the war score after `days`, enemy provinces held, and casualties, one column per seed.
 import { createWorld } from '../src/sim/world';
 import { stepDay } from '../src/sim/step';
@@ -11,7 +11,8 @@ import { setupScenario, tablesFor } from '../src/sim/scenario';
 import { fromFile, withScenario } from '../src/game/scenarios';
 import { loadStatic } from './helpers';
 import { declareWar, sideOf, theatersOf } from '../src/sim/war/war';
-import { startOffensive, bestStrike } from '../src/sim/war/ai';
+import { startOffensive, bestStrike, strikeOdds } from '../src/sim/war/ai';
+import { orderArmy, armyWhere } from '../src/sim/war/armies';
 import { resolveAgenda } from '../src/sim/agenda';
 import type { MapStatic, War, World } from '../src/sim/types';
 import { cellLonLat } from '../src/sim/war/theater';
@@ -43,6 +44,18 @@ const strike = (w: World, war: War, me: number, max = 1, odds = 1.2) => {
     const b = bestStrike(w, war, t, me); if (b && b.odds > odds) startOffensive(w, S, t, me, b.target);
   }
 };
+/** command armies like a player: find the best target on each front, send the army with the best odds there (one attack per front at a time) */
+const command = (w: World, war: War, me: number, careful = false) => {
+  for (const t of theatersOf(w, war)) {
+    if (!t.sideOf[me] || t.offensives.some(o => !o.ended && o.country === me)) continue;
+    if (careful && t.offensives.some(o => o.country === me && w.day - o.ended < 15)) continue; // let the last attack's troops recover
+    const b = bestStrike(w, war, t, me); if (!b) continue;
+    if (careful && b.score < 2.5 * 1.8 * 0.8) continue; // cities, or overwhelming odds
+    let best = -1, bo = 0;
+    for (const a of w.armies.filter(a => a.country === me)) { const at = armyWhere(w, S, a); if (!at || (at.theater !== t.id && at.state !== 'home') || at.state === 'moving') continue; const r = strikeOdds(w, war, t, me, b.target, a.id); if (!r.err && r.odds > bo) { bo = r.odds; best = a.id; } }
+    if (best >= 0 && bo > (careful ? 2 : 1.5)) orderArmy(w, S, best, ...b.target);
+  }
+};
 const only = process.env.STRATS?.split(',');
 const STRATS: Record<string, Strat | null> = {
   ai: null, // the AI plays the attacker
@@ -55,6 +68,8 @@ const STRATS: Record<string, Strat | null> = {
   sharp: (w, war, me) => { if (w.day % 5 === 0) strike(w, war, me, 1, 1.5); },
   pro: (w, war, me) => { war.aggr[sideOf(war, me) > 0 ? 0 : 1] = POSTURE.offensive; if (w.day % 5 === 0) strike(w, war, me, 1, 1.5); },
   allin: (w, war, me) => { war.commit ||= {}; war.commit[me] = 0.92; if (w.day % 5 === 0) strike(w, war, me, 1, 1.5); },
+  commander: (w, war, me) => { if (w.day % 5 === 0) command(w, war, me); },
+  careful: (w, war, me) => { if (w.day % 5 === 0) command(w, war, me, true); },
   digin: (w, war, me) => { war.aggr[sideOf(war, me) > 0 ? 0 : 1] = POSTURE.hold; if (w.day % 5 === 0) strike(w, war, me); },
 };
 const rows: string[] = [];

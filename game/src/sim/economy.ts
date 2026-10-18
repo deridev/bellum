@@ -1,5 +1,6 @@
 import { CONSCRIPTION_GROWTH, CONSCRIPTION_RATE, clamp01, newDivision, say } from './world';
-import type { Country, MapStatic, ProdItem, UnitType, World } from './types';
+import type { Army, Country, MapStatic, ProdItem, UnitType, World } from './types';
+import { makeGeneral } from './names';
 import { msg } from './types';
 import { tradeBonus } from './diplomacy';
 import { researchNeed } from './policies';
@@ -88,13 +89,19 @@ export function dailyProduction(w: World) {
     c.production = c.production.filter(i => !done.includes(i));
     for (const item of done) {
       const n = w.divisions.filter(d => d.country === c.id && d.type === item.type).length + 1;
-      const army = w.armies.find(a => a.country === c.id) ?? null;
       const prov = w.provinces[item.prov]?.controller === c.id ? item.prov : c.capital;
-      const d = newDivision(w, c.id, item.type, n, prov, army ? army.id : -1);
+      const d = newDivision(w, c.id, item.type, n, prov, recruitArmy(w, c, prov).id);
       d.exp = 0; w.divisions.push(d);
       if (c.player) say(w, msg('log.unitReady', { unit: { u: [d.type, d.num] } }), 'player', { who: [c.id], prov });
     }
   }
+}
+/** New divisions join an army waiting where they are raised, with room for them (12 at most); otherwise they form a new army there. */
+function recruitArmy(w: World, c: Country, prov: number): Army {
+  const mine = w.armies.filter(a => a.country === c.id);
+  for (const a of mine) { const ds = w.divisions.filter(d => d.army === a.id); if (ds.length && ds.length < 12 && ds.every(d => d.theater < 0 && d.prov === prov)) return a; }
+  const a: Army = { id: w.nextId++, country: c.id, num: mine.reduce((m, x) => Math.max(m, x.num), 0) + 1, general: makeGeneral(w, c.code), theater: -1, posture: 'hold' };
+  w.armies.push(a); return a;
 }
 export function queueUnit(w: World, c: Country, type: UnitType, prov = c.capital): string | null {
   const spec = UNIT_SPEC[type];

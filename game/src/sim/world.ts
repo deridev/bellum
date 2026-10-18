@@ -74,14 +74,14 @@ export function createWorld(S: MapStatic, opts: { seed?: number; player?: number
     const mix: [UnitType, number][] = [['armor', mixOf[0]], ['mechanized', mixOf[1]], ['marines', coastal && nDiv > 15 ? 0.05 : 0], ['airborne', nDiv > 25 ? 0.04 : 0]];
     const border = provsOf[i].filter(p => S.provinces[p].nbr.some(n => w.provinces[n].owner !== i));
     const counts: Record<string, number> = {};
-    const armies: Army[] = [];
+    const armies: Army[] = []; let station = c.capital;
     for (let k = 0; k < nDiv; k++) {
       let type: UnitType = 'infantry'; let r = nextRand(w);
       for (const [t, share] of mix) { if (r < share) { type = t; break; } r -= share; }
       counts[type] = (counts[type] || 0) + 1;
-      if (k % 12 === 0) { const a: Army = { id: w.nextId++, country: i, num: armies.length + 1, general: makeGeneral(w, code), theater: -1, posture: 'hold' }; armies.push(a); w.armies.push(a); }
-      const prov = border.length && nextRand(w) < 0.55 ? border[Math.floor(nextRand(w) * border.length)] : c.capital;
-      w.divisions.push(newDivision(w, i, type, counts[type], prov, armies[armies.length - 1].id));
+      // an army is stationed in one place: a border province or the capital
+      if (k % 12 === 0) { const a: Army = { id: w.nextId++, country: i, num: armies.length + 1, general: makeGeneral(w, code), theater: -1, posture: 'hold' }; armies.push(a); w.armies.push(a); station = border.length && nextRand(w) < 0.55 ? border[Math.floor(nextRand(w) * border.length)] : c.capital; }
+      w.divisions.push(newDivision(w, i, type, counts[type], station, armies[armies.length - 1].id));
     }
     c.upkeep = nDiv * c.unitCost; c.spending = revenue * (1 + deficit) + c.debt * 0.04 / 12;
   }

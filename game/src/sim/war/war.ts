@@ -6,6 +6,7 @@ import { msg } from '../types';
 import { addRel, clamp01, rel, say } from '../world';
 import { newLeader } from '../politics';
 import { commitShare, frontAggr } from './ai';
+import { deployLine } from './armies';
 import { buildMasks, cellLonLat, cellOf, createTheater, stepTheater, T, work, type Theater } from './theater';
 
 export const sideOf = (war: War, c: number): 1 | -1 | 0 => war.attackers.includes(c) ? 1 : war.defenders.includes(c) ? -1 : 0;
@@ -124,12 +125,21 @@ export function addTheater(w: World, S: MapStatic, war: War, box: [number, numbe
 function deployInto(w: World, S: MapStatic, t: Theater) {
   const war = w.wars.find(x => x.id === t.war), room = new Map<number, number>();
   const roomFor = (c: number) => { let r = room.get(c); if (r === undefined) { const mine = w.divisions.filter(d => d.country === c); r = war ? Math.ceil(mine.length * commitShare(w, war, c) * T.line) - mine.filter(d => war.theaters.includes(d.theater)).length : Infinity; room.set(c, r); } return r; };
+  // the player's armies go in whole (the AI's division by division); then every side's generals share out the front
+  const groups = new Map<number, Division[]>();
   for (const d of w.divisions) {
-    if (d.theater >= 0 || !t.sideOf[d.country] || roomFor(d.country) <= 0) continue;
+    if (d.theater >= 0 || !t.sideOf[d.country]) continue;
     const [lon, lat] = S.provinces[d.prov].label; const k = cellOf(t, lon, lat);
     if (k < 0 || !t.land[k] || t.c[k] * t.sideOf[d.country] <= 0) continue;
-    placeUnit(w, t, d, lon, lat); room.set(d.country, roomFor(d.country) - 1);
+    const key = w.countries[d.country].player ? d.army * 100000 + d.prov : -1 - d.id, l = groups.get(key) || []; l.push(d); groups.set(key, l); // the AI's divisions go one by one
   }
+  for (const l of groups.values()) {
+    const c = l[0].country; if (roomFor(c) <= 0) continue;
+    const [lon, lat] = S.provinces[l[0].prov].label;
+    for (const d of l) placeUnit(w, t, d, lon, lat);
+    room.set(c, roomFor(c) - l.length);
+  }
+  for (const c of Object.keys(t.sideOf).map(Number)) deployLine(w, t, c); // each side's generals split the front between their armies
 }
 export function placeUnit(w: World, t: Theater, d: Division, lon: number, lat: number, arrive = 0) {
   d.theater = t.id; d.arrive = arrive;
@@ -161,7 +171,7 @@ export function sendToTheater(w: World, S: MapStatic, d: Division, t: Theater, f
   const [x, y] = cellLonLat(t, best); placeUnit(w, t, d, x, y, w.day + days);
   return true;
 }
-export function withdraw(d: Division) { d.theater = -1; d.arrive = 0; d.op = 0; }
+export function withdraw(d: Division) { d.theater = -1; d.arrive = 0; d.op = 0; d.goal = undefined; }
 
 /** Daily war step: theaters, occupation, score, exhaustion. */
 export function stepWars(w: World, S: MapStatic) {

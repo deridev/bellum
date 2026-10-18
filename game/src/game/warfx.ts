@@ -4,6 +4,10 @@ import { MAX_TIPS, type TheaterLayer } from '../render/theaters';
 import type { MapAssets } from '../data/types';
 import type { Session } from './session';
 import type { Aim } from './play';
+import type { MapStatic } from '../sim/types';
+import { armyWhere, type ArmyState } from '../sim/war/armies';
+import { activeWars, sideOf } from '../sim/war/war';
+import { armyName } from '../i18n';
 import type { LogEntry, World } from '../sim/types';
 import { cAt, cellLonLat, cellOf, offensiveTip, type Offensive, type Theater } from '../sim/war/theater';
 
@@ -265,10 +269,71 @@ export class WarFx {
     ctx.restore();
   }
 
+  /** army markers drawn this frame, for clicks */
+  private armyHits: { id: number; x: number; y: number; w: number; h: number }[] = [];
+  /** the player's army whose marker is under a screen point, if any */
+  armyAt(x: number, y: number): number | null {
+    for (let i = this.armyHits.length - 1; i >= 0; i--) { const h = this.armyHits[i]; if (Math.abs(x - h.x) <= h.w / 2 + 4 && Math.abs(y - h.y) <= h.h / 2 + 4) return h.id; }
+    return null;
+  }
+  /** Army markers: one per army of the player's (flag, divisions, strength, what it is doing), and the enemy's divisions gathered where they mass. */
+  drawArmies(ctx: CanvasRenderingContext2D, cam: Camera, w: World, S: MapStatic, me: number, sel: number | null, now: number) {
+    this.armyHits = [];
+    const A = this.A, scr = (lon: number, lat: number) => cam.toScreen(...project(lon, lat)), off = (x: number, y: number) => x < -40 || y < -40 || x > cam.w + 40 || y > cam.h + 40;
+    const flag = (c: number) => { const code = w.countries[c].code; return A.flagIndex[this.s.flagOf[code] || code]; };
+    ctx.save(); ctx.font = '700 12px "Barlow Condensed", sans-serif'; ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+    const plate = (x: number, y: number, c: number, label: string, edge: string, fill: string, dash: boolean) => {
+      const fw = 18, fh = 12, tw = ctx.measureText(label).width, W = fw + tw + 14, H = 22, x0 = Math.round(x - W / 2), y0 = Math.round(y - H / 2);
+      ctx.fillStyle = fill; ctx.beginPath(); ctx.roundRect(x0, y0, W, H, 5); ctx.fill();
+      ctx.setLineDash(dash ? [3, 3] : []); ctx.strokeStyle = edge; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
+      const fi = flag(c); if (fi) ctx.drawImage(A.flags, fi[0], fi[1], A.flagW, A.flagH, x0 + 5, y0 + 5, fw, fh);
+      ctx.fillStyle = '#f2ede1'; ctx.fillText(label, x0 + fw + 9, y0 + H / 2 + 0.5);
+      return { x0, y0, W, H };
+    };
+    // the enemy: their divisions in view, gathered by screen area, so you see where they mass
+    const foes = new Set<number>();
+    for (const war of activeWars(w)) { const s = sideOf(war, me); if (s) for (const c of s > 0 ? war.defenders : war.attackers) foes.add(c); }
+    if (foes.size) {
+      const G = 84, cells = new Map<number, { n: number; x: number; y: number; by: Map<number, number> }>();
+      for (const d of w.divisions) {
+        if (d.theater < 0 || d.arrive > w.day || !foes.has(d.country)) continue; const [x, y] = scr(d.x, d.y); if (off(x, y)) continue;
+        const key = Math.floor(x / G) * 4096 + Math.floor(y / G); let e = cells.get(key); if (!e) cells.set(key, e = { n: 0, x: 0, y: 0, by: new Map() });
+        e.n++; e.x += x; e.y += y; e.by.set(d.country, (e.by.get(d.country) || 0) + 1);
+      }
+      for (const e of cells.values()) plate(e.x / e.n, e.y / e.n, [...e.by.entries()].sort((a, b) => b[1] - a[1])[0][0], String(e.n), 'rgba(224,100,90,0.85)', 'rgba(36,12,12,0.86)', false);
+    }
+    // ours: one marker per army; armies in the same place stack downwards
+    const placed: [number, number][] = [];
+    for (const a of w.armies) {
+      if (a.country !== me) continue; const at = armyWhere(w, S, a); if (!at) continue;
+      let [x, y] = scr(at.x, at.y); if (off(x, y)) continue;
+      while (placed.some(([px, py]) => Math.abs(px - x) < 40 && Math.abs(py - y) < 20)) y += 24;
+      placed.push([x, y]);
+      const on = a.id === sel, st: ArmyState = at.state;
+      if (on) { ctx.fillStyle = `rgba(232,192,99,${0.18 + 0.1 * Math.sin(now * 5)})`; ctx.beginPath(); ctx.arc(x, y, 26, 0, 7); ctx.fill(); }
+      const r = plate(x, y, me, String(at.n), on ? '#e8c063' : st === 'attack' ? 'rgba(232,192,99,0.9)' : 'rgba(242,237,225,0.55)', on ? 'rgba(30,24,10,0.94)' : 'rgba(8,12,18,0.88)', st === 'moving');
+      // strength under the plate, the army's name above when picked up
+      const q = Math.max(0, Math.min(1, at.str)); ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(r.x0 + 3, r.y0 + r.H - 3, r.W - 6, 2);
+      ctx.fillStyle = q > 0.66 ? '#82c474' : q > 0.33 ? '#e8c063' : '#e0645a'; ctx.fillRect(r.x0 + 3, r.y0 + r.H - 3, (r.W - 6) * q, 2);
+      if (st === 'attack') { ctx.fillStyle = '#e8c063'; ctx.beginPath(); ctx.moveTo(r.x0 + r.W + 3, y - 5); ctx.lineTo(r.x0 + r.W + 10, y); ctx.lineTo(r.x0 + r.W + 3, y + 5); ctx.fill(); }
+      if (on) { const name = armyName(a.num), nw = ctx.measureText(name).width; ctx.fillStyle = 'rgba(8,12,18,0.85)'; ctx.fillRect(x - nw / 2 - 5, r.y0 - 19, nw + 10, 16); ctx.fillStyle = '#e8c063'; ctx.textAlign = 'center'; ctx.fillText(name, x, r.y0 - 11); ctx.textAlign = 'left'; }
+      this.armyHits.push({ id: a.id, x, y, w: r.W, h: r.H });
+    }
+    ctx.restore();
+  }
+
   /** while aiming an offensive: a dashed arrow from the jump-off point to the objective, coloured by the odds, and rings on the divisions that would go */
   drawAim(ctx: CanvasRenderingContext2D, cam: Camera, w: World, aim: Aim, now: number) {
     if (aim.err || !aim.from || !aim.to) return;
     const scr = (lon: number, lat: number) => cam.toScreen(...project(lon, lat));
+    if (aim.kind && aim.kind !== 'attack') { // a move: a pale dashed line to a ring where the army will stand
+      const [ax, ay] = scr(...aim.from), [bx, by] = scr(...aim.to);
+      ctx.save(); ctx.setLineDash([6, 6]); ctx.lineDashOffset = -now * 24 % 12; ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(8,12,18,0.7)'; ctx.lineWidth = 4.5; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+      ctx.strokeStyle = '#cfe3f2'; ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(bx, by, aim.kind === 'hold' ? 12 : 9, 0, 7); ctx.strokeStyle = '#cfe3f2'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.restore(); return;
+    }
     const col = aimColor(aim), [ax, ay] = scr(...aim.from), [bx, by] = scr(...aim.to), l = Math.hypot(bx - ax, by - ay); if (l < 6) return;
     const tx = (bx - ax) / l, ty = (by - ay) / l, hl = Math.min(18, l * 0.4);
     ctx.save();

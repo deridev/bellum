@@ -12,6 +12,7 @@ export interface Offensive {
   id: number; side: 1 | -1; country: number; army: number;
   from: [number, number]; to: [number, number]; created: number; org: number; ended: number;
   met?: number; // the other side's reserves have answered it
+  order?: number; // 1 when the player ordered a named army to make it
 }
 export interface Theater {
   id: number; war: number; name: string;
@@ -49,7 +50,7 @@ export const cellOf = (t: Theater, lon: number, lat: number) => {
   return i < 0 || j < 0 || i >= t.W || j >= t.H ? -1 : j * t.W + i;
 };
 export const cellLonLat = (t: Theater, k: number): [number, number] => [t.lon0 + ((k % t.W) + 0.5) * t.cw, t.lat0 - (Math.floor(k / t.W) + 0.5) * t.ch];
-function provAtLonLat(S: MapStatic, lon: number, lat: number): number {
+export function provAtLonLat(S: MapStatic, lon: number, lat: number): number {
   const i = Math.min(S.demW - 1, Math.max(0, Math.floor((lon + 180) / 360 * S.demW))), j = Math.min(S.demH - 1, Math.max(0, Math.floor((90 - lat) / 180 * S.demH)));
   return S.provRaster[j * S.demW + i] - 1;
 }
@@ -347,7 +348,7 @@ function combat(w: World, t: Theater, units: Division[], wk: Work) {
     const war = w.wars.find(x => x.id === t.war); if (war) war.casualties[side > 0 ? 0 : 1] += loss;
     const country = w.countries[d.country];
     if (d.sup > 0 && d.str < d.max && country.manpower > 0) { const add = Math.min(d.max - d.str, d.max * 0.006 * d.sup, country.manpower); d.str += add; country.manpower -= add; }
-    d.org = Math.min(0.6 + 0.4 * (country.readiness ?? 1), d.org + (d.sup > 0.3 ? 0.02 : -0.02));
+    d.org = Math.max(0, Math.min(0.6 + 0.4 * (country.readiness ?? 1), d.org + (d.sup > 0.3 ? 0.02 : -0.02)));
   }
 }
 
@@ -366,10 +367,19 @@ function moveUnits(w: World, t: Theater, units: Division[], wk: Work) {
     const gy = -((j < H - 1 && land[k + W] ? c[k + W] : c[k]) - (j > 0 && land[k - W] ? c[k - W] : c[k])) * sg; // north = +y
     // offensive assignment: units of an army with an active offensive head for its tip
     const off = u.op ? t.offensives.find(o => o.id === u.op && !o.ended) : undefined;
+    // an army's order: hold the front near a spot (it follows the front forward), or wait there in reserve
+    let gl = !off && u.goal ? u.goal : null, gd = 0;
+    if (gl && gl[2]) { const gk = cellOf(t, gl[0], gl[1]); if (gk >= 0 && t.land[gk] && c[gk] * sg > 0 && d[gk] * t.cellKm > 70) { u.goal = gl = [u.x, u.y, gl[2]]; } }
+    if (gl) gd = Math.hypot((gl[0] - u.x) * cosL, gl[1] - u.y) * 111.2;
     if (own < -0.15) { const g = Math.hypot(gx, gy) || 1; vx += gx / g * spd; vy += gy / g * spd; }
     else if (off && d[k] > 1) {
       const tip = offensiveTip(t, off); const dx = (tip[0] - u.x) * cosL, dy = tip[1] - u.y, l = Math.hypot(dx, dy) || 1;
       vx += dx / l * spd; vy += dy / l * spd;
+    } else if (gl && gd > (gl[2] ? 40 : 8)) {
+      const dx = (gl[0] - u.x) * cosL, dy = gl[1] - u.y, l = Math.hypot(dx, dy) || 1, s = Math.min(spd, gd / 111.2);
+      vx += dx / l * s; vy += dy / l * s;
+    } else if (gl && !gl[2]) {
+      // waiting in reserve: stays put
     } else {
       const dk = d[k];
       if (dk > 1) {

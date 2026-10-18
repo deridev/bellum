@@ -44,7 +44,7 @@ function arg(w: World, v: MsgArg): string | number {
   if ('cs' in v) return new Intl.ListFormat(LOCALE[lang], { type: 'conjunction' }).format(v.cs.map(c => countryName(w, c)));
   if ('d' in v) return fmtDate(w, v.d);
   if ('m' in v) return say(w, v.m);
-  if ('u' in v) return unitName(v.u[0], v.u[1]);
+  if ('u' in v) return v.u[0] === 'army' ? armyName(v.u[1]) : unitName(v.u[0], v.u[1]);
   if ('p' in v) return provNames[v.p] ?? '';
   return '';
 }

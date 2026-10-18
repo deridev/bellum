@@ -7,6 +7,7 @@ export const tablesFor = (id: string) => id === '1914' ? TABLES_1914 : id === '1
 import type { MapStatic, World } from './types';
 import { declareWar, theatersOf } from './war/war';
 import { cellLonLat, deployAlongFront } from './war/theater';
+import { deployLine } from './war/armies';
 import { nextRand } from './rng';
 
 /** Claims: whole-country cores (the claimant regards the land as its own). */
@@ -25,7 +26,7 @@ export function setupScenario(w: World, S: MapStatic) {
   const rus = ci.RUS, ukr = ci.UKR; if (rus === undefined || ukr === undefined) return;
   const war = declareWar(w, S, rus, ukr, { silent: true, name: msg('war.name.rusukr') });
   war.aggr = [1.04, 0.98]; (war as any).lastChange = 0;
-  war.commit = { [rus]: 0.6, [ukr]: 0.85 }; // Russia keeps much of its army on its other borders
+  war.commit = { [rus]: 0.6, [ukr]: 0.95 }; // Russia keeps much of its army on its other borders; Ukraine is fully mobilised
   for (const t of theatersOf(w, war)) {
     for (let k = 0; k < t.W * t.H; k++) {
       if (!t.land[k]) continue; const p = t.prov[k]; if (w.provinces[p].owner !== ukr) continue;
@@ -48,6 +49,7 @@ export function setupScenario(w: World, S: MapStatic) {
     // each side starts with the share of its army the war AI would commit (attacker 60%, defender 85%); the rest is in reserve
     const mine = w.divisions.filter(d => (d.country === rus && nextRand(w) < 0.6) || (d.country === ukr && nextRand(w) < 0.85));
     deployAlongFront(w, t0, mine, () => nextRand(w));
-    for (const d of w.divisions) if ((d.country === rus || d.country === ukr) && d.theater === t0.id && !mine.includes(d)) d.theater = -1;
+    for (const d of w.divisions) if ((d.country === rus || d.country === ukr) && d.theater === t0.id && !mine.includes(d)) { d.theater = -1; d.goal = undefined; }
+    for (const c of [rus, ukr]) deployLine(w, t0, c); // each army takes one stretch of the line
   }
 }

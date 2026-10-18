@@ -1,0 +1,107 @@
+// Armies: the player picks one up and moves it (it holds the front there, or waits behind it), or sends it to attack.
+// Armies without orders follow their general: every side's generals share out the front between their armies (deployLine).
+// Divisions remember their army's order as a goal; the field does the rest (theater.ts, moveUnits).
+import { km } from '../../geo';
+import type { Army, Division, MapStatic, World } from '../types';
+import { cellLonLat, cellOf, provAtLonLat, T, work, type Theater } from './theater';
+import { activeWars, placeUnit, sideOf, theatersOf, withdraw } from './war';
+import { startOffensive } from './ai';
+
+export const armyDivs = (w: World, id: number) => w.divisions.filter(d => d.army === id);
+export type ArmyState = 'attack' | 'hold' | 'wait' | 'front' | 'home' | 'moving';
+/** Where an army is: the war zone holding most of its divisions (their centre), else the province where most of it is stationed. */
+export function armyWhere(w: World, S: MapStatic, a: Army) {
+  const ds = armyDivs(w, a.id); if (!ds.length) return null;
+  const byT = new Map<number, Division[]>(); for (const d of ds) if (d.theater >= 0) { const l = byT.get(d.theater) || []; l.push(d); byT.set(d.theater, l); }
+  const home = ds.filter(d => d.theater < 0);
+  let best: Division[] = [], tid = -1; for (const [t, l] of byT) if (l.length > best.length) { best = l; tid = t; }
+  const str = ds.reduce((s, d) => s + d.str, 0) / ds.reduce((s, d) => s + d.max, 0);
+  if (best.length && best.length >= home.length) {
+    const here = best.filter(d => d.arrive <= w.day), pts = here.length ? here : best;
+    const x = pts.reduce((s, d) => s + d.x, 0) / pts.length, y = pts.reduce((s, d) => s + d.y, 0) / pts.length;
+    const state: ArmyState = !here.length ? 'moving' : here.some(d => d.op) ? 'attack' : here.some(d => d.goal && !d.goal[2]) ? 'wait' : here.some(d => d.goal?.[2] === 1) ? 'hold' : 'front';
+    return { theater: tid, x, y, n: best.length, total: ds.length, str, state, divs: best };
+  }
+  const cnt = new Map<number, number>(); for (const d of home) cnt.set(d.prov, (cnt.get(d.prov) || 0) + 1);
+  const prov = [...cnt.entries()].sort((p, q) => q[1] - p[1])[0][0], [x, y] = S.provinces[prov].label;
+  return { theater: -1, x, y, n: home.length, total: ds.length, str, state: 'home' as ArmyState, divs: home, prov };
+}
+
+/** Spots for `n` divisions to hold, spread along our side of the front nearest a point (about 22 km apart), or null if the point is more than `frontKm` behind the front. */
+function frontSpots(t: Theater, side: number, x: number, y: number, n: number, frontKm: number): [number, number][] | null {
+  const wk = work(t), k0 = cellOf(t, x, y); if (k0 < 0 || wk.distF[k0] < 0 || wk.distF[k0] * t.cellKm > frontKm) return null;
+  const cand: [number, number, number][] = [];
+  for (let k = 0; k < t.W * t.H; k++) { if (!t.land[k] || !t.main[k] || wk.distF[k] < 1 || wk.distF[k] > 3 || t.c[k] * side < 0.5) continue; const [cx, cy] = cellLonLat(t, k), d = km(cx, cy, x, y); if (d < 400 + frontKm) cand.push([cx, cy, d]); }
+  cand.sort((a, b) => a[2] - b[2]);
+  const out: [number, number][] = [];
+  for (const [cx, cy] of cand) { if (out.length >= n) break; if (out.every(([ox, oy]) => km(ox, oy, cx, cy) > 22)) out.push([cx, cy]); }
+  while (out.length && out.length < n) out.push(out[out.length % Math.max(1, out.length)]);
+  return out.length ? out : null;
+}
+/** Send divisions to a point in a war zone: near the front they spread out to hold it, further back they wait in reserve.
+ *  Those far away go by rail (gone from the map until they arrive); those nearby march. */
+export function sendArmy(w: World, S: MapStatic, t: Theater, divs: Division[], x: number, y: number, frontKm = 80, mode = 1) {
+  const side = t.sideOf[divs[0].country], spots = frontSpots(t, side, x, y, divs.length, frontKm);
+  divs.forEach((d, i) => {
+    const [gx, gy] = spots ? spots[i] : [x, y];
+    d.op = 0; d.goal = [gx, gy, spots ? mode : 0];
+    if (d.theater !== t.id) { const [hx, hy] = d.theater < 0 ? S.provinces[d.prov].label : [d.x, d.y], dk = km(hx, hy, gx, gy); placeUnit(w, t, d, gx, gy, w.day + Math.round(3 + dk / (dk > 2500 ? 300 : 450))); }
+    else { const dk = km(d.x, d.y, gx, gy); if (dk > 200) placeUnit(w, t, d, gx, gy, w.day + Math.round(2 + dk / 450)); }
+  });
+}
+/** The player's generals split the front between the armies left to them (no order of the player's): each army takes one stretch of it,
+ *  in the order the armies stand along the front, with its divisions spread out, closer together where the enemy presses harder.
+ *  Done when a war opens (by rail: `rail`) and again every week (on foot), so the line follows the enemy's weight. */
+export function deployLine(w: World, t: Theater, c: number, rail = true) {
+  const side = t.sideOf[c], wk = work(t), divs = w.divisions.filter(d => d.country === c && d.theater === t.id && !d.op && (!d.goal || d.goal[2] === 2));
+  const own = side > 0 ? wk.P0 : wk.P1, foe = side > 0 ? wk.P1 : wk.P0;
+  const cells: [number, number][] = [], weight: number[] = [];
+  for (let k = 0; k < t.W * t.H; k++) if (t.land[k] && t.main[k] && wk.distF[k] >= 2 && wk.distF[k] <= 3 && t.c[k] * side >= 0.5) { cells.push(cellLonLat(t, k)); weight.push(1 + 3 * foe[k] / (own[k] + foe[k] + T.P0)); }
+  if (!divs.length || !cells.length) return;
+  // the front's long axis (principal direction of its cells), to order both the front and the armies along it
+  const cl = Math.cos(cells.reduce((s, p) => s + p[1], 0) / cells.length * Math.PI / 180);
+  const mx = cells.reduce((s, p) => s + p[0], 0) / cells.length, my = cells.reduce((s, p) => s + p[1], 0) / cells.length;
+  let sxx = 0, syy = 0, sxy = 0; for (const [x, y] of cells) { const dx = (x - mx) * cl, dy = y - my; sxx += dx * dx; syy += dy * dy; sxy += dx * dy; }
+  const th = 0.5 * Math.atan2(2 * sxy, sxx - syy), along = (x: number, y: number) => (x - mx) * cl * Math.cos(th) + (y - my) * Math.sin(th);
+  const order = cells.map((p, i) => i).sort((a, b) => along(...cells[a]) - along(...cells[b]));
+  const cum: number[] = []; let tot = 0; for (const i of order) { tot += weight[i]; cum.push(tot); }
+  const groups = new Map<number, Division[]>(); for (const d of divs) { const l = groups.get(d.army) || []; l.push(d); groups.set(d.army, l); }
+  const mean = (l: Division[]) => l.reduce((s, d) => s + along(d.x, d.y), 0) / l.length;
+  const ordered = [...groups.values()].sort((a, b) => mean(a) - mean(b)).flat();
+  let j = 0;
+  ordered.forEach((d, i) => {
+    const q = (i + 0.5) / ordered.length * tot; while (j < cum.length - 1 && cum[j] < q) j++;
+    const [gx, gy] = cells[order[j]];
+    d.goal = [gx, gy, 2]; const dk = km(d.x, d.y, gx, gy);
+    if (rail && dk > 200) placeUnit(w, t, d, gx, gy, w.day + Math.round(2 + dk / 450));
+  });
+}
+/** Stop an army's attack without the exhaustion of a finished one (the army has new orders). */
+function cancelAttack(w: World, id: number) {
+  for (const t of w.theaters) for (const o of t.offensives) if (!o.ended && o.army === id && o.order) { o.ended = w.day; for (const d of w.divisions) if (d.op === o.id) d.op = 0; }
+}
+/** An order for an army at a point on the map: our ground in a war zone = go there; enemy ground = attack it; one of our provinces elsewhere = station there.
+ *  Returns what it did, or why not (a message key). */
+export function orderArmy(w: World, S: MapStatic, id: number, lon: number, lat: number): { kind: 'move' | 'attack' | 'station' | null; err: string | null } {
+  const a = w.armies.find(x => x.id === id); const divs = a ? armyDivs(w, id) : [];
+  if (!a || !divs.length) return { kind: null, err: 'army.empty' };
+  const c = a.country;
+  for (const war of activeWars(w)) {
+    if (!sideOf(war, c)) continue;
+    for (const t of theatersOf(w, war)) {
+      const k = cellOf(t, lon, lat); if (k < 0 || !t.land[k] || t.frozen) continue;
+      const free = divs.filter(d => d.theater === t.id || d.theater < 0);
+      // the armies left in the line close up at once around the one that leaves it
+      if (t.c[k] * t.sideOf[c] > 0) { cancelAttack(w, id); sendArmy(w, S, t, free, lon, lat); deployLine(w, t, c, false); return { kind: 'move', err: null }; }
+      cancelAttack(w, id);
+      const err = startOffensive(w, S, t, c, [lon, lat], id); if (!err) deployLine(w, t, c, false);
+      return { kind: err ? null : 'attack', err };
+    }
+  }
+  const p = provAtLonLat(S, lon, lat); if (p < 0) return { kind: null, err: 'army.notOurs' };
+  const pr = w.provinces[p];
+  if (pr.owner !== c || pr.controller !== c) return { kind: null, err: activeWars(w).some(x => sideOf(x, c) * sideOf(x, pr.owner) === -1) ? 'army.noFront' : 'army.notOurs' };
+  cancelAttack(w, id);
+  for (const d of divs) { if (d.theater >= 0) withdraw(d); d.prov = p; }
+  return { kind: 'station', err: null };
+}

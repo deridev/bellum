@@ -453,6 +453,50 @@ The AI uses the same tools and the same rules: it strikes at 1.4 : 1 or better (
 - The AI sets its posture front by front; the player sets one for the whole war, which costs them on fronts where they are weaker.
 - A small country's reserve is small (a fifth of its commitment), so most of its strike force comes from the line around the jump-off point.
 
+## 17. Armies you command (October 2026)
+
+After §16 the verdict was still *"almost no gameplay; Age of History does this better."* The reason: the player never commanded anything. Armies existed (12 divisions under a general) but were bookkeeping. Their divisions were scattered over random border provinces, and the AI shuffled them one by one. The player's inputs were a posture dial and an occasional offensive. Age of History's loop is direct: pick up an army, see its number, move it, attack with it.
+
+**What the player does now**
+- **Armies are markers on the map**: a flag, the number of divisions, a strength bar, and an arrow while attacking. Click one to pick it up; its name shows above it.
+- **With an army picked up, the next click is its order**, previewed live as the pointer moves:
+  - **Our ground within 80 km of the front**: hold the front there, spread along it. Further back: wait there in reserve.
+  - **Enemy ground**: attack. The hint bar gives the verdict and the odds for that army ("Will stall · 12 divisions against 25 · defence ×1.8 · 0.4 : 1"). The whole army attacks, coming by rail if it is far, and reaches 150 km at most.
+  - **One of our provinces in peacetime**: station it there. An army stationed at the border goes straight to that front when war comes, so you can build up before you declare.
+- **Enemy divisions are gathered into red markers** where they mass, so you can see where a blow is coming.
+- **The War panel lists your armies** (what each is doing, size, strength); a click picks one up and pans to it. The Military desk's armies do the same.
+- **Reports**: an army's attack ends with a log line ("4th Army reached its objective, 140 km deep" or "ran out of momentum after 30 km").
+
+**What the generals do (for every side, the AI's and the player's)**
+- Armies stay together: an army is stationed in one province, and new divisions join an army waiting where they are raised (or form a new one).
+- When a war opens, the generals **split the front between the armies**: each takes one stretch, in the order the armies stand, its divisions spread along it. Every week the line is **re-balanced** (closer together where the enemy presses), and at once whenever an army leaves it or rejoins it. Armies under the player's orders keep them.
+- Free armies at home are sent whole to the weakest front, and rush to meet an enemy offensive.
+
+**Found while building it**
+| Found | Change |
+|---|---|
+| An idle player whose armies each held only their own stretch collapsed (Thailand −116k km² in 45 days): nothing answered the enemy's concentration | The generals' weekly line, weighted by enemy pressure |
+| The weekly line, given only to the player, was far better than the AI's one-by-one shuffling: an idle player conquered Myanmar | The same line for every side (decision 31) |
+| Organisation fell below zero out of supply, turning a starved army's strength negative: it pushed the front against itself | Organisation never drops below zero |
+| A division re-anchoring as the front advanced left its general's line for good | It keeps its mode |
+| The war lab's scripted commander, attacking every five days into empty ground, built a long salient and was encircled | Kept: over-extension is a real mistake. A careful commander does better |
+
+**Measured** (war lab, 240 days, mean of 4 seeds; the player attacks):
+
+| Strategy | Thailand vs Myanmar | Iran vs Pakistan |
+|---|---|---|
+| The AI plays | +43 | +73 |
+| Idle (generals only) | +80 | +26 |
+| Careful army attacks (cities or 2 : 1, rest between) | +50 | +37 |
+| Reckless army attacks (every 5 days at 1.5 : 1) | −50 | +58 |
+
+Wars are now more decisive and swing more, and how a war is commanded changes how it ends in both directions. Single runs range from +100 to −100. The Ukraine checks still hold: Kyiv holds and Ukraine keeps two thirds of its land in the first year, on the mean of three seeds (one seed swings ±15 points with the random stream, so the test checks the mean). Ukraine is now fully mobilised in the scenario (95%).
+
+### 17.1 Known issues
+- The army marker sits at the centre of its divisions; an army spread along a long stretch shows as one point.
+- Thailand's idle player (+80) still does better than the AI playing it (+43): the AI's offensives use its line badly.
+- There is no splitting or merging of armies yet, and no naval transport of armies.
+
 ---
 
 ## Decision log
@@ -487,3 +531,6 @@ The AI uses the same tools and the same rules: it strikes at 1.4 : 1 or better (
 | 27 | 2026-10-18 | **Reserves answer offensives**: the side being attacked sends its free reserve to meet the blow, for the AI and the player alike |
 | 28 | 2026-10-18 | **Show the odds before the click**: aiming shows the strike force, the defenders, their defence multiplier and a verdict; the War panel shows the line and the reserve |
 | 29 | 2026-10-18 | **The war score follows the front**: it counts the share of each province held and divisions lost outright, so every kilometre gained shows |
+| 30 | 2026-10-18 | **The player commands armies directly**: pick up a marker, click to hold, wait, station or attack, with a live preview and odds. The front stays continuous; armies are what the player moves on it (§17) |
+| 31 | 2026-10-18 | **Generals follow the same rules on every side**: armies stay whole, share out the front, re-balance it weekly and when an army leaves or rejoins it. The player's edge comes only from the orders they give |
+| 32 | 2026-10-18 | **Peacetime positioning matters**: armies are stationed in a province, and an army at the border goes to that front when war comes |
