@@ -182,4 +182,6 @@ export const es: Record<string, Entry> = {
   'agenda.daysLeft': { one: 'queda {n} día', other: 'quedan {n} días' }, 'led.gdpFell': 'La economía cae {p}',
   'pol.coupLine': 'Riesgo de golpe bajo 30%', 'agenda.proposals': '{n} propuestas', 'agenda.acceptAll': 'Aceptar todas', 'agenda.declineAll': 'Rechazar todas',
   'mil.armyCols': 'Divisiones · suministro',
+  'agenda.peaceIn': 'Paz · {n}d', 'eco.net': 'Neto', 'eco.inOut': 'entra {i} · sale {o}', 'mil.moreArmies': { one: '{n} ejército más', other: '{n} ejércitos más' }, 'mil.inArmies': '{n} de {total} divisiones en ejércitos', 'led.barOf': '· barra: {m}', 'led.pinHint': 'Eventos numerados, marcados en cada gráfico',
+  'dip.needMore': 'Faltan {n}',
 };

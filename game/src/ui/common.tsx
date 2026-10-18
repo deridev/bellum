@@ -177,7 +177,7 @@ function smooth(p: number[][]) {
   return s;
 }
 /** Round numbers for an axis between lo and hi. */
-function ticks(lo: number, hi: number, n = 4) {
+function ticks(lo: number, hi: number, n = 5) {
   if (hi - lo < 1e-9) { hi = lo + 1; }
   const raw = (hi - lo) / n, mag = Math.pow(10, Math.floor(Math.log10(raw))), step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw)!;
   const a = Math.floor(lo / step) * step, out: number[] = [];
@@ -220,7 +220,7 @@ export function LineChart({ series, xs, fmtX, fmtY, height = 180, zero, marks = 
       {labels && ends.map(({ s, y, label }) => <g key={s.id}>{Math.abs(y - Y(s.values[n - 1])) > 3 && <line x1={L + w + 4} x2={L + w + 9} y1={Y(s.values[n - 1])} y2={y} stroke={s.color} stroke-width="1.5" />}<text x={L + w + 12} y={y + 4} class="end-label">{label}</text></g>)}
       {hi !== null && <g><line x1={hx} x2={hx} y1={T} y2={T + h} class="cross" />{series.map(s => <circle key={s.id} cx={hx} cy={Y(s.values[hi])} r="4" fill={s.color} class="end-dot" />)}</g>}
     </svg>
-    {hi !== null && <div class={`chart-tip ${labels ? '' : 'above'}`} style={labels ? (hx > L + w / 2 ? { left: L + 6 } : { right: R + 6 }) : undefined}><b>{fmtX(xs[hi])}</b>{pins.filter(m => m.i === hi).map((m, k) => <em key={k}>{m.n}. {m.label}</em>)}
+    {hi !== null && <div class={`chart-tip ${labels ? '' : 'above'}`} style={(() => { const mid = series[0].values[hi], top = Y(mid) > T + h / 2; return labels ? (hx > L + w / 2 ? { left: L + 6 } : { right: R + 6 }) : { [hx > L + w / 2 ? 'left' : 'right']: hx > L + w / 2 ? L + 8 : R + 8, top: top ? T + 2 : T + h - 30 }; })()}><b>{fmtX(xs[hi])}</b>{pins.filter(m => m.i === hi).map((m, k) => labels || m.minor ? <em key={k}>{m.n}. {m.label}</em> : <em key={k} class="pin-n">◆{m.n}</em>)}
       {series.slice().sort((a, b) => b.values[hi] - a.values[hi]).map(s => { const d = hi > 0 ? s.values[hi] - s.values[hi - 1] : 0; return <span key={s.id}><i style={{ background: s.color }} />{labels ? s.label : ''}<b class="num">{fmtY(s.values[hi])}</b>{hi > 0 && <small class={`num ${(d > 0) !== !!invert ? 'up' : 'dn'} ${d === 0 ? 'flat' : ''}`}>{d > 0 ? '▴' : d < 0 ? '▾' : '·'}{d ? fmtY(Math.abs(d)) : ''}</small>}</span>; })}</div>}
   </div>;
 }

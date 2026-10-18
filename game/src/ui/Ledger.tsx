@@ -83,7 +83,7 @@ function Overview({ g }: { g: Game }) {
       {kpi('military', t('mil.divisions'), fmtInt(g.series('divisions').at(-1) ?? 0), since(g.series('divisions').at(-1) ?? 0, first?.divisions, fmtInt), 'divisions')}
       {kpi('political', t('led.col.provinces'), fmtInt(provs.at(-1) ?? 0), since(provs.at(-1) ?? 0, provs[0], fmtInt), 'provinces')}
     </div>
-    {marks.length > 0 && <ol class="pin-legend">{marks.map(m => <li key={m.n}><i>{m.n}</i><time>{fmtDate(g.w, m.x, 'month')}</time><span>{m.label}</span></li>)}</ol>}
+    {marks.length > 0 && <ol class="pin-legend" title={t('led.pinHint')}>{marks.map(m => <li key={m.n}><i>{m.n}</i><time>{fmtDate(g.w, m.x, 'month')}</time><span>{m.label}</span></li>)}</ol>}
     {xs.length < 2 ? <p class="no-history">{t('led.noHistory')}</p> : <div class="cells">
       {chart('gdp', t('stat.gdp'))}{chart('debt', t('eco.debt'))}{chart('casualties', t('war.casualties'))}
       {chart('manpower', t('ledger.manpower'))}{chart('stability', t('ledger.stability'))}{chart('warSupport', t('ledger.warSupport'))}
@@ -113,7 +113,7 @@ function Rankings({ g }: { g: Game }) {
   const mine = rows.findIndex(r => r.id === me), TOP = 11, shown = rows.slice(0, TOP);
   if (mine >= TOP) shown.push(...rows.slice(Math.max(TOP, mine - 2), mine + 3)); // you and two neighbours each side
   return <table class="rank">
-    <thead><tr><th class="r-n">#</th><th class="r-mv" data-tip={t('led.moved')}><Icon name="up" size={9} /></th><th class="r-name">{t('led.nation')}</th>{COLS.map(k => <th key={k} class={`r-col ${by === k ? 'on' : ''}`} data-tip={t('led.tip.' + k)}><button onClick={() => setBy(k)} aria-pressed={by === k}><Icon name={COL_ICON[k]} size={14} />{t('led.col.' + k)}<Icon name={by === k ? 'down' : 'flat'} size={9} /></button></th>)}</tr></thead>
+    <thead><tr><th class="r-n">#</th><th class="r-mv" data-tip={t('led.moved')}><Icon name="up" size={9} /></th><th class="r-name">{t('led.nation')} <span class="r-barh">{t('led.barOf', { m: t('led.col.' + by) })}</span></th>{COLS.map(k => <th key={k} class={`r-col ${by === k ? 'on' : ''}`} data-tip={t('led.tip.' + k)}><button onClick={() => setBy(k)} aria-pressed={by === k}><Icon name={COL_ICON[k]} size={14} />{t('led.col.' + k)}<Icon name={by === k ? 'down' : 'flat'} size={9} /></button></th>)}</tr></thead>
     <tbody>{shown.map(r => { const i = rows.indexOf(r), war = enemies(g.w, me, r.id), ally = r.id !== me && allied(g.w, me, r.id);
       return <tr key={r.id} class={`${r.id === me ? 'me' : ''} ${i >= TOP && rows.indexOf(shown[shown.indexOf(r) - 1]) !== i - 1 ? 'gap' : ''}`} onClick={() => g.openPanel(r.id === me ? { kind: 'politics' } : { kind: 'country', id: r.id })}>
         <td class="r-n num">{i + 1}</td><td class="r-mv num">{(() => { const m = moved(r.id); return m ? <span class={m > 0 ? 'good' : 'bad'}><Icon name={m > 0 ? 'up' : 'down'} size={9} />{Math.abs(m)}</span> : null; })()}</td>
