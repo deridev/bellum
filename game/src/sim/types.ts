@@ -64,6 +64,7 @@ export interface War {
   aggr: [number, number]; // how hard each side pushes (set by AI/player postures)
   exhaustion: [number, number]; casualties: [number, number]; theaters: number[]; ended: number;
   commit?: Record<number, number>; // share of its army a country sends to this war (players choose; AI decides by role)
+  plan?: Record<number, { at: [number, number]; r: number; w: number; until: number }>; // a general staff's war plan: where its lines are weighted heavier (km radius, weight), until a day
   lost?: [number, number]; // divisions each side has lost outright (destroyed, or captured in a pocket)
   winner?: 1 | -1 | 0; // set when it ends: the side that dictated the peace (0: white peace or ceasefire)
   total?: boolean; // a world war: the great powers fight it out rather than settle early

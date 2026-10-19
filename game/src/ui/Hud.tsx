@@ -4,9 +4,9 @@ import { useStore, useTick } from '../game/store';
 import { atWar, cashFlow, popOf, UNIT_SPEC, queueUnit, cancelUnit, demobilize, reservesOf } from '../sim/economy';
 import { enactPolicy, POLICIES, policyOdds, type PolicyId } from '../sim/policies';
 import { groupMood, stabilityTarget } from '../sim/politics';
-import { DIPLO, diploOdds, type DiploAction } from '../sim/diplomacy';
+import { DIPLO, diploCost, diploOdds, type DiploAction } from '../sim/diplomacy';
 import { type Conscription, type Country, type LogEntry, type UnitType, type War } from '../sim/types';
-import { CONSCRIPTION_GROWTH, CONSCRIPTION_RATE, rel } from '../sim/world';
+import { CONSCRIPTION_GROWTH, CONSCRIPTION_RATE, rel, unitReady } from '../sim/world';
 import { armyName, countryName, fmtDate, has, provName, provState, say, t, unitName, onLang } from '../i18n';
 import { HoverTip } from './App';
 import { Bar, Block, Delta, Flag, Icon, IconBtn, MoreFooter, Ring, Sheet, SignedBar, Slider, Spark, StackBar, UnitSymbol, useMore } from './common';
@@ -233,7 +233,7 @@ function EconomyPanel({ g }: { g: Game }) {
   return <NationSheet g={g} kind="economy" fig={<RibbonFig label={t('eco.gdpRank')} v={`#${g.w.countries.filter(x => x.alive && x.gdp > c.gdp).length + 1}`} />} cols={[<>
     <div class="figures three">
       <Figure icon="gdp" label={t('led.col.gdp')} value={fmtMoney(c.gdp)} spark={g.series('gdp')} sub={(() => { const s = g.series('gdp'), a = s[Math.max(0, s.length - 13)], r = a ? c.gdp / a - 1 : 0; return <span class={r < 0 ? 'bad' : 'good'}><Icon name={r < 0 ? 'trendDown' : 'trend'} size={13} /> {t('eco.perYear', { v: (r > 0 ? '+' : '') + pct(r) })}</span>; })()} />
-      <Figure icon="treasury" label={t('ledger.treasury')} value={fmtMoney(c.treasury)} spark={g.series('treasury')} sub={<span class="tr-sub"><b class={moneyDelta(bal)[1]}>{moneyDelta(bal)[0]}{moneyDelta(bal)[1] && t('hud.perMo')}</b><small class="muted">{t('eco.net')}</small></span>} />
+      <Figure icon="treasury" label={t('ledger.treasury')} value={fmtMoney(c.treasury)} spark={g.series('treasury')} sub={<span class="tr-sub"><b class={moneyDelta(bal)[1]}>{moneyDelta(bal)[0]}<wbr />{moneyDelta(bal)[1] && t('hud.perMo')}</b><small class="muted">{t('eco.net')}</small></span>} />
       <Figure icon="trendDown" label={t('eco.debt')} value={pct(debt)} spark={g.series('debt')} tone={debt > 1 ? 'bad' : debt > 0.8 ? 'warn' : ''} sub={<span class="muted">{fmtMoney(c.debt)}</span>} />
     </div>
     {(debt > 0.8 || (bal < 0 && c.treasury <= 0)) && <div class={`debt-row ${debt > 0.8 ? 'danger' : 'warn'}`}><Icon name="coup" size={20} /><small>{debt > 1.2 && bal < 0 && c.treasury <= 0 ? `${t('eco.debtHigh')} · ${t('eco.borrowingNow', { v: fmtMoney(-bal) })}` : t(debt > 1.2 ? 'eco.debtHigh' : bal < 0 && c.treasury <= 0 ? 'eco.debtBorrowing' : 'eco.debtMid', { v: fmtMoney(-bal) })}</small>
@@ -332,7 +332,7 @@ function MilitaryPanel({ g }: { g: Game }) {
   return <NationSheet g={g} kind="military" fig={(() => { const sup = g.w.armies.filter(a => a.country === c.id).map(a => { const ds = divs.filter(d => d.army === a.id); return ds.length ? ds.reduce((x, d) => x + supOf(d), 0) / ds.length : 1; }), lo = sup.length ? Math.min(...sup) : 1;
       return <RibbonFig label={t('mil.weakestSupply')} v={pct(lo)} tone={lo < 0.5 ? 'bad' : ''} />; })()} cols={[<>
     <Block title={t('mil.forces')} icon="military" aside={<span class="muted"><span data-tip={t('army.equipHint')}>{t('army.equip', { x: fmt1(c.quality ?? 1) })}</span> · {t('mil.atFront')} <b class="num">{fmtInt(front)}/{fmtInt(divs.length)}</b> · <span class={free <= 0 ? 'bad' : ''}>{t('mil.fundsShort')} {t('eco.perMonth', { v: fmtMoney(free) })}</span></span>}>
-      <div class="forces">{(Object.keys(UNIT_SPEC) as UnitType[]).map(k => { const s = UNIT_SPEC[k], queued = c.production.filter(p => p.type === k).length;
+      <div class="forces">{(Object.keys(UNIT_SPEC) as UnitType[]).filter(k => unitReady(g.w, k) || byType[k]).map(k => { const s = UNIT_SPEC[k], queued = c.production.filter(p => p.type === k).length;
         return <div key={k} class={`force u-${k}`}><UnitSymbol type={k} size={36} /><span class="f-t"><b class="num">{byType[k] || 0}{queued > 0 && <small class="f-q">+{queued}</small>}</b><span>{t('unitShort.' + k)}</span><small class="num">{fmtMoney(c.unitCost * s.costMul)} · {s.days}d</small></span>
           <button class="f-dis" aria-label={t('mil.demobilize')} data-tip={t('mil.demobilize')} disabled={!reservesOf(g.w, c, k).length} onClick={() => { if (demobilize(g.w, c, k)) { upd(); g.sound('click'); } }}>−</button>
           <button class={`f-build ${free <= 0 ? 'warn' : ''}`} aria-label={t('mil.buildOne', { u: t('unitShort.' + k) })} data-tip={free <= 0 ? t('mil.noFundsWait') : t('mil.cost', { v: fmtMoney(c.unitCost * s.costMul), d: s.days, m: fmtBig(s.men) })} disabled={c.manpower < s.men} onClick={() => { const e = queueUnit(g.w, c, k); setNote(e ? t('mil.noManpower') : t('mil.queued', { u: t('unitShort.' + k) })); upd(); g.sound('click'); }}><Icon name="improve" size={14} />{t('mil.build')}</button></div>; })}</div>
@@ -428,7 +428,7 @@ function CountryPanel({ g, id }: { g: Game; id: number }) {
     </div>
     {c.alive && id !== me && !war && <Block title={t('panel.diplomacy')} icon="diplomacy">
       <div class="action-grid">{shown.map(a => { const o = diploOdds(w, me, id, a, g.S);
-        const cost = DIPLO[a].cost, poor = cost > g.me.polCap;
+        const cost = diploCost(w, id, a), poor = cost > g.me.polCap;
         return <button key={a} class={`act ${a === 'denounce' || a === 'break' || a === 'demand' || a === 'claim' || a === 'subvert' ? 'hostile' : ''} ${o.ok ? 'ok' : ''} ${focus === a ? 'focus' : ''}`} aria-disabled={!o.ok}
           onMouseEnter={() => setFocus(a)} onFocus={() => setFocus(a)} onClick={() => { if (o.ok) { g.diplo(id, a); force(x => x + 1); } else setFocus(a); }}>
           <Icon name={a} size={20} /><span class="act-l">{t('dip.act.' + a)}{cost ? <small class={`act-c num ${poor ? 'poor' : ''}`}><Icon name="influence" size={12} />{poor ? t('dip.needMore', { n: Math.ceil(cost - g.me.polCap) }) : t('dip.costOf', { n: cost, have: fmtInt(g.me.polCap) })}</small> : null}</span>{!o.ok && <i class="act-s bad"><Icon name="cross" size={12} /></i>}</button>; })}</div>

@@ -73,7 +73,7 @@ export function createWorld(S: MapStatic, opts: { seed?: number; player?: number
     c.unitCost = Math.max(2, milMonthly * 0.7 / nDiv);
     const coastal = provsOf[i].some(p => S.provinces[p].coastal);
     const mixOf = TB.mix?.[code] ?? (TB.mix ? [0.02, 0.03] : [0.08 + 0.12 * rich, 0.12 + 0.2 * rich]);
-    const mix: [UnitType, number][] = [['armor', mixOf[0]], ['mechanized', mixOf[1]], ['marines', coastal && nDiv > 15 ? 0.05 : 0], ['airborne', nDiv > 25 ? 0.04 : 0]];
+    const mix = ([['armor', mixOf[0]], ['mechanized', mixOf[1]], ['marines', coastal && nDiv > 15 ? 0.05 : 0], ['airborne', nDiv > 25 ? 0.04 : 0]] as [UnitType, number][]).filter(([u]) => unitReady(w, u));
     const border = provsOf[i].filter(p => S.provinces[p].nbr.some(n => w.provinces[n].owner !== i));
     const counts: Record<string, number> = {};
     const armies: Army[] = []; let station = c.capital;
@@ -126,3 +126,6 @@ export function say(w: World, m: Msg, kind: World['log'][number]['kind'], extra:
 }
 export const provincesOf = (w: World, c: number) => w.provinces.filter(p => p.owner === c);
 export const divisionsOf = (w: World, c: number) => w.divisions.filter(d => d.country === c);
+/** The year each kind of division first exists: the armies of 1914 march on foot. */
+export const UNIT_YEAR: Record<UnitType, number> = { infantry: 0, armor: 1917, marines: 1920, mechanized: 1930, airborne: 1936 };
+export const unitReady = (w: World, u: UnitType) => new Date(w.startDate + w.day * 864e5).getUTCFullYear() >= UNIT_YEAR[u];

@@ -29,14 +29,16 @@ export const KINDS: Record<string, Kind> = {
   reclaim: { days: 1095, reward: { polCap: 50, stability: 0.05, warSupport: 0.1 }, make: (w, c) => { const p = w.provinces.find(p => p.owner !== c.id && p.core.includes(c.id) && w.countries[p.owner].alive); return p ? { base: 0, target: 1, prov: p.id } : null; }, value: (w, c, m) => w.provinces[m.prov!].owner === c.id ? 1 : 0 },
   stability: { days: 365, reward: { polCap: 30 }, make: (w, c) => c.stability < 0.62 ? { base: c.stability, target: Math.min(0.8, c.stability + 0.1) } : null, value: (w, c) => c.stability, shown: m => Math.round(m.target * 100) },
   debt: { days: 1095, reward: { polCap: 30, stability: 0.03 }, make: (w, c) => { const r = c.debt / Math.max(1, c.gdp); return r > 0.6 ? { base: -r, target: -(r - 0.1) } : null; }, value: (w, c) => -c.debt / Math.max(1, c.gdp), shown: m => Math.round(-m.target * 100) },
-  savings: { days: 540, reward: { polCap: 20, stability: 0.02 }, make: (w, c) => c.treasury < c.income * 3 && c.income > 0 ? { base: c.treasury / c.income, target: Math.ceil(c.treasury / c.income + 1.5) } : null, value: (w, c) => c.treasury / Math.max(1e-9, c.income), shown: m => m.target },
+  savings: { days: 720, reward: { polCap: 20, stability: 0.02 }, make: (w, c) => c.treasury < c.income * 3 && c.income > 0 ? { base: c.treasury / c.income, target: Math.ceil(c.treasury / c.income + 1) } : null, value: (w, c) => c.treasury / Math.max(1e-9, c.income), shown: m => m.target },
   surpass: { days: 1440, reward: { polCap: 60, stability: 0.03, warSupport: 0.05 },
     make: (w, c, nb) => { const me = power(w, c.id); const k = [...nb].find(n => w.countries[n].alive && rel(w, c.id, n) < 10 && power(w, n) > me && power(w, n) < me * 1.6); return k !== undefined ? { base: me / power(w, k), target: 1, other: k } : null; },
     value: (w, c, m) => power(w, c.id) / Math.max(1e-9, power(w, m.other!)) },
 };
 const MAX = 3;
 /** The mission's name, for cards and the missions list. */
-export const missionTitle = (m: Mission, c: Country): Msg => msg('mission.' + m.kind, { n: KINDS[m.kind].shown?.(m, c) ?? 0, ...(m.other !== undefined ? { o: { c: m.other } } : {}), ...(m.prov !== undefined ? { p: { p: m.prov } } : {}) });
+export const missionTitle = (m: Mission, c: Country): Msg => msg('mission.' + m.kind, { n: KINDS[m.kind].shown?.(m, c) ?? 0, p: savingRate(m), ...(m.other !== undefined ? { o: { c: m.other } } : {}), ...(m.prov !== undefined ? { p: { p: m.prov } } : {}) });
+/** savings: the surplus, as a share of revenue each month, that reaches the goal in time */
+const savingRate = (m: Mission) => m.kind === 'savings' ? Math.max(1, Math.ceil((m.target - m.base) / Math.max(1, (m.until - m.start) / 30) * 100)) : 0;
 const rewardMsg = (k: Kind): Msg => { const parts = Object.entries(k.reward).map(([r, v]) => msg('mr.' + r, { v: r === 'polCap' ? v : Math.round(v * 100) })); return msg('mission.reward' + parts.length, { t: Math.round(k.days / 30), r1: { m: parts[0] }, ...(parts[1] ? { r2: { m: parts[1] } } : {}), ...(parts[2] ? { r3: { m: parts[2] } } : {}) }); };
 /** For missions counted in whole things (divisions, levels, treaties): where the country stands and the goal. */
 export function missionCount(w: World, c: Country, m: Mission): [number, number] | null { return m.kind === 'army' || m.kind === 'tech' || m.kind === 'trade' ? [KINDS[m.kind].value(w, c, m), m.target] : null; }

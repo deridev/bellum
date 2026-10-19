@@ -615,6 +615,42 @@ The 1914 and 1939 owners are assigned as before (by each region's label point); 
 
 ---
 
+## 23. History that holds (critic round 3, October 2026)
+
+A harsh critic played round 3 and rejected it at 7/10. Three things were wrong; everything else was polish.
+
+**1914 ran backwards.** France advanced into Germany, Belgium was never invaded, and the war ended in mid-1917. Causes, and what changed:
+
+| Cause | Change |
+|---|---|
+| Every front started fully dug in, so nobody moved in 1914 | 1914 opens as a war of movement: the trench-era defence (now ×1.8) and the half-speed fronts build up over the first 100 days |
+| The French and German armies both massed on one point near Luxembourg | Historical deployments: Germany's right wing at Aachen, France's Plan XVII in Lorraine, the British at Mons |
+| The Franco-German border was open ground | It is a line of fortresses on both sides (Metz–Strasbourg, Verdun–Belfort); only Belgium is open |
+| Each general spread its divisions along the whole front in proportion to the enemy, so Germany's western mass drained east | A war plan: the German staff weights the West ×9 until 1919 (`war.plan`) |
+| Every allied nation answered an offensive with 60% of the attackers, Russia included | The side answers once (60% in all), nearest nations first; capitals over 1,500 km away keep their reserves |
+| A side outnumbered overall went to Hold, which also weakened its own offensives | Inside an offensive's corridor the attack is always all-out |
+| Attacking divisions spread 22 km apart | They mass at half that |
+| Aircraft gave the Entente a 25% edge in 1914 | Before 1918 air power counts a quarter |
+| Tanks, mechanized and airborne divisions in 1914 | Unit types arrive in their years: armour 1917, marines 1920, mechanized 1930, airborne 1936 |
+
+The opening is history's: two days in, each German army nearest Liège, Namur and the Ardennes strikes. **Breakthroughs** follow when the opening battle is won: if Germany holds Liège between days 18 and 40, Brussels falls and the Belgians fall back on Antwerp and the Yser; if it then holds Namur by day 60, the Great Retreat takes the Allies to the Aisne. A breakthrough claims the ground, the beaten armies fall back in disorder (organisation halved), the victors move up into the new line and dig in. If the defence holds the key point, nothing happens.
+
+A smaller member of a world war fights on while any of its homeland is free, and in the trench war (before 1918) while its army is still in the field: Belgium never capitulated. On 11 November 1918 (checked monthly to June 1919) the Central Powers ask for an armistice if they are losing (score −20, exhaustion 0.6) or worn out (exhaustion 0.85, not clearly winning). A German player gets it as a peace offer.
+
+**1939: an idle Germany collapsed** to a Polish uprising. Uprisings now never break out while the conqueror's troops stand on the land or while it fights a world war; the militia is sized by population (a division per 1.5 million, 1–12); an uprising war can only win its own freedom, never the conqueror's land. Fall Gelb and Barbarossa got breakthroughs too (Sedan → the Channel → Paris → the armistice, which ends France's war; Minsk → Smolensk and Kyiv), counted from the day the invasion began, so a player who answers the card late is not cheated.
+
+An engine bug surfaced: a new front of a war could get its own theater **overlapping** an existing one. Two fields on the same ground meant a Soviet army walked through an empty copy of Germany. A new front now enlarges the theater it touches (if the union fits 44°×30°) or is clipped to keep clear of it, and a theater never grows into another. Armies are sent only to fronts within 2,500 km of home or on their own land (the far ones only when there is no other): no more Soviet divisions in Lagos.
+
+**Peacetime 2026 was thin.** Ambitious AIs go to war more often (about 3 new wars a year), not for two years after a world war; events come more often (one every month). The savings mission says what it takes ("Borrowing at −6%") and leaves 24 months.
+
+Smaller fixes: claims cost 35 influence plus 4 per province of the target (up to 155); every town of a homeland supplies what is near it (250 km, 75%), so armies at the border no longer starve; a sum of money never breaks across lines; place names in Brazilian Portuguese (Stuttgart, Nuremberg, Bonn, Rouen) and compass names say what they are ("Província Oriental"); fewer flags on crowded fronts.
+
+### 23.1 Known issues
+- Breakthroughs are scripted on the historical lines; a player who wins the opening some other way gets no breakthrough of their own.
+- The Entente slowly pushes the 1914 front back east over 1915–17 in most runs.
+
+---
+
 ## Decision log
 | # | Date | Decision |
 |---|---|---|
@@ -661,3 +697,5 @@ The 1914 and 1939 owners are assigned as before (by each region's label point); 
 | 41 | 2026-10-18 | **The world changes by itself**: annexed nations rise again, rivalries build, history's timeline brings nations into the great wars |
 | 42 | 2026-10-18 | **A nation's generals defend its own fronts first**; railheads supply the homeland; nations surrender when their homeland falls, not their empire |
 | 43 | 2026-10-19 | **Provinces are regions around cities**: big states with several cities are cut into nearest-city regions (§22) |
+| 44 | 2026-10-19 | **History's great breakthroughs are moments, conditional on the battle that opens them** (Liège, Sedan, Minsk); the field engine handles the rest (§23) |
+| 45 | 2026-10-19 | **Two theaters of one war never cover the same ground**; armies go to fronts near home |

@@ -160,7 +160,7 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 .emblem { background: transparent; border: 0; border-radius: 0; padding: 0 16px 0 12px; gap: 12px; min-width: 0; }
 .emblem:hover:not(:disabled) { background: var(--raise); }
 .emblem .flag { box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6), 0 0 0 3px var(--slate), 0 0 0 4.5px var(--brass); }
-.em-name { font: 700 22px/1 var(--display); letter-spacing: 0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+.em-name { font: 700 22px/1 var(--display); letter-spacing: 0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 170px; }
 .res { display: flex; flex: 1; justify-content: space-evenly; align-items: stretch; padding: 0 4px; overflow-x: auto; scrollbar-width: none; min-width: 0; } .strip-l { flex: 1; }
 .res-cell { background: transparent; border: 0; border-radius: 0; padding: 0 12px; gap: 10px; flex: none; }
 .res-cell:hover:not(:disabled) { background: var(--raise); }
@@ -554,7 +554,7 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 /* policies: three to a row; demobilize sits beside build */
 .act-c.gain { color: var(--green); }
 /* the treasury's net line wraps under its figure instead of running into the next one */
-.fig-sub > .tr-sub { flex-wrap: wrap; white-space: normal; column-gap: 4px; } .tr-sub > * { white-space: nowrap; }
+.fig-sub > .tr-sub { flex-wrap: wrap; white-space: normal; column-gap: 4px; } .tr-sub > * { white-space: nowrap; } .figures.three .tr-sub > b { white-space: normal; }
 .f-dis { width: 32px; height: 32px; padding: 0; justify-content: center; font: 700 18px/1 var(--display); color: var(--mute); }
 .f-dis:disabled { opacity: 0.35; }
 

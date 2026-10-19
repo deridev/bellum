@@ -4,8 +4,8 @@ import { nextRand } from '../rng';
 import type { Division, MapStatic, War, World } from '../types';
 import { msg } from '../types';
 import { say } from '../world';
-import { acceptsPeace, activeWars, heldDemand, makePeace, placeUnit, sendToTheater, sideOf, theatersOf, type PeaceTerms } from './war';
-import { baseDef, cellLonLat, cellOf, offensiveTip, T, unitPower, work, type Offensive, type Theater } from './theater';
+import { acceptsPeace, activeWars, heldDemand, makePeace, placeUnit, planWeight, sendToTheater, sideOf, theatersOf, type PeaceTerms } from './war';
+import { baseDef, cellLonLat, cellOf, offensiveTip, T, TRENCH_ERA_DEF, unitPower, work, type Offensive, type Theater } from './theater';
 import { deployLine, sendArmy } from './armies';
 import { landingPlan, launchLanding, seaShare } from './landing';
 
@@ -76,33 +76,44 @@ function reinforce(w: World, S: MapStatic, war: War, c: number, ths: Theater[]) 
   if (w.countries[c].player) { sendHomeArmy(w, S, ths, c); return; }
   const reserves = mine.filter(d => d.theater < 0);
   const batch = Math.min(want, Math.max(2, Math.ceil(mine.length / 20)), reserves.length);
+  const fronts = reachable(w, S, c, ths);
   for (let i = 0; i < batch; i++) {
     const d = reserves[i];
     // pick the theater where our side is weakest
     let best: Theater | null = null, bestR = Infinity;
-    for (const t of ths) { const s = theaterStrength(w, t), side = t.sideOf[c]; if (!side) continue; const r = side > 0 ? s[0] / Math.max(1, s[1]) : s[1] / Math.max(1, s[0]); if (r < bestR) { bestR = r; best = t; } }
+    for (const t of fronts) { const s = theaterStrength(w, t), side = t.sideOf[c]; if (!side) continue; const r = side > 0 ? s[0] / Math.max(1, s[1]) : s[1] / Math.max(1, s[0]); if (r < bestR) { bestR = r; best = t; } }
     if (best) sendToTheater(w, S, d, best);
   }
 }
 /** The player's generals move whole armies: the largest army still at home goes to where our side is weakest. */
+/** The fronts a nation sends its armies to: near home (2500 km of its capital) or on its own land; the far ones only if it has no other. */
+function reachable(w: World, S: MapStatic, c: number, ths: Theater[]) {
+  const [cx, cy] = S.provinces[w.countries[c].capital].label;
+  const near = ths.filter(t => km(cx, cy, t.lon0 + t.W * t.cw / 2, t.lat0 - t.H * t.ch / 2) < 2500 || t.prov.some(p => p >= 0 && w.provinces[p]?.owner === c));
+  return near.length ? near : ths;
+}
 function sendHomeArmy(w: World, S: MapStatic, ths: Theater[], c: number) {
   const home = new Map<number, Division[]>(); for (const d of w.divisions) if (d.country === c && d.theater < 0) { const l = home.get(d.army) || []; l.push(d); home.set(d.army, l); }
   const divs = [...home.values()].sort((a, b) => b.length - a.length)[0]; if (!divs) return;
   let best: Theater | null = null, bestR = Infinity;
-  for (const t of ths) { const s = theaterStrength(w, t), side = t.sideOf[c]; if (!side) continue; const r = side > 0 ? s[0] / Math.max(1, s[1]) : s[1] / Math.max(1, s[0]); if (r < bestR) { bestR = r; best = t; } }
+  for (const t of reachable(w, S, c, ths)) { const s = theaterStrength(w, t), side = t.sideOf[c]; if (!side) continue; const r = side > 0 ? s[0] / Math.max(1, s[1]) : s[1] / Math.max(1, s[0]); if (r < bestR) { bestR = r; best = t; } }
   if (!best || !sendToTheater(w, S, divs[0], best)) return;
   sendArmy(w, S, best, divs, divs[0].x, divs[0].y, 80, 2);
 }
-/** Reserves answer an enemy offensive: each country on the other side sends free reserves (6 for every 10 attackers) to meet it, by rail. */
+/** Reserves answer an enemy offensive: the other side sends free reserves (6 for every 10 attackers) to meet it, by rail, from the nations
+ *  nearest the blow first; a nation whose homeland is far away (1500 km and more) keeps its reserves for its own fronts. */
 function parry(w: World, S: MapStatic, t: Theater, o: Offensive) {
   o.met = 1;
   const attackers = w.divisions.filter(d => d.op === o.id).length, wk = work(t);
-  for (const c of Object.keys(t.sideOf).map(Number)) {
-    if (t.sideOf[c] !== -o.side) continue;
+  const away = (c: number) => { const [x, y] = S.provinces[w.countries[c].capital].label; return km(x, y, o.from[0], o.from[1]); };
+  let need = Math.ceil(attackers * 0.6);
+  for (const c of Object.keys(t.sideOf).map(Number).filter(c => t.sideOf[c] === -o.side).sort((a, b) => away(a) - away(b))) {
     deployLine(w, t, c, false); // its generals close up toward the blow at once
-    const war = w.wars.find(x => x.id === t.war)!, need = Math.ceil(attackers * 0.6);
+    if (need <= 0 || away(c) > 1500) continue;
+    const war = w.wars.find(x => x.id === t.war)!;
     // the player's armies go whole: those at home and those waiting in reserve behind this front, nearest first
     const res = w.countries[c].player ? playerReserves(w, t, c, o.from, need) : warReserve(w, war, c).slice(0, need); if (!res.length) continue;
+    need -= res.length;
     // our ground just behind the front, nearest where the blow will land
     const [ax, ay] = o.from; let best = -1, bd = Infinity;
     for (let k = 0; k < t.W * t.H; k += 2) { if (!t.land[k] || wk.distF[k] < 2 || wk.distF[k] > 4 || t.c[k] * o.side > -0.6) continue; const [x, y] = cellLonLat(t, k), d = km(x, y, ax, ay); if (d < bd) { bd = d; best = k; } }
@@ -138,7 +149,7 @@ export function commitShare(w: World, war: War, c: number) {
 function redeploy(w: World, S: MapStatic, t: Theater, c: number) {
   const side = t.sideOf[c], wk = work(t), own = side > 0 ? wk.P0 : wk.P1, foe = side > 0 ? wk.P1 : wk.P0;
   const mine = w.divisions.filter(d => d.country === c && d.theater === t.id && d.arrive <= w.day && !d.op && !d.goal);
-  const quiet = mine.map(d => { const k = cellOf(t, d.x, d.y); return { d, q: k < 0 ? 1 : foe[k] / (own[k] + foe[k] + T.P0) }; }).sort((a, b) => a.q - b.q);
+  const quiet = mine.map(d => { const k = cellOf(t, d.x, d.y); return { d, q: k < 0 ? 1 : foe[k] / (own[k] + foe[k] + T.P0) * planWeight(w, t, c, d.x, d.y) }; }).sort((a, b) => a.q - b.q);
   const n = Math.max(1, Math.ceil(mine.length / 30));
   for (const { d } of quiet.slice(0, n)) sendToTheater(w, S, d, t, [d.x, d.y], 0.35);
 }
@@ -155,7 +166,9 @@ function planOffensive(w: World, S: MapStatic, war: War, t: Theater, c: number) 
   if (active >= Math.min(3, 1 + Math.floor(mine.length / 25))) return;
   // strike where value and odds are best; on a front where we are not stronger overall, only where the odds are clearly ours
   const b = bestStrike(w, war, t, c);
-  if (b && b.odds > (localOnly ? 1.8 : 1.4)) startOffensive(w, S, t, c, b.target);
+  // in the trench war, once the lines have set, a general attacks only with the odds well in his favour
+  const trench = (t.trench ?? 1) > 1 ? 1 + 0.5 * ((t.eraDef ?? 1) - 1) / (TRENCH_ERA_DEF - 1) : 1;
+  if (b && b.odds > (localOnly ? 1.8 : 1.4) * trench) startOffensive(w, S, t, c, b.target);
 }
 /** Short distances (km) on a flat local projection: plenty for comparing places within one war zone, and cheap. */
 const fkm = (x1: number, y1: number, x2: number, y2: number) => { const c = Math.cos((y1 + y2) * Math.PI / 360), dx = (x2 - x1) * c, dy = y2 - y1; return 111.2 * Math.sqrt(dx * dx + dy * dy); };
@@ -275,7 +288,7 @@ function peaceAI(w: World, S: MapStatic, war: War) {
     let terms: PeaceTerms | null = null;
     if (score > 35 && (w.day - war.start > 120 || score > 70)) {
       const pick = heldDemand(w, war, side, score);
-      if (pick.length) terms = { type: 'treaty', provinces: pick };
+      if (pick.length || war.goal.type === 'liberate') terms = { type: 'treaty', provinces: pick }; // rebels ask only for their freedom
     } else if (score < -45 && ex > 0.3) terms = { type: 'white', provinces: [] };
     else {
       const static_ = w.day - ((war as any).lastChange ?? war.start) > 180, both = war.exhaustion[0] > 0.35 && war.exhaustion[1] > 0.35;

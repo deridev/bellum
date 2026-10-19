@@ -4,7 +4,7 @@ import { DIPLO, demandTarget, diploOdds, doDiplo, hasTreaty, power, type DiploAc
 import { nextRand } from './rng';
 import type { Country, MapStatic, UnitType, World } from './types';
 import { msg } from './types';
-import { addRel, rel } from './world';
+import { addRel, rel, unitReady } from './world';
 import { aiPolicies } from './policies';
 import { activeWars, allied, declareWar, defendersOf, enemies, inTruce, overlordOf, sideOf, warCost, warsOf } from './war/war';
 
@@ -72,7 +72,7 @@ function aiEconomy(w: World, c: Country, threatened: boolean) {
   if (divs < want && slots && funds - c.upkeep > c.unitCost * 3) {
     const rich = Math.min(1, c.gdp * 1e6 / Math.max(1, w.provinces.reduce((a, p) => a + (p.owner === c.id ? p.pop : 0), 0)) / 45000);
     const r = nextRand(w), type: UnitType = r < 0.1 + 0.15 * rich ? 'armor' : r < 0.25 + 0.3 * rich ? 'mechanized' : 'infantry';
-    queueUnit(w, c, type);
+    queueUnit(w, c, unitReady(w, type) ? type : 'infantry');
   }
 }
 
@@ -125,12 +125,13 @@ function aiDiplomacy(w: World, S: MapStatic, c: Country, pw: number[], nb: Set<n
 }
 
 // ---- war ----
-const GATE: Partial<Record<Country['personality'], { p: number; ratio: number }>> = { expansionist: { p: 0.04, ratio: 1.5 }, opportunist: { p: 0.02, ratio: 1.9 }, ideologue: { p: 0.015, ratio: 1.7 } };
+const GATE: Partial<Record<Country['personality'], { p: number; ratio: number }>> = { expansionist: { p: 0.12, ratio: 1.4 }, opportunist: { p: 0.07, ratio: 1.7 }, ideologue: { p: 0.05, ratio: 1.6 } };
 function aiWars(w: World, S: MapStatic, pw: number[], nb: Set<number>[]) {
   if (w.day < 120 || activeWars(w).filter(x => x.start > 0).length >= 5) return;
   for (const c of w.countries) {
     const g = GATE[c.personality];
     if (!g || !c.alive || c.player || atWar(w, c.id) || c.stability < 0.45 || overlordOf(w, c.id) || nextRand(w) > g.p) continue;
+    if (w.wars.some(x => x.total && x.ended && w.day - x.ended < 730 && (x.attackers.includes(c.id) || x.defenders.includes(c.id) || x.left?.[c.id]))) continue; // no new adventures for two years after a world war
     let best = -1, bestR = 0;
     for (const n of nb[c.id]) {
       const N = w.countries[n];

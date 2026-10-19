@@ -4,7 +4,7 @@
 import { km } from '../../geo';
 import type { Army, Division, MapStatic, World } from '../types';
 import { cellLonLat, cellOf, provAtLonLat, T, work, type Theater } from './theater';
-import { activeWars, placeUnit, sideOf, theatersOf, withdraw } from './war';
+import { activeWars, placeUnit, planWeight, sideOf, theatersOf, withdraw } from './war';
 import { startOffensive } from './ai';
 import { makeGeneral } from '../names';
 import { launchLanding } from './landing';
@@ -73,6 +73,7 @@ export function deployLine(w: World, t: Theater, c: number, rail = true) {
   const cells: [number, number][] = [], weight: number[] = [], near = homeReach(w, t, c);
   for (let k = 0; k < t.W * t.H; k++) if (t.land[k] && t.main[k] && wk.distF[k] >= 2 && wk.distF[k] <= 3 && t.c[k] * side >= 0.5 && (!near || near[k])) { cells.push(cellLonLat(t, k)); weight.push((1 + 3 * foe[k] / (own[k] + foe[k] + T.P0)) * (w.provinces[t.prov[k]]?.owner === c ? 3 : 1)); } // a nation guards its own soil first, then its allies' // a nation guards its own soil first, then its allies'
   if (!divs.length || !cells.length) return;
+  cells.forEach((p, i) => { weight[i] *= planWeight(w, t, c, p[0], p[1]); });
   // the front's long axis (principal direction of its cells), to order both the front and the armies along it
   const cl = Math.cos(cells.reduce((s, p) => s + p[1], 0) / cells.length * Math.PI / 180);
   const mx = cells.reduce((s, p) => s + p[0], 0) / cells.length, my = cells.reduce((s, p) => s + p[1], 0) / cells.length;

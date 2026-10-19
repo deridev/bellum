@@ -11,6 +11,8 @@ export const DIPLO: Record<DiploAction, { cost: number; cooldown: number }> = {
   trade: { cost: 15, cooldown: 180 }, denounce: { cost: 10, cooldown: 90 }, break: { cost: 0, cooldown: 30 }, demand: { cost: 10, cooldown: 365 },
   aid: { cost: 15, cooldown: 120 }, claim: { cost: 35, cooldown: 365 }, subvert: { cost: 40, cooldown: 365 },
 };
+/** What an action costs from one nation toward another: a claim on a large country is a long campaign of propaganda and costs more. */
+export const diploCost = (w: World, to: number, act: DiploAction) => act === 'claim' ? DIPLO.claim.cost + 4 * Math.min(30, w.provinces.filter(p => p.owner === to).length) : DIPLO[act].cost;
 /** Aid costs money as well as influence: a month of the giver's revenue, at most */
 export const aidCost = (w: World, from: number) => w.countries[from].income;
 export const hasTreaty = (w: World, a: number, b: number, type: TreatyType) => w.treaties.some(t => t.type === type && ((t.a === a && t.b === b) || (t.a === b && t.b === a)));
@@ -60,7 +62,7 @@ export function diploOdds(w: World, from: number, to: number, act: DiploAction, 
   if (from === to || !w.countries[to].alive) return { ok: false, why: msg('dip.why.invalid') };
   const cd = w.cooldowns[cdKey(from, to, act)];
   if (cd !== undefined && w.day < cd) return { ok: false, why: msg('dip.why.cooldown', { d: { d: cd } }) };
-  if (A.polCap < DIPLO[act].cost) return { ok: false, why: msg('dip.why.influence', { n: DIPLO[act].cost }) };
+  if (A.polCap < diploCost(w, to, act)) return { ok: false, why: msg('dip.why.influence', { n: diploCost(w, to, act) }) };
   if (act !== 'denounce' && act !== 'break' && enemies(w, from, to)) return { ok: false, why: msg('dip.why.atWar') };
   switch (act) {
     case 'improve': return { ok: opinion < 90, why: msg(opinion < 90 ? 'dip.why.improve' : 'dip.why.maxed') };
@@ -98,7 +100,7 @@ export function diploOdds(w: World, from: number, to: number, act: DiploAction, 
 /** Carry out an action (assumes the caller checked diploOdds, or is forcing a unilateral one). */
 export function doDiplo(w: World, from: number, to: number, act: DiploAction, S?: MapStatic) {
   const A = w.countries[from], B = w.countries[to];
-  A.polCap = Math.max(0, A.polCap - DIPLO[act].cost);
+  A.polCap = Math.max(0, A.polCap - diploCost(w, to, act));
   w.cooldowns[cdKey(from, to, act)] = w.day + DIPLO[act].cooldown;
   const add = (type: TreatyType, years: number) => w.treaties.push({ type, a: from, b: to, since: w.day, until: years ? w.day + 365 * years : -1 });
   switch (act) {

@@ -142,7 +142,7 @@ export const EVENTS: EventDef[] = [
       ({ c }) => { c.polCap += 5; c.stability = clamp01(c.stability + 0.01); }] },
 ];
 /** The player hears from the world often: their events are likelier, and after a quiet spell the next one that fits comes for sure. */
-const PLAYER_CHANCE = 2.5, QUIET_DAYS = 50;
+const PLAYER_CHANCE = 4, QUIET_DAYS = 25;
 
 export function monthlyEvents(w: World, S: MapStatic) {
   const nb = neighbours(w, S), pw = w.countries.map(c => c.alive ? power(w, c.id) : 0);

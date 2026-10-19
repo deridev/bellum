@@ -60,11 +60,19 @@ function arg(w: World, v: MsgArg): string | number {
 }
 /** Province names come with the map data, not the simulation; the session registers them once loaded. */
 let provNames: string[] = [];
-type ProvNames = { name: string; pt?: string; es?: string; state?: string; statePt?: string; stateEs?: string; merged?: 1 };
+type ProvNames = { name: string; country?: string; pt?: string; es?: string; state?: string; statePt?: string; stateEs?: string; merged?: 1 };
 let provData: ProvNames[] = [];
 export function setProvinceNames(list: ProvNames[]) { provData = list; provNames = list.map(p => p.name); }
 /** A province's name in the current language (regions are named after their city): Brazilian forms first, then the map data's */
-export const provName = (id: number) => { const p = provData[id]; if (!p) return provNames[id] ?? ''; return cityTable(lang, p.name) ?? (lang === 'pt' ? p.pt : lang === 'es' ? p.es : undefined) ?? p.name; };
+export const provName = (id: number) => { const p = provData[id]; if (!p) return provNames[id] ?? ''; return compass(cityTable(lang, p.name) ?? (lang === 'pt' ? p.pt : lang === 'es' ? p.es : undefined) ?? p.name, p.country); };
+/** A bare compass name ("Eastern", "Norte") says what kind of place it is: the Eastern Province, the Região Norte */
+const COMPASS: Record<string, RegExp> = { en: /^(Eastern|Western|Northern|Southern|Central|North|South|East|West|Centre|Nord|Sud|Ouest|Est)$/, pt: /^(Oriental|Ocidental|Norte|Sul|Leste|Oeste|Central|Centro)$/, es: /^(Oriental|Occidental|Norte|Sur|Este|Oeste|Central|Centro)$/ };
+const KIND: Record<string, Record<string, string>> = { HTI: { en: 'Department', pt: 'Departamento', es: 'Departamento' }, CMR: { en: 'Region', pt: 'Região', es: 'Región' }, GHA: { en: 'Region', pt: 'Região', es: 'Región' }, TGO: { en: 'Region', pt: 'Região', es: 'Región' } };
+function compass(name: string, country?: string) {
+  if (!COMPASS[lang]?.test(name)) return name;
+  const k = (country && KIND[country]?.[lang]) ?? { en: 'Province', pt: 'Província', es: 'Provincia' }[lang]!;
+  return lang === 'en' ? `${name} ${k}` : `${k} ${name}`;
+}
 /** The state a region belongs to, when it was cut from one (merged groups of small units are no state) */
 export const provState = (id: number) => { const p = provData[id]; if (!p || !p.state || p.merged) return undefined; return (lang === 'pt' ? p.statePt : lang === 'es' ? p.stateEs : undefined) ?? p.state; };
 

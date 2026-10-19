@@ -105,8 +105,22 @@ export function openTheaters(w: World, S: MapStatic, war: War) {
       if (a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]) { boxes[i] = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])]; boxes.splice(j, 1); merged = true; }
     }
   }
-  for (const b of boxes) addTheater(w, S, war, b);
+  for (const b of boxes) {
+    // nor may a new theater cover ground an existing one of this war already holds: grow that one to take it in, or keep clear of it
+    let box: typeof b | null = b;
+    for (const t of theatersOf(w, war)) {
+      if (!box) break;
+      const a = boxOf(t); if (!(a[0] < box[2] && box[0] < a[2] && a[1] < box[3] && box[1] < a[3])) continue;
+      const u: typeof b = [Math.min(a[0], box[0]), Math.min(a[1], box[1]), Math.max(a[2], box[2]), Math.max(a[3], box[3])];
+      if (u[2] - u[0] <= 44 && u[3] - u[1] <= 30 && !theatersOf(w, war).some(o => o !== t && overlaps(boxOf(o), u))) { resample(w, S, t, u); box = null; break; }
+      const parts: typeof b[] = [[a[2], box[1], box[2], box[3]], [box[0], box[1], a[0], box[3]], [box[0], a[3], box[2], box[3]], [box[0], box[1], box[2], a[1]]];
+      box = parts.filter(p => p[2] - p[0] > 2 && p[3] - p[1] > 2).sort((p, q) => (q[2] - q[0]) * (q[3] - q[1]) - (p[2] - p[0]) * (p[3] - p[1]))[0] ?? null;
+    }
+    if (box) addTheater(w, S, war, box);
+  }
 }
+const boxOf = (t: Theater): [number, number, number, number] => [t.lon0, t.lat0 - t.H * t.ch, t.lon0 + t.W * t.cw, t.lat0];
+const overlaps = (a: number[], b: number[]) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
 export function addTheater(w: World, S: MapStatic, war: War, box: [number, number, number, number], name?: string): Theater {
   // clamp size; keep in -180..180
   const cx = (box[0] + box[2]) / 2, cy = (box[1] + box[3]) / 2;
@@ -149,6 +163,11 @@ export function placeUnit(w: World, t: Theater, d: Division, lon: number, lat: n
 /** Send a division to a theater, or move one already there (`from` = where it stands now).
  *  It goes where the front is most threatened, weighed against the trip, and arrives after travelling.
  *  A move within the theater only happens if the new sector is threatened by at least `minGain` more. */
+/** How much a general staff's plan weighs a place: more than 1 inside the sector it wants held in strength (1914: the West). */
+export function planWeight(w: World, t: Theater, c: number, x: number, y: number) {
+  const plan = w.wars.find(v => v.id === t.war)?.plan?.[c];
+  return plan && w.day < plan.until && km(x, y, plan.at[0], plan.at[1]) < plan.r ? plan.w : 1;
+}
 export function sendToTheater(w: World, S: MapStatic, d: Division, t: Theater, from?: [number, number], minGain = 0) {
   const side = t.sideOf[d.country]; if (!side) return false;
   const [hx, hy] = from || S.provinces[d.prov].label;
@@ -156,7 +175,7 @@ export function sendToTheater(w: World, S: MapStatic, d: Division, t: Theater, f
   const wk = work(t), eff = side > 0 ? wk.eff0 : wk.eff1, haveEff = eff.some(v => v > 0);
   const own = side > 0 ? wk.P0 : wk.P1, foe = side > 0 ? wk.P1 : wk.P0;
   const [capx, capy] = S.provinces[w.countries[d.country].capital].label; // the sector in front of the capital matters most
-  const threat = (k: number, x: number, y: number) => foe[k] / (own[k] + foe[k] + T.P0) * (1 + 1.5 * Math.max(0, 1 - km(capx, capy, x, y) / 300));
+  const threat = (k: number, x: number, y: number) => foe[k] / (own[k] + foe[k] + T.P0) * (1 + 1.5 * Math.max(0, 1 - km(capx, capy, x, y) / 300)) * planWeight(w, t, d.country, x, y);
   let best = -1, bd = Infinity, bs = Infinity, bt = 0;
   for (let k = 0; k < t.W * t.H; k += step) {
     if (!t.land[k] || !t.main[k] || t.c[k] * side < 0.6 || (haveEff && eff[k] < 0.3)) continue;
@@ -200,6 +219,8 @@ function cullUnits(w: World, t: Theater, war: War, units: Division[]) {
   const ids = new Set(gone.map(d => d.id)); w.divisions = w.divisions.filter(d => !ids.has(d.id));
   (w as any)._removed = ((w as any)._removed || []).concat(gone.map(d => ({ ...d, gone: d.sup === 0 ? 'captured' : 'destroyed' })));
 }
+/** Bring province controllers up to date with a theater's field now (after history moved the front). */
+export function occupy(w: World, S: MapStatic, t: Theater) { const war = w.wars.find(x => x.id === t.war); if (war) updateOccupation(w, S, t, war); }
 /** province controllers follow the field: the side holding its centre (or most of it) controls it */
 function updateOccupation(w: World, S: MapStatic, t: Theater, war: War) {
   const counts = new Map<number, [number, number]>();
@@ -239,6 +260,7 @@ function maybeExpand(w: World, S: MapStatic, t: Theater) {
   if (!(n || s || e || west)) return;
   const grow = 3, box: [number, number, number, number] = [t.lon0 - (west ? grow / Math.cos(t.lat0 * Math.PI / 180) : 0), t.lat0 - t.H * t.ch - (s ? grow : 0), t.lon0 + t.W * t.cw + (e ? grow / Math.cos(t.lat0 * Math.PI / 180) : 0), t.lat0 + (n ? grow : 0)];
   if ((box[2] - box[0]) > 44 || (box[3] - box[1]) > 30) return;
+  if (w.theaters.some(o => o !== t && o.war === t.war && !o.frozen && overlaps(boxOf(o), box))) return; // never into ground another theater of the war covers
   resample(w, S, t, box);
 }
 export function resample(w: World, S: MapStatic, t: Theater, box: [number, number, number, number]) {
@@ -272,7 +294,7 @@ function weeklyWar(w: World, S: MapStatic, war: War) {
   // in a world war, smaller members whose homeland is overrun make a separate peace too (Belgium, the Netherlands, 1940)
   if (war.total) for (const side of [1, -1] as const) for (const c of [...(side > 0 ? war.attackers : war.defenders)]) {
     const members = side > 0 ? war.attackers : war.defenders, lead = side > 0 ? war.leadA : war.leadD;
-    if (c === lead || !members.includes(c) || !overrun(w, S, war, c, side)) continue;
+    if (c === lead || !members.includes(c) || !overrun(w, S, war, c, side, true)) continue;
     say(w, msg('log.capitulates', { c: { c } }), 'war', { who: [...war.attackers, ...war.defenders], big: 'big.capitulation' });
     separatePeace(w, S, war, c, side, members.filter(x => x !== c && w.countries[x].alive));
   }
@@ -299,12 +321,25 @@ function surrenders(w: World, S: MapStatic, war: War, side: 1 | -1) {
 }
 /** A nation is beaten when its capital and three quarters of its homeland (1000 km around the capital) are taken, or it holds nothing: colonies far away
  *  do not keep a nation fighting once the homeland is lost (France, 1940). */
-function overrun(w: World, S: MapStatic, war: War, c: number, side: 1 | -1) {
+function overrun(w: World, S: MapStatic, war: War, c: number, side: 1 | -1, member = false) {
   const C = w.countries[c], foes = side > 0 ? war.defenders : war.attackers, cap = S.provinces[C.capital].label;
   const own = w.provinces.filter(p => p.owner === c), held = own.filter(p => p.controller === c).length; if (held === 0) return true;
   if (!foes.includes(w.provinces[C.capital].controller)) return false;
   const home = own.filter(p => km(...S.provinces[p.id].label, ...cap) < 1000);
-  return home.filter(p => p.controller === c).length <= home.length * 0.25;
+  if (home.filter(p => p.controller === c).length > home.length * 0.25) return false;
+  // in a world war, a smaller member fights on while any of its homeland is free and its allies fight (Belgium on the Yser, 1914–18)
+  if (member && war.total && home.some(p => p.controller === c)) return false;
+  // in the trench war of 1914–18 a beaten army could fall back into its allies' line and fight on there; in a war of movement it is lost with its country
+  if (member && war.total && new Date(w.startDate + war.start * 864e5).getUTCFullYear() < 1918 && w.divisions.some(d => d.country === c && d.theater >= 0)) return false;
+  return true;
+}
+/** A nation gives up (an armistice history fixes, France 1940): the leader of its side capitulates; a member makes a separate peace. */
+export function yieldNation(w: World, S: MapStatic, war: War, c: number) {
+  const side = sideOf(war, c); if (!side || war.ended) return;
+  const lead = side > 0 ? war.leadA : war.leadD, members = side > 0 ? war.attackers : war.defenders;
+  if (c === lead) { capitulate(w, S, war, side); return; }
+  say(w, msg('log.capitulates', { c: { c } }), 'war', { who: [...war.attackers, ...war.defenders], big: 'big.capitulation' });
+  separatePeace(w, S, war, c, side, members.filter(x => x !== c && w.countries[x].alive));
 }
 /** The winners dictate the peace: everything they hold of the leader's land, and a puppet if nothing is left to take. */
 function capitulate(w: World, S: MapStatic, war: War, side: 1 | -1) {
@@ -314,6 +349,8 @@ function capitulate(w: World, S: MapStatic, war: War, side: 1 | -1) {
   const foes = side > 0 ? war.defenders : war.attackers;
   const rest = (side > 0 ? war.attackers : war.defenders).filter(c => c !== lead && w.countries[c].alive && !foes.includes(w.provinces[w.countries[c].capital].controller));
   if (war.total && rest.length) { separatePeace(w, S, war, lead, side, rest); return; }
+  // an uprising wins its freedom, never the conqueror's own land
+  if (war.goal.type === 'liberate' && side < 0) { makePeace(w, S, war, win, { type: 'treaty', provinces: [] }); return; }
   const held = w.provinces.filter(p => sideOf(war, p.owner) === side && sideOf(war, p.controller) === win).map(p => p.id);
   const keep = w.provinces.filter(p => p.owner === lead && !held.includes(p.id)).length;
   makePeace(w, S, war, win, { type: 'treaty', provinces: held, puppet: keep > 0 && w.countries[lead].alive });
@@ -400,7 +437,7 @@ export const truceKey = (a: number, b: number) => `truce:${Math.min(a, b)}:${Mat
 export const inTruce = (w: World, a: number, b: number) => (w.cooldowns[truceKey(a, b)] ?? -1) > w.day;
 export function heldDemand(w: World, war: War, side: 1 | -1, budget: number): number[] {
   const losers = side > 0 ? war.defenders : war.attackers, winners = side > 0 ? war.attackers : war.defenders;
-  const held = w.provinces.filter(p => losers.includes(p.owner) && winners.includes(p.controller)).sort((a, b) => b.gdp - a.gdp);
+  const held = w.provinces.filter(p => losers.includes(p.owner) && winners.includes(p.controller) && (war.goal.type !== 'liberate' || side < 0)).sort((a, b) => b.gdp - a.gdp);
   const pick: number[] = [];
   for (const p of held) if (termsCost(w, war, side, { type: 'treaty', provinces: [...pick, p.id] }) <= budget) pick.push(p.id);
   return pick;

@@ -1,4 +1,4 @@
-import { CONSCRIPTION_GROWTH, CONSCRIPTION_RATE, clamp01, newDivision, say } from './world';
+import { CONSCRIPTION_GROWTH, CONSCRIPTION_RATE, clamp01, newDivision, say, unitReady } from './world';
 import type { Army, Country, MapStatic, ProdItem, UnitType, World } from './types';
 import { makeGeneral } from './names';
 import { joinArmy } from './war/armies';
@@ -110,6 +110,7 @@ function recruitArmy(w: World, c: Country, prov: number): Army {
 }
 export function queueUnit(w: World, c: Country, type: UnitType, prov = c.capital, army?: number): string | null {
   const spec = UNIT_SPEC[type];
+  if (!unitReady(w, type)) return 'Not yet invented';
   if (c.manpower < spec.men) return 'Not enough manpower';
   c.manpower -= spec.men;
   const item: ProdItem = { id: w.nextId++, type, progress: 0, cost: c.unitCost * spec.costMul, days: spec.days, prov, army };

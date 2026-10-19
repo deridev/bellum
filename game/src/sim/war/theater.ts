@@ -19,8 +19,10 @@ export interface Theater {
   lon0: number; lat0: number; cw: number; ch: number; W: number; H: number; cellKm: number;
   land: Uint8Array; prov: Int32Array; mtn: Float32Array; c: Float32Array; ent: Float32Array; flip: Uint8Array; heat: Float32Array; pocket: Uint8Array; main: Uint8Array;
   sideOf: Record<number, 1 | -1>; offensives: Offensive[]; cities: { name: string; k: number; side: number; tier: number }[];
+  hubs?: number[]; // the cell of each province's main town (local roads and railways)
   lead: [number, number]; frozen: boolean; dmz: Float32Array | null; created: number;
   trench?: number; // how deep and fast this era digs in (the machine-gun years before 1918 dig in more than twice as much)
+  eraDef?: number; // the machine-gun era's defensive edge, which grows over a war's first months as the armies learn it (1 = none)
   aggr?: [number, number]; // how hard each AI side pushes on this front (from the local balance)
   beach?: [number, number][]; // beachheads supplied from the sea: [cell, side], while that side holds the cell
 }
@@ -125,6 +127,8 @@ export function buildMasks(t: Theater, w: World, S: MapStatic, seed: boolean) {
     const k = cellOf(t, city.lon, city.lat); if (k < 0 || !t.land[k]) continue;
     t.cities.push({ name: city.name, k, side: t.c[k] >= 0 ? 1 : -1, tier: city.capital ? 1 : 2 });
   }
+  t.hubs = [];
+  for (const p of S.provinces) { const k = cellOf(t, p.label[0], p.label[1]); if (k >= 0 && t.land[k]) t.hubs.push(k); }
 }
 
 // ---------------------------------------------------------------------------- field
@@ -196,6 +200,7 @@ export function unitPower(w: World, t: Theater, d: Division, k: number, wk: Work
 // ---------------------------------------------------------------------------- daily step
 export function stepTheater(w: World, S: MapStatic, t: Theater, units: Division[], sides: { aggr: [number, number] }) {
   if (t.frozen) return;
+  if ((t.trench ?? 1) > 1) t.eraDef = 1 + (TRENCH_ERA_DEF - 1) * Math.min(1, (w.day - t.created) / 100); // 1914 opened with a war of movement
   const wk = work(t), W = t.W, H = t.H, N = W * H, c = t.c, land = t.land;
   wk.aggr = sides.aggr;
   // momentum per side comes from its offensives (org drains while pushing)
@@ -219,7 +224,8 @@ export function stepTheater(w: World, S: MapStatic, t: Theater, units: Division[
       if (toA > 50 && toB < -30) air[0] += pw; else if (toB > 50 && toA < -30) air[1] += pw;
     }
     const r = air[0] / Math.max(1, air[0] + air[1]);
-    wk.air = [1 + T.airWeight * (2 * r - 1), 1 - T.airWeight * (2 * r - 1)];
+    const aw = T.airWeight * ((t.trench ?? 1) > 1 ? 0.25 : 1); // before 1918 aircraft scouted more than they fought
+    wk.air = [1 + aw * (2 * r - 1), 1 - aw * (2 * r - 1)];
   }
   updateSupply(w, S, t, wk);
   combat(w, t, units, wk);
@@ -232,12 +238,13 @@ export function stepTheater(w: World, S: MapStatic, t: Theater, units: Division[
   // the band where the field can move today: near yesterday's front (it moves a few cells a day at most) and in pockets
   { const d = wk.distF, act = wk.act; let n = 0; for (let k = 0; k < N; k++) if (land[k] && ((d[k] >= 0 && d[k] <= 10) || t.pocket[k])) act[n++] = k; wk.nAct = n; }
   computeForcing(w, t, wk);
-  const sub = Math.max(3, Math.min(36, Math.round(30 * T.frontSpeedRef / t.cellKm * ((t.trench ?? 1) > 1 ? 0.5 : 1)))); // before 1918 armies walked and fronts crawled
+  const settled = (t.trench ?? 1) > 1 ? ((t.eraDef ?? 1) - 1) / (TRENCH_ERA_DEF - 1) : 0; // how far the machine-gun war has set in (0 in its first weeks: armies march, and have not yet learned to dig)
+  const sub = Math.max(3, Math.min(36, Math.round(30 * T.frontSpeedRef / t.cellKm * (1 - 0.5 * settled)))); // before 1918, once the trenches were dug, fronts crawled
   for (let s = 0; s < sub; s++) fieldStep(t, wk, true);
   // entrenchment, flips, heat
   for (let k = 0; k < N; k++) {
     if (!land[k]) continue; const s = c[k] >= 0 ? 1 : 0, prevS = t.flip[k] & 128 ? 1 : 0; let age = t.flip[k] & 127;
-    if (s === prevS) { const tr = t.trench ?? 1; if (t.ent[k] < T.entMax * tr) t.ent[k] += T.entRate * tr * stanceDig(wk.aggr[1 - s]); if (age < 127) age++; } else { t.ent[k] = 0; age = 0; }
+    if (s === prevS) { const tr = t.trench ?? 1; if (t.ent[k] < T.entMax * tr) t.ent[k] += T.entRate * tr * stanceDig(wk.aggr[1 - s]) * (tr > 1 ? 0.3 + 0.7 * settled : 1); if (age < 127) age++; } else { t.ent[k] = 0; age = 0; }
     t.flip[k] = (s << 7) | age;
   }
   computeDist(t, wk);
@@ -264,7 +271,9 @@ function updateSupply(w: World, S: MapStatic, t: Theater, wk: Work) {
     if (t.beach) for (const [k, s] of t.beach) if (s === side && land[k] && c[k] * side > 0) ports.push(k); // a beachhead is supplied from the sea
     // railheads: the big cities of a side's own homeland (not land it has conquered) feed the fronts near them
     const depots: number[] = []; for (const city of t.cities) { const p = w.provinces[t.prov[city.k]]; if (p && land[city.k] && c[city.k] * side > 0 && p.owner === p.controller && t.sideOf[p.owner] === side && p.core.includes(p.owner)) depots.push(city.k); }
-    const groups: { ks: number[]; cap: number; rangeKm: number }[] = [{ ks: edge, cap: 0.95, rangeKm: 900 }, { ks: caps, cap: 1, rangeKm: 1100 }, { ks: ports, cap: 0.8, rangeKm: 450 }, { ks: depots, cap: 0.9, rangeKm: 500 }];
+    // and every town of the homeland feeds what is close by, over local roads and railways
+    const local: number[] = []; for (const k of t.hubs ?? []) { const p = w.provinces[t.prov[k]]; if (p && c[k] * side > 0 && p.owner === p.controller && t.sideOf[p.owner] === side && p.core.includes(p.owner)) local.push(k); }
+    const groups: { ks: number[]; cap: number; rangeKm: number }[] = [{ ks: edge, cap: 0.95, rangeKm: 900 }, { ks: caps, cap: 1, rangeKm: 1100 }, { ks: ports, cap: 0.8, rangeKm: 450 }, { ks: depots, cap: 0.9, rangeKm: 500 }, { ks: local, cap: 0.75, rangeKm: 250 }];
     bfs(t, wk, groups.flatMap(g => g.ks), side, 0);
     for (let k = 0; k < N; k++) if (wk.dtmp[k] >= 0) eff[k] = 0.22;
     for (const g of groups) {
@@ -302,14 +311,15 @@ export function balanceAt(t: Theater, wk: Work, k: number): [number, number] {
   const holder = c0(t, k), push = pushAt(t, k, holder === 0 ? -1 : 1);
   // a fresh offensive's barrage cancels most of the trench bonus in its corridor
   const def = baseDef(t) + 0.8 * t.mtn[k] + t.ent[k] * (1 - T.shock * Math.max(0, push - 1) / T.offBoost);
-  const ea = wk.P0[k] * (holder === 0 ? def : wk.aggr[0] * push);
-  const eb = wk.P1[k] * (holder === 1 ? def : wk.aggr[1] * push);
+  // inside an offensive's corridor the attack goes all out, whatever the stance elsewhere on the front
+  const ea = wk.P0[k] * (holder === 0 ? def : (push > 1 ? Math.max(wk.aggr[0], 1.15) : wk.aggr[0]) * push);
+  const eb = wk.P1[k] * (holder === 1 ? def : (push > 1 ? Math.max(wk.aggr[1], 1.15) : wk.aggr[1]) * push);
   return [ea, eb];
 }
 const c0 = (t: Theater, k: number) => t.c[k] >= 0 ? 0 : 1;
 /** the defender's edge on open ground: in the machine-gun years before 1918 defence ruled, trenches or not */
-export const baseDef = (t: Theater) => T.baseDef * ((t.trench ?? 1) > 1 ? TRENCH_ERA_DEF : 1);
-export const TRENCH_ERA_DEF = 1.5;
+export const baseDef = (t: Theater) => T.baseDef * (t.eraDef ?? 1);
+export const TRENCH_ERA_DEF = 1.8;
 /** Stance: Hold digs in and spares men; All-out pushes everywhere and pays for it. (aggr < 1 is Hold, > 1.15 All-out) */
 export const stanceLoss = (aggr: number) => aggr < 1 ? 0.65 : aggr > 1.15 ? 1.35 : 1;
 export const stanceDig = (aggr: number) => aggr < 1 ? 2 : 1;
@@ -353,7 +363,7 @@ function friction(w: World, t: Theater, k: number) { // local luck: fronts surge
   const sc = 35 / t.cellKm, x = (k % t.W) / sc, y = Math.floor(k / t.W) / sc, tt = w.day / 6, ti = Math.floor(tt), tf = tt - ti, u = tf * tf * (3 - 2 * tf);
   const a = vnoise(x + 31.7 * ti, y), b = vnoise(x + 31.7 * (ti + 1), y); return 1 - T.luck + 2 * T.luck * (a + (b - a) * u);
 }
-function computeDist(t: Theater, wk: Work) {
+export function computeDist(t: Theater, wk: Work = work(t)) {
   const c = t.c, land = t.land, d = wk.distF, q = wk.q, W = t.W, N = t.W * t.H; d.fill(-1); let h = 0, tl = 0;
   for (let k = 0; k < N; k++) {
     if (!land[k]) continue; const s = c[k] >= 0, i = k % W;
@@ -429,11 +439,12 @@ function moveUnits(w: World, t: Theater, units: Division[], wk: Work) {
         if (ee > 2.2 * eo) { vx += gx / g * spd * 0.6; vy += gy / g * spd * 0.6; u.retreat = 1; } else { vx -= gx / g * t.ch * 0.4; vy -= gy / g * t.ch * 0.4; u.retreat = 0; }
       }
     }
+    const Ru = off ? R * 0.5 : R; // an offensive masses its divisions at the point of attack
     for (const o of units) {
       if (o === u || sideOfUnit(t, o) !== sg) continue;
-      const dx = (u.x - o.x) * cosL, dy = u.y - o.y; if (Math.abs(dx) > R || Math.abs(dy) > R) continue;
-      const l = Math.hypot(dx, dy); if (l >= R) continue;
-      const wgt = (1 - l / R) * t.ch * 1.1; if (l < 1e-6) { vx += (hash01(u.id + w.day) - 0.5) * wgt; vy += (hash01(u.id * 7 + w.day) - 0.5) * wgt; } else { vx += dx / l * wgt; vy += dy / l * wgt; }
+      const dx = (u.x - o.x) * cosL, dy = u.y - o.y; if (Math.abs(dx) > Ru || Math.abs(dy) > Ru) continue;
+      const l = Math.hypot(dx, dy); if (l >= Ru) continue;
+      const wgt = (1 - l / Ru) * t.ch * 1.1; if (l < 1e-6) { vx += (hash01(u.id + w.day) - 0.5) * wgt; vy += (hash01(u.id * 7 + w.day) - 0.5) * wgt; } else { vx += dx / l * wgt; vy += dy / l * wgt; }
     }
     const l = Math.hypot(vx, vy); if (l > spd) { vx *= spd / l; vy *= spd / l; }
     for (const s of [1, 0.5, 0.25]) {

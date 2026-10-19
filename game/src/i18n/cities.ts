@@ -16,9 +16,12 @@ const PT: Record<string, string> = {
   Antwerpen: 'Antuérpia', Tirana: 'Tirana', Kathmandu: 'Katmandu', Ulaanbaatar: 'Ulan Bator', Oslo: 'Oslo', Islamabad: 'Islamabad', Riga: 'Riga', Muscat: 'Mascate', Zagreb: 'Zagreb',
   'Chișinău': 'Chisinau', 'Abu Dhabi': 'Abu Dhabi', Vilnius: 'Vilnius', Bratislava: 'Bratislava', Tallinn: 'Tallinn', Wellington: 'Wellington', Valletta: 'Valeta', Canberra: 'Camberra',
   'New Delhi': 'Nova Délhi', Delhi: 'Délhi', Mumbai: 'Mumbai', Bern: 'Berna', Nicosia: 'Nicósia', 'Reykjavík': 'Reykjavík', Luxembourg: 'Luxemburgo', 'Vatican City': 'Cidade do Vaticano',
+  Nürnberg: 'Nuremberg', 'Würzburg': 'Würzburg', Regensburg: 'Regensburg', Koblenz: 'Koblenz', Rouen: 'Rouen', Bonn: 'Bonn', Stuttgart: 'Stuttgart', 'Orléans': 'Orléans', Tetovo: 'Tetovo',
+  'Miquelon-Langlade': 'Miquelon-Langlade', 'Amsterdam and Saint-Paul Islands': 'Ilhas Amsterdã e São Paulo', 'Loyalty Islands': 'Ilhas da Lealdade',
   Babylon: 'Babilônia', Mashhad: 'Mashhad', Jeddah: 'Jidá', 'Tel Aviv': 'Tel Aviv', Haifa: 'Haifa', Novosibirsk: 'Novosibirsk', 'Nizhny Novgorod': 'Níjni Novgorod', Volgograd: 'Volgogrado',
 };
 const ES: Record<string, string> = {
+  'Loyalty Islands': 'Islas de la Lealtad', 'Amsterdam and Saint-Paul Islands': 'Islas Ámsterdam y San Pablo',
   'Mexico City': 'Ciudad de México', 'New York': 'Nueva York', Cairo: 'El Cairo', Beijing: 'Pekín', Moscow: 'Moscú', Istanbul: 'Estambul', London: 'Londres', Seoul: 'Seúl', Tehran: 'Teherán',
   Bogota: 'Bogotá', Taipei: 'Taipéi', Philadelphia: 'Filadelfia', 'Ho Chi Minh City': 'Ciudad Ho Chi Minh', Singapore: 'Singapur', Baghdad: 'Bagdad', Khartoum: 'Jartum', 'St.  Petersburg': 'San Petersburgo',
   Riyadh: 'Riad', Hanoi: 'Hanói', 'Washington,  D.C.': 'Washington', Alexandria: 'Alejandría', Yangon: 'Rangún', Berlin: 'Berlín', Algiers: 'Argel', Rome: 'Roma', Kabul: 'Kabul', Athens: 'Atenas',

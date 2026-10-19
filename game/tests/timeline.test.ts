@@ -6,7 +6,8 @@ import { setupScenario, tablesFor } from '../src/sim/scenario';
 import { fromFile, withScenario } from '../src/game/scenarios';
 import { historyDaily } from '../src/sim/history';
 import { resolveAgenda } from '../src/sim/agenda';
-import { sideOf } from '../src/sim/war/war';
+import { joinWar, sideOf } from '../src/sim/war/war';
+import { stepDay } from '../src/sim/step';
 import { loadStatic } from './helpers';
 
 // History's timeline: the nations that entered the great wars enter them on the day, unless the world has changed;
@@ -21,6 +22,25 @@ describe('historical timeline', () => {
     const at = (date: string) => { w.day = Math.round((Date.parse(date + 'T00:00:00Z') - w.startDate) / 864e5); historyDaily(w, S); };
     return { w, S, ci, at, war: w.wars.find(x => x.id === w.goalWar)! };
   };
+
+  it('1914: armies march on foot, Germany opens through Belgium, and Belgium fights on', () => {
+    const { w, S, ci, war } = world('1914', 'BRA');
+    expect(w.divisions.every(d => d.type === 'infantry')).toBe(true);
+    for (let d = 0; d < 45; d++) stepDay(w, S);
+    expect(w.cooldowns['swept:brussels']).toBeGreaterThan(0); // Liège fought for, Brussels taken
+    expect(w.provinces.some(p => p.owner === ci('BEL') && p.controller === ci('GER'))).toBe(true);
+    expect(w.countries[ci('BEL')].alive && sideOf(war, ci('BEL'))).toBeTruthy();
+  }, 120000);
+
+  it('two theaters of one war never cover the same ground', () => {
+    const { w, S, ci, war } = world('1939', 'BRA');
+    joinWar(w, S, war, ci('SOV'), -1, true); joinWar(w, S, war, ci('FIN'), 1, true);
+    const boxes = w.theaters.filter(t => t.war === war.id).map(t => [t.lon0, t.lat0 - t.H * t.ch, t.lon0 + t.W * t.cw, t.lat0]);
+    for (let i = 0; i < boxes.length; i++) for (let j = i + 1; j < boxes.length; j++) {
+      const a = boxes[i], b = boxes[j];
+      expect(a[0] < b[2] - 1e-6 && b[0] < a[2] - 1e-6 && a[1] < b[3] - 1e-6 && b[1] < a[3] - 1e-6).toBe(false);
+    }
+  }, 120000);
 
   it('the Ottoman Empire joins the Central Powers on 29 October 1914', () => {
     const { ci, at, war } = world('1914', 'BRA');

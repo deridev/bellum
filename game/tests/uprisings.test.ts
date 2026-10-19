@@ -5,6 +5,7 @@ import { initSim } from '../src/sim';
 import { setupScenario, tablesFor } from '../src/sim/scenario';
 import { monthlyUprisings } from '../src/sim/uprisings';
 import { monthlyMissions, pickMission } from '../src/sim/missions';
+import { declareWar, yieldNation } from '../src/sim/war/war';
 import { loadStatic } from './helpers';
 
 // A living world: annexed nations rise again while their land is unsettled; the player always has missions to choose.
@@ -24,6 +25,30 @@ describe('uprisings and missions', () => {
     expect(war).toBeTruthy();
     expect(w.divisions.filter(d => d.country === geo.id).length).toBeGreaterThanOrEqual(2);
     for (let d = 0; d < 30; d++) stepDay(w, S); // the war runs
+  }, 120000);
+
+  it('an uprising that wins gets its freedom, never the conqueror\'s own land', () => {
+    const { w, ci } = world(); const rus = ci('RUS'), geo = ci('GEO');
+    for (const p of w.provinces) if (p.owner === geo.id) { p.owner = p.controller = rus.id; p.unrest = 1; }
+    const own = w.provinces.filter(p => p.owner === rus.id && p.core.includes(rus.id)).length;
+    geo.alive = false; w.cooldowns[`gone:${geo.id}`] = -1000;
+    for (let i = 0; i < 2000 && !geo.alive; i++) monthlyUprisings(w, S);
+    const war = w.wars.find(x => !x.ended && x.attackers.includes(geo.id))!;
+    yieldNation(w, S, war, rus.id); // Russia gives up
+    expect(war.winner).toBe(1); // the rebels won
+    expect(rus.alive).toBe(true);
+    expect(w.provinces.filter(p => p.owner === rus.id && p.core.includes(rus.id)).length).toBe(own);
+    expect(w.treaties.some(t => t.type === 'puppet' && t.b === rus.id)).toBe(false);
+  }, 120000);
+
+  it('no rising while the conqueror fights a world war', () => {
+    const { w, ci } = world(); const rus = ci('RUS'), geo = ci('GEO');
+    for (const p of w.provinces) if (p.owner === geo.id) { p.owner = p.controller = rus.id; p.unrest = 1; }
+    geo.alive = false; w.cooldowns[`gone:${geo.id}`] = -1000;
+    for (const x of w.wars) if (x.attackers.includes(rus.id) || x.defenders.includes(rus.id)) x.total = true;
+    if (!w.wars.some(x => !x.ended && x.total)) declareWar(w, S, rus.id, ci('UKR').id, { silent: true }).total = true;
+    for (let i = 0; i < 2000; i++) monthlyUprisings(w, S);
+    expect(geo.alive).toBe(false);
   }, 120000);
 
   it('settled land does not rise', () => {

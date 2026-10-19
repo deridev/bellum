@@ -3,11 +3,14 @@ import type { ProvinceData } from '../data/types';
 import { CULTURE_OF, type Tables } from './data';
 import type { AgendaItem, MapStatic, War, World } from './types';
 import { msg } from './types';
-import { declareWar, joinWar, leaveWar, sideOf } from './war/war';
+import { declareWar, joinWar, leaveWar, makePeace, occupy, sendToTheater, sideOf, yieldNation } from './war/war';
 import { newLeader } from './politics';
 import { addRel, clamp01, say } from './world';
-import { cellLonLat, deployAlongFront, T } from './war/theater';
+import { cAt, cellLonLat, cellOf, claimDisk, computeDist, deployAlongFront, T } from './war/theater';
+import { deployLine } from './war/armies';
 import { nextRand } from './rng';
+import { km } from '../geo';
+import { startOffensive } from './war/ai';
 
 // names for historical states
 Object.assign(CULTURE_OF, { GER: 'german', AUH: 'german', OTT: 'turkic', SOV: 'slavic_e', YUG: 'slavic', MAN: 'chinese', TIB: 'chinese', NEJ: 'arabic', SVK: 'slavic' });
@@ -105,7 +108,7 @@ const QUALITY: Record<'1914' | '1939', Record<string, number>> = {
  *  Each happens only if the world still allows it (the war goes on, the nation stands and is not already fighting). When it is the
  *  player's nation that history would move, the player decides instead, on a card. */
 interface Moment {
-  date: string; id: string; c: string; side?: 1 | -1; kind: 'join' | 'revolution' | 'invade';
+  date: string; id: string; c: string; side?: 1 | -1; kind: 'join' | 'revolution' | 'invade' | 'armistice';
   by?: string; with?: string[]; also?: string[]; // an invasion: the aggressor, who marches with it, and other nations attacked with the target
   until?: string; when?: (w: World, war: War) => boolean; // if the world is not ready on the day, try again each month until then
 }
@@ -117,6 +120,8 @@ const TIMELINE: Record<string, Moment[]> = {
     { date: '1916-08-27', id: 'rou', c: 'ROU', side: -1, kind: 'join' },
     { date: '1917-04-06', id: 'usa', c: 'USA', side: -1, kind: 'join' },
     { date: '1917-11-07', id: 'rus', c: 'RUS', kind: 'revolution' },
+    // worn out and beaten, the Central Powers ask for an armistice (if history has gone the other way, they don't)
+    { date: '1918-11-11', until: '1919-06-28', id: 'armistice', c: 'GER', kind: 'armistice', when: (w, war) => { const g = code(w, 'GER'), s = sideOf(war, g); if (g < 0 || !s) return false; const ex = war.exhaustion[s > 0 ? 0 : 1], sc = war.score * s; return (sc <= -20 && ex >= 0.6) || (sc < 30 && ex >= 0.85); } },
   ],
   '1939': [
     { date: '1940-06-10', id: 'ita', c: 'ITA', side: 1, kind: 'join' },
@@ -125,6 +130,66 @@ const TIMELINE: Record<string, Moment[]> = {
     { date: '1941-12-07', id: 'pearl', c: 'USA', side: -1, by: 'JPN', kind: 'invade' },
   ],
 };
+/** The opening offensives a plan calls for (the Schlieffen plan, Fall Gelb, Barbarossa): launched two days after it starts, for whoever leads
+ *  the nation, the player's generals included. Each strike goes 150 km at most; the generals carry on from there. */
+const STRIKES: Record<string, { by: string; at: [number, number][] }> = {
+  open1914: { by: 'GER', at: [[4.35, 50.85], [4.45, 50.3], [4.9, 49.6]] }, // Liège to Brussels, Namur and Charleroi, the Ardennes
+  gelb: { by: 'GER', at: [[4.35, 50.85], [4.9, 52.37], [4.95, 49.7]] }, // Brussels, Amsterdam, Sedan
+  barbarossa: { by: 'GER', at: [[24.1, 56.95], [27.56, 53.9], [30.5, 50.45]] }, // Riga, Minsk, Kyiv
+};
+function strike(w: World, S: MapStatic, id: string) {
+  const plan = STRIKES[id], c = plan && code(w, plan.by); if (!plan || c < 0) return;
+  const war = w.wars.find(x => x.id === w.goalWar); if (!war || war.ended || !sideOf(war, c)) return;
+  let n = 0; const used = new Set<number>();
+  for (const at of plan.at) {
+    const t = w.theaters.find(x => x.war === war.id && !x.frozen && x.sideOf[c] && at[0] >= x.lon0 && at[0] <= x.lon0 + x.W * x.cw && at[1] <= x.lat0 && at[1] >= x.lat0 - x.H * x.ch);
+    if (!t) continue;
+    // each blow is struck by a whole army: the one standing nearest its objective
+    const armies = w.armies.filter(a => a.country === c && !used.has(a.id)).map(a => { const ds = w.divisions.filter(d => d.army === a.id && d.theater === t.id && !d.op); return { a, n: ds.length, k: ds.length ? km(ds.reduce((s, d) => s + d.x, 0) / ds.length, ds.reduce((s, d) => s + d.y, 0) / ds.length, at[0], at[1]) : 1e9 }; })
+      .filter(x => x.n >= 4 && x.k < 400).sort((p, q) => p.k - q.k);
+    const army = armies[0]?.a; if (army) used.add(army.id);
+    if (!startOffensive(w, S, t, c, at, army?.id) || (army && !startOffensive(w, S, t, c, at))) n++;
+  }
+  if (n && w.countries[c].player) say(w, msg('log.planStrikes', { n }), 'war', { who: [c] });
+}
+/** A breakthrough history made of a won opening battle: if the attacker holds the key point by the day, the front gives way over a wide area
+ *  (1914: Liège taken, Brussels falls and the Belgians fall back on Antwerp and the Yser; Namur taken, the Great Retreat to the Aisne).
+ *  If the defence holds the key point, it does not happen. The defenders caught inside fall back behind the new line. */
+const SWEEPS: Record<string, { day: number; upTo?: number; after?: string; prev?: string; id: string; by: string; need: [number, number]; held?: number; disks: [number, number, number][]; ends?: string }[]> = {
+  '1939': [ // days after the moment named in `after`
+    { after: 'gelb', day: 14, upTo: 30, id: 'sedan', by: 'GER', need: [5.72, 50.0], disks: [[4.3, 49.75, 60], [3.2, 50.0, 60], [2.0, 50.1, 55]] },
+    { after: 'gelb', day: 28, upTo: 45, prev: 'sedan', id: 'paris', by: 'GER', need: [2.3, 49.9], disks: [[2.35, 48.85, 75], [3.6, 49.1, 70], [1.2, 49.3, 65], [5.2, 49.0, 60]] },
+    { after: 'gelb', day: 38, upTo: 60, prev: 'paris', id: 'armistice', by: 'GER', need: [2.35, 48.85], disks: [[0.7, 47.4, 120], [-1.5, 47.8, 110], [4.6, 47.6, 110], [-0.6, 45.5, 90]], ends: 'FRA' }, // and France asks for an armistice
+    { after: 'barbarossa', day: 18, upTo: 40, id: 'minsk', by: 'GER', need: [23.7, 52.1], disks: [[25.5, 53.6, 130], [24.5, 55.6, 120], [25.5, 50.8, 120]] },
+    { after: 'barbarossa', day: 48, upTo: 80, prev: 'minsk', id: 'smolensk', by: 'GER', need: [27.5, 53.9], disks: [[31.0, 54.6, 130], [26.0, 57.4, 120], [29.5, 50.8, 130]] },
+  ],
+  '1914': [
+    { day: 18, upTo: 40, id: 'brussels', by: 'GER', need: [5.57, 50.63], held: -0.5, disks: [[5.57, 50.63, 25], [4.38, 50.82, 36], [4.75, 50.55, 35], [4.95, 50.35, 40], [5.4, 50.1, 45]] },
+    { day: 33, upTo: 60, prev: 'brussels', id: 'retreat', by: 'GER', need: [4.87, 50.47], disks: [[3.4, 50.3, 55], [4.2, 49.75, 55], [3.06, 50.63, 25]] },
+  ],
+};
+function sweep(w: World, S: MapStatic, m: (typeof SWEEPS)[string][number]) {
+  const c = code(w, m.by), war = w.wars.find(x => x.id === w.goalWar); if (c < 0 || !war || war.ended || !sideOf(war, c)) return;
+  const t = w.theaters.find(x => x.war === war.id && !x.frozen && x.sideOf[c] && cellOf(x, m.need[0], m.need[1]) >= 0); if (!t) return;
+  const side = t.sideOf[c]; if (!(cAt(t, m.need[0], m.need[1]) * side > (m.held ?? 0))) return; // the key point held: the line holds (`held` < 0: contested is enough)
+  w.cooldowns[`swept:${m.id}`] = w.day;
+  for (const [x, y, r] of m.disks) claimDisk(t, x, y, r, side);
+  // the victors dig in on the ground they won (the Aisne heights, September 1914)
+  for (let k = 0; k < t.W * t.H; k++) { if (!t.land[k] || t.c[k] * side <= 0) continue; const [x, y] = cellLonLat(t, k); if (m.disks.some(([dx, dy, r]) => km(x, y, dx, dy) < r)) { t.flip[k] = (side > 0 ? 1 : 0) << 7; t.ent[k] = Math.max(t.ent[k], T.entMax * (t.trench ?? 1) * 0.5); } }
+  for (const d of w.divisions) if (d.theater === t.id && t.sideOf[d.country] === -side && m.disks.some(([x, y, r]) => km(d.x, d.y, x, y) < r)) { sendToTheater(w, S, d, t, [d.x, d.y]); d.org *= 0.5; } // a beaten army falls back in disorder
+  // the victors march in behind the broken line: their generals form the line on the new front, and the divisions bound for it are there
+  computeDist(t);
+  for (const k of Object.keys(t.sideOf).map(Number)) if (t.sideOf[k] === side) deployLine(w, t, k, true);
+  for (const d of w.divisions) {
+    if (d.theater !== t.id || t.sideOf[d.country] !== side || d.op) continue;
+    if (d.goal && d.goal[2] === 2) { if (m.disks.some(([x, y, r]) => km(d.goal![0], d.goal![1], x, y) < r + 40)) { d.x = d.goal[0]; d.y = d.goal[1]; d.arrive = Math.min(d.arrive, w.day); } continue; }
+    // armies under the player's own orders advance too, into the near side of the ground won, and hold there
+    const e = m.disks.map(([x, y, r]) => ({ x, y, r, k: km(d.x, d.y, x, y) })).filter(e => e.k < e.r + 150 && e.k > e.r * 0.5).sort((a, b) => a.k - b.k)[0];
+    if (e) { const f = e.r * 0.5 / e.k; d.x = e.x + (d.x - e.x) * f; d.y = e.y + (d.y - e.y) * f; if (d.goal) d.goal = [d.x, d.y, d.goal[2]]; d.arrive = Math.min(d.arrive, w.day); }
+  }
+  say(w, msg('hist.' + m.id, { c: { c } }), 'war', { who: [...war.attackers, ...war.defenders], big: 'big.war', at: m.disks[0].slice(0, 2) as [number, number] });
+  if (m.ends) { occupy(w, S, t); const e = code(w, m.ends); if (e >= 0 && sideOf(war, e) === -side) yieldNation(w, S, war, e); }
+}
 const dayOf = (w: World, date: string) => Math.round((Date.parse(date + 'T00:00:00Z') - w.startDate) / 864e5);
 /** Daily: today's moments, and the Soviet invasion of Poland (17 September 1939), which is a war of its own. */
 export function historyDaily(w: World, S: MapStatic) {
@@ -132,6 +197,13 @@ export function historyDaily(w: World, S: MapStatic) {
     const sov = w.countries.find(c => c.code === 'SOV'), pol = w.countries.find(c => c.code === 'POL');
     if (sov && pol && sov.alive && pol.alive && !sov.player && !w.wars.some(x => !x.ended && (x.attackers.includes(sov.id) || x.defenders.includes(sov.id)))) { const war = declareWar(w, S, sov.id, pol.id, { alone: true }); war.aggr = [1.22, 0.9]; }
   }
+  if (w.scenario === '1914' && w.day === 2) strike(w, S, 'open1914');
+  for (const m of SWEEPS[w.scenario] ?? []) {
+    const d0 = (m.after ? (w.cooldowns[`began:${m.after}`] ?? -1e9) : 0) + m.day; // from the first day it can happen to the last, the first day its key point is held
+    if (!w.cooldowns[`swept:${m.id}`] && w.day >= d0 && w.day <= d0 + (m.upTo ?? m.day) - m.day && (!m.prev || w.cooldowns[`swept:${m.prev}`])) sweep(w, S, m);
+  }
+  if (w.scenario === '1914' && w.day === 150) { const war = w.wars.find(x => x.id === w.goalWar), gb = code(w, 'GBR'); if (war?.commit && gb >= 0 && !w.countries[gb].player) delete war.commit[gb]; }
+  for (const [k, d] of Object.entries(w.cooldowns)) if (k.startsWith('strike:') && d === w.day) strike(w, S, k.slice(7));
   for (const m of TIMELINE[w.scenario] ?? []) {
     const d0 = dayOf(w, m.date), d1 = m.until ? dayOf(w, m.until) : d0;
     if (w.day < d0 || w.day > d1 || (w.day - d0) % 30 !== 0 || w.cooldowns[`hist:${m.id}`]) continue;
@@ -148,6 +220,17 @@ function moment(w: World, S: MapStatic, m: Moment) {
     if (!sideOf(war, c)) return;
     if (w.countries[c].player) return ask(w, war, m, c, -1);
     return revolution(w, S, war, c);
+  }
+  if (m.kind === 'armistice') {
+    const side = sideOf(war, c); if (!side) return;
+    const win = -side as 1 | -1, winners = win > 0 ? war.attackers : war.defenders, losers = side > 0 ? war.attackers : war.defenders;
+    const terms = { type: 'treaty' as const, provinces: w.provinces.filter(p => losers.includes(p.owner) && winners.includes(p.controller)).map(p => p.id), reparations: true };
+    say(w, msg('hist.armistice1918', { c: { c } }), 'peace', { who: [...war.attackers, ...war.defenders], big: 'big.war', prov: w.countries[c].capital });
+    const pl = losers.find(x => w.countries[x].player);
+    if (pl === undefined) return makePeace(w, S, war, win, terms);
+    w.agenda.push({ id: w.nextId++, country: pl, day: w.day, kind: 'peace', title: msg('agenda.peace.title', { c: { c: win > 0 ? war.leadA : war.leadD } }), text: msg('agenda.peace.treaty', { n: terms.provinces.length }), data: { war: war.id, side: win, terms }, expires: w.day + 30,
+      options: [{ label: msg('opt.accept'), effect: 'peace.accept' }, { label: msg('opt.fightOn'), effect: 'peace.reject' }] });
+    return;
   }
   const side = m.side!, foes = side > 0 ? war.defenders : war.attackers, friends = side > 0 ? war.attackers : war.defenders;
   const ok = (k: number) => k >= 0 && !sideOf(war, k) && !w.wars.some(x => !x.ended && x !== war && (sideOf(x, k) !== 0) && [...friends, ...foes].some(f => sideOf(x, f) === -sideOf(x, k)));
@@ -174,6 +257,8 @@ function invade(w: World, S: MapStatic, war: War, m: Moment, c: number, side: 1 
   for (const k of (m.with ?? []).map(x => code(w, x))) if (k >= 0 && !sideOf(war, k)) joinWar(w, S, war, k, -side as 1 | -1);
   for (const k of targets) joinWar(w, S, war, k, side, k === c);
   say(w, msg('hist.' + m.id, { c: { c: lead }, o: { c } }), 'war', { who: [c, lead, ...war.attackers, ...war.defenders], big: 'big.war', prov: w.countries[c].capital });
+  if (STRIKES[m.id]) w.cooldowns['strike:' + m.id] = w.day + 2;
+  w.cooldowns[`began:${m.id}`] = w.day; // the day it began (a player may answer the card days later): the breakthroughs count from here
 }
 function revolution(w: World, S: MapStatic, war: War, c: number) {
   const C = w.countries[c];
@@ -186,7 +271,7 @@ function ask(w: World, war: War, m: Moment, c: number, side: 1 | -1) {
   const lead = side > 0 ? war.leadA : war.leadD, foe = side > 0 ? war.leadD : war.leadA;
   const k = m.kind === 'revolution' ? 'revolution' : m.kind === 'invade' ? m.id : 'join';
   const a = { c: { c: w.countries.findIndex(x => x.player) }, o: { c: m.kind === 'invade' ? c : lead }, e: { c: foe }, war: { m: war.name } };
-  w.agenda.push({ id: w.nextId++, country: w.countries.findIndex(x => x.player), day: w.day, kind: 'history', title: msg(`hist.ask.${k}.title`, a), text: msg(`hist.ask.${k}.text`, a), expires: w.day + 60, dflt: 0,
+  w.agenda.push({ id: w.nextId++, country: w.countries.findIndex(x => x.player), day: w.day, kind: 'history', title: msg(`hist.ask.${k}.title`, a), text: msg(`hist.ask.${k}.text`, a), expires: w.day + 20, dflt: 0,
     data: { moment: m.id, war: war.id, c, side }, options: [0, 1].map(i => ({ label: msg(`hist.ask.${k}.o${i}`, a), hint: msg(`hist.ask.${k}.h${i}`, a), effect: 'history.' + i })) });
 }
 /** The player's answer to a history card. */
@@ -223,9 +308,13 @@ export function setupHistory(w: World, S: MapStatic) {
     // the July Crisis: Austria-Hungary attacks Serbia; Russia mobilises; Germany strikes France through Belgium
     const war = declareWar(w, S, ci.AUH, ci.SRB, { name: msg('war.name.ww1'), sides: { attackers: ids(['GER']), defenders: ids(['RUS', 'FRA', 'GBR', 'BEL', 'MNE']) } });
     war.aggr = [1.15, 1.0]; war.total = true; w.goalWar = war.id;
-    const W = [6, 49.5], E = [21, 52], B = [20, 44.5];
-    deploy(war, { GER: [[W[0], W[1], 0.72], [E[0], E[1], 0.22]], FRA: [[W[0], W[1], 0.88]], GBR: [[W[0], W[1], 0.6]], BEL: [[W[0], W[1], 0.9]], RUS: [[E[0], E[1], 0.75]], AUH: [[E[0], E[1], 0.5], [B[0], B[1], 0.35]], SRB: [[B[0], B[1], 0.95]], MNE: [[B[0], B[1], 0.9]] });
-    for (const t of w.theaters.filter(x => x.war === war.id)) for (let k = 0; k < t.W * t.H; k++) t.ent[k] = T.entMax * (t.trench ?? 1); // the armies of 1914 dig in where they meet: every front starts entrenched
+    if (has('GER')) war.plan = { [ci.GER]: { at: [4.5, 49.8], r: 450, w: 9, until: 365 * 5 } }; // the West first, and the bulk of the army there to the end
+    if (has('GBR')) (war.commit ??= {})[ci.GBR] = 0.3; // a small professional army at first: Kitchener's New Armies come in 1915
+    // the Schlieffen plan's strong right wing faces Belgium; France's Plan XVII masses in Lorraine; the British land at Mons
+    const W = [6.2, 50.4], L = [6.6, 48.8], E = [21, 52], B = [20, 44.5];
+    deploy(war, { GER: [[W[0], W[1], 0.66], [L[0], L[1], 0.16], [E[0], E[1], 0.15]], FRA: [[L[0], L[1], 0.6], [4.9, 49.8, 0.28]], GBR: [[3.9, 50.4, 0.3]], BEL: [[5.2, 50.6, 0.9]], RUS: [[E[0], E[1], 0.75]], AUH: [[E[0], E[1], 0.5], [B[0], B[1], 0.35]], SRB: [[B[0], B[1], 0.95]], MNE: [[B[0], B[1], 0.9]] });
+    // the Franco-German border is a line of fortresses on both sides (Metz and Strasbourg, Verdun to Belfort): only Belgium is open ground
+    for (const t of w.theaters.filter(x => x.war === war.id)) for (let k = 0; k < t.W * t.H; k++) { const [x, y] = cellLonLat(t, k); if (x > 5.4 && x < 8.6 && y > 47.3 && y < 49.55) t.ent[k] = T.entMax * (t.trench ?? 1); }
   }
   if (w.scenario === '1939' && has('GER', 'POL')) {
     // Fall Weiss: Germany invades Poland; Britain and France stand by their guarantee

@@ -21,6 +21,9 @@ export function monthlyUprisings(w: World, S: MapStatic) {
     const by = new Map<number, number>(); for (const p of lost) by.set(p.owner, (by.get(p.owner) ?? 0) + 1);
     const occ = [...by.entries()].sort((a, b) => b[1] - a[1])[0][0], X = w.countries[occ];
     const land = lost.filter(p => p.owner === occ), unrest = land.reduce((a, p) => a + p.unrest, 0) / land.length;
+    // no rising while the conqueror's troops stand on that land, nor while it fights a world war (the resistance waits for its day)
+    if (w.wars.some(x => !x.ended && x.total && (x.attackers.includes(occ) || x.defenders.includes(occ)))) continue;
+    const ids = new Set(land.map(p => p.id)); if (w.divisions.some(x => x.country === occ && x.theater < 0 && ids.has(x.prov))) continue;
     const chance = RATE * unrest * (X.stability < 0.5 ? 2 : 1) * (atWar(w, occ) ? 2 : 1);
     if (nextRand(w) > chance) continue;
     rise(w, S, d.id, occ, land.map(p => p.id));
@@ -36,10 +39,10 @@ function rise(w: World, S: MapStatic, id: number, occ: number, provs: number[]) 
   d.stability = 0.55; d.warSupport = 0.9; d.manpower = popOf(w, id) * 0.01; d.polCap = 50;
   newLeader(w, d);
   addRel(w, id, occ, -100);
-  // the rebels take up arms: a militia of about one division a province, raised where they stand
+  // the rebels take up arms: a militia of about one division per 1.5 million people, raised where they stand
   w.divisions = w.divisions.filter(x => x.country !== id); w.armies = w.armies.filter(a => a.country !== id);
   const army = { id: w.nextId++, country: id, num: 1, general: makeGeneral(w, d.code), theater: -1, posture: 'hold' as const }; w.armies.push(army);
-  const n = Math.min(20, Math.max(2, Math.round(provs.length * 1.2)));
+  const n = Math.min(12, Math.max(1, Math.round(provs.reduce((a, k) => a + w.provinces[k].pop, 0) / 1.5e6)));
   for (let i = 0; i < n; i++) { const dv = newDivision(w, id, 'infantry', i + 1, provs[i % provs.length], army.id); dv.org = 0.8; w.divisions.push(dv); }
   say(w, msg('log.uprising', { c: { c: id }, o: { c: occ } }), 'war', { who: [id, occ], big: w.countries[occ].player ? 'big.uprising' : undefined, prov: d.capital });
   declareWar(w, S, id, occ, { goal: { type: 'liberate', provinces: provs }, silent: true, alone: true, name: msg('war.name.uprising', { c: { c: id } }) });
