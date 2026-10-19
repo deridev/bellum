@@ -1,6 +1,6 @@
 export type Terrain = 'plains' | 'hills' | 'mountains' | 'forest' | 'jungle' | 'desert' | 'arctic';
 export interface ProvinceData {
-  id: number; name: string; country: string; label: [number, number]; area: number; terrain: Terrain;
+  id: number; name: string; state?: string; merged?: 1; country: string; label: [number, number]; area: number; terrain: Terrain; // state: the state a city region was cut from (merged: an artificial group, not shown)
   elev: number; rough: number; coastal: boolean; nbr: number[]; pop: number; gdp: number;
 }
 export interface CountryData { code: string; name: string; iso2: string; pop: number; gdp: number; capital: number; capitalName: string; color: string }

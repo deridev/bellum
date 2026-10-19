@@ -587,6 +587,32 @@ After, with a passive player: about 8 decisions a year (events and missions). Ov
 - The Entente won the Great War in every seed tried; the Central Powers can win only with a player's help.
 - The 2026 world still has quiet years (about 1.3 AI wars a year).
 
+## 22. Regions around cities (October 2026)
+
+Question: *"Do we still use states as provinces (Rio Grande do Sul) instead of Porto Alegre and the bigger cities?"*
+
+Provinces were Natural Earth states, merged where small: Brazil had 27. Now a big state with several cities is cut into one region per city, the land nearer to that city than to the state's other cities:
+
+| Rule | Value |
+|---|---|
+| States that can be cut | 15,000 km² or more |
+| Cities that seed a region | 150,000 people or more, or a state or national capital of 50,000 or more |
+| Cities closer than 80 km | count once (Canoas and Novo Hamburgo belong to Porto Alegre) |
+| Regions per state | at most 14 |
+| Names | the region takes its city's name; the state is kept, shown under it ("Porto Alegre · Rio Grande do Sul") and used by scenario data |
+
+Rio Grande do Sul is now Porto Alegre, Caxias do Sul, Pelotas, Santa Maria and Passo Fundo. Brazil has 80 provinces, Germany 25, the United States 150, the world 2,821 (was 1,928). Empty states stay whole (Amazonas, Goiás).
+
+Two data fixes came with it:
+- Islands no longer count against a country's province budget when small units are merged: before, France's overseas islands used it up and mainland France was one province.
+- Natural Earth repeats some city names with a big city's population on a village far away (Natal and Vila Velha in the Amazon); of same-named places, only the most prominent counts, and copies with identical population are dropped.
+
+The 1914 and 1939 owners are assigned as before (by each region's label point); an override that names a state covers all its regions.
+
+### 22.1 Known issues
+- Region borders are straight lines between cities, not real county lines.
+- Merged groups (French départements, for example) have no state to show.
+
 ---
 
 ## Decision log
@@ -634,3 +660,4 @@ After, with a passive player: about 8 decisions a year (events and missions). Ov
 | 40 | 2026-10-18 | **The player is never left without a decision for long**: events come often and a quiet spell ends with one; missions give direction (§21) |
 | 41 | 2026-10-18 | **The world changes by itself**: annexed nations rise again, rivalries build, history's timeline brings nations into the great wars |
 | 42 | 2026-10-18 | **A nation's generals defend its own fronts first**; railheads supply the homeland; nations surrender when their homeland falls, not their empire |
+| 43 | 2026-10-19 | **Provinces are regions around cities**: big states with several cities are cut into nearest-city regions (§22) |

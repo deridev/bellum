@@ -54,12 +54,17 @@ function arg(w: World, v: MsgArg): string | number {
   if ('d' in v) return fmtDate(w, v.d);
   if ('m' in v) return say(w, v.m);
   if ('u' in v) return v.u[0] === 'army' ? armyName(v.u[1]) : unitName(v.u[0], v.u[1]);
-  if ('p' in v) return provNames[v.p] ?? '';
+  if ('p' in v) return provName(v.p);
   return '';
 }
 /** Province names come with the map data, not the simulation; the session registers them once loaded. */
 let provNames: string[] = [];
-export function setProvinceNames(names: string[]) { provNames = names; }
+export function setProvinceNames(names: string[], states: (string | undefined)[] = []) { provNames = names; provStates = states; }
+let provStates: (string | undefined)[] = [];
+/** A province's name in the current language (regions are named after their city) */
+export const provName = (id: number) => provNames[id] === undefined ? '' : cityNameIn(lang, provNames[id]);
+/** The state a region belongs to, when it was cut from one */
+export const provState = (id: number) => provStates[id];
 
 // ---- names ----
 let regionNames: Intl.DisplayNames | null = null;

@@ -19,7 +19,7 @@ import AdmZip from 'adm-zip';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const CACHE = path.join(ROOT, 'tools/cache');
-const OUT = path.join(ROOT, 'public/data');
+const OUT = process.env.MAPGEN_OUT ? path.resolve(process.env.MAPGEN_OUT) : path.join(ROOT, 'public/data');
 fs.mkdirSync(OUT, { recursive: true });
 const readJSON = f => JSON.parse(fs.readFileSync(path.join(CACHE, f), 'utf8'));
 const log = (...a) => console.log('[mapgen]', ...a);
@@ -83,7 +83,9 @@ const maxProv = c => Math.max(1, Math.min(90, Math.round(Math.sqrt(countryArea[c
 for (let pass = 0; pass < 40; pass++) {
   let merged = 0;
   const order = geoms.map((_, i) => i).filter(i => find(i) === i).sort((a, b) => gArea[a] - gArea[b]);
-  const groupsPer = {}; for (const i of order) { const c = geoms[i].properties.country; groupsPer[c] = (groupsPer[c] || 0) + 1; }
+  // islands (no same-country neighbour) cannot merge, so they do not count against the country's budget (or France's mainland would become one province)
+  const joinable = i => mem[i].some(k => nbr[k].some(n => find(n) !== i && geoms[n].properties.country === geoms[i].properties.country));
+  const groupsPer = {}; for (const i of order) { if (!joinable(i)) continue; const c = geoms[i].properties.country; groupsPer[c] = (groupsPer[c] || 0) + 1; }
   for (const i of order) {
     if (find(i) !== i) continue; const c = geoms[i].properties.country;
     if (gArea[i] >= MIN_AREA && groupsPer[c] <= maxProv(c)) continue;
@@ -96,6 +98,11 @@ for (let pass = 0; pass < 40; pass++) {
   if (!merged) break;
 }
 // build merged provinces
+const bboxOf = g => { let x0 = 180, y0 = 90, x1 = -180, y1 = -90; const polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates; for (const p of polys) for (const q of p[0]) { if (q[0] < x0) x0 = q[0]; if (q[0] > x1) x1 = q[0]; if (q[1] < y0) y0 = q[1]; if (q[1] > y1) y1 = q[1]; } return [x0, y0, x1, y1]; };
+const inRing = (r, x, y) => { let c = false; for (let i = 0, j = r.length - 1; i < r.length; j = i++) { const a = r[i], b = r[j]; if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) c = !c; } return c; };
+const inGeom = (g, x, y) => { const polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates; for (const p of polys) if (inRing(p[0], x, y) && !p.slice(1).some(h => inRing(h, x, y))) return true; return false; };
+const bigPlaces = readJSON('ne_10m_populated_places.geojson').features.map(f => f.properties).filter(c => (c.POP_MAX || 0) >= 100000).sort((a, b) => b.POP_MAX - a.POP_MAX).map(c => ({ ...c, __m: c }));
+const fBox = feats.map(f => bboxOf(f.geometry)), inBox = (i, c) => { const b = fBox[i]; return c.LONGITUDE >= b[0] && c.LONGITUDE <= b[2] && c.LATITUDE >= b[1] && c.LATITUDE <= b[3]; };
 const groups = new Map();
 geoms.forEach((g, i) => { const r = find(i); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(i); });
 const provFeatures = [];
@@ -103,10 +110,73 @@ for (const [r, members] of groups) {
   const geom = topo.merge(topo1, members.map(i => geoms[i]));
   const biggest = members.slice().sort((a, b) => areas[b] - areas[a])[0];
   const byArea = members.slice().sort((a, b) => areas[b] - areas[a]);
-  const name = members.length > 2 ? geoms[biggest].properties.name : byArea.map(i => geoms[i].properties.name).join(' & ');
-  provFeatures.push({ type: 'Feature', properties: { name, country: geoms[r].properties.country }, geometry: geom });
+  // a group of several units is named after the one holding its largest city (else the largest unit): "Nord", not "Côtes-d'Armor"
+  const hub = members.length > 2 ? (bigPlaces.find(c => members.some(i => inBox(i, c) && inGeom(feats[i].geometry, c.LONGITUDE, c.LATITUDE)))?.__m ?? null) : null;
+  const hubM = hub === null ? null : members.find(i => inBox(i, hub) && inGeom(feats[i].geometry, hub.LONGITUDE, hub.LATITUDE));
+  const name = members.length > 2 ? geoms[hubM ?? biggest].properties.name : byArea.map(i => geoms[i].properties.name).join(' & ');
+  const old = members.length > 2 ? geoms[biggest].properties.name : name; // the name it had before regions: scenario overrides still use it
+  provFeatures.push({ type: 'Feature', properties: { name, old, country: geoms[r].properties.country, merged: members.length > 1 }, geometry: geom });
 }
 log('provinces after merge', provFeatures.length);
+
+// ---------------------------------------------------------------------------
+// 2b. Regions around cities: a big state with several cities is cut into one region per city (nearest-city cells),
+//     so Rio Grande do Sul becomes Porto Alegre, Caxias do Sul, Pelotas, Santa Maria, Passo Fundo. Empty states stay whole.
+const SPLIT = { area: 15000, pop: 150000, capPop: 50000, sepKm: 80, maxPer: 14 };
+// Natural Earth repeats some names with a big city's population on a village far away (Natal and Vila Velha in the Amazon):
+// of the same-named places in a country, only the most prominent counts
+const places = Object.values(readJSON('ne_10m_populated_places.geojson').features.map(f => f.properties)
+  .filter(c => (c.POP_MAX || 0) >= SPLIT.pop || (/Admin-[01] capital/.test(c.FEATURECLA || '') && (c.POP_MAX || 0) >= SPLIT.capPop))
+  .reduce((m, c) => { const k = c.ADM0_A3 + ':' + c.NAME, o = m[k];
+    if (o && o.POP_MAX === c.POP_MAX) { m[k] = { ...o, dup: true }; return m; } // the same population copied onto two places: neither can be trusted
+    if (!o || c.SCALERANK < o.SCALERANK || (c.SCALERANK === o.SCALERANK && (c.POP_MIN || 0) > (o.POP_MIN || 0))) m[k] = c; return m; }, {})).filter(c => !c.dup);
+const kmBetween = (a, b) => { const r = Math.PI / 180, dl = (b[1] - a[1]) * r, dn = (b[0] - a[0]) * r, h = Math.sin(dl / 2) ** 2 + Math.cos(a[1] * r) * Math.cos(b[1] * r) * Math.sin(dn / 2) ** 2; return 12742 * Math.asin(Math.sqrt(h)); };
+const seedsOf = provFeatures.map(f => {
+  if (geomArea(f.geometry) < SPLIT.area) return [];
+  const bb = bboxOf(f.geometry);
+  const here = places.filter(c => c.LONGITUDE >= bb[0] && c.LONGITUDE <= bb[2] && c.LATITUDE >= bb[1] && c.LATITUDE <= bb[3] && inGeom(f.geometry, c.LONGITUDE, c.LATITUDE)).sort((a, b) => (b.POP_MAX || 0) - (a.POP_MAX || 0));
+  const pick = [];
+  for (const c of here) { const at = [c.LONGITUDE, c.LATITUDE]; if (pick.length < SPLIT.maxPer && pick.every(p => kmBetween(p.at, at) >= SPLIT.sepKm)) pick.push({ name: c.NAME, at }); }
+  return pick.length > 1 ? pick : [];
+});
+log('regions: states cut', seedsOf.filter(s => s.length).length, 'into', seedsOf.reduce((a, s) => a + s.length, 0), '-> provinces', provFeatures.length - seedsOf.filter(s => s.length).length + seedsOf.reduce((a, s) => a + s.length, 0));
+// cut: each city's cell (the land nearer to it than to the other cities of the state, by straight-line distance) clipped to the state
+function cellsFor(seeds, bb) {
+  const lat0 = (bb[1] + bb[3]) / 2, k = Math.cos(lat0 * Math.PI / 180), P = s => [s.at[0] * k, s.at[1]];
+  const pad = 2, box = [[bb[0] * k - pad, bb[1] - pad], [bb[2] * k + pad, bb[1] - pad], [bb[2] * k + pad, bb[3] + pad], [bb[0] * k - pad, bb[3] + pad]];
+  return seeds.map((s, i) => {
+    let poly = box; const a = P(s);
+    for (let j = 0; j < seeds.length && poly.length; j++) {
+      if (j === i) continue; const b = P(seeds[j]), m = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], d = [b[0] - a[0], b[1] - a[1]];
+      const side = q => (q[0] - m[0]) * d[0] + (q[1] - m[1]) * d[1]; // <= 0: nearer to a
+      const out = []; for (let q = 0; q < poly.length; q++) { const u = poly[q], v = poly[(q + 1) % poly.length], su = side(u), sv = side(v);
+        if (su <= 0) out.push(u); if ((su <= 0) !== (sv <= 0)) { const t = su / (su - sv); out.push([u[0] + (v[0] - u[0]) * t, u[1] + (v[1] - u[1]) * t]); } }
+      poly = out;
+    }
+    const ring = poly.map(q => [q[0] / k, q[1]]); ring.push(ring[0]);
+    return { type: 'Feature', properties: { name: s.name }, geometry: { type: 'Polygon', coordinates: [ring] } };
+  });
+}
+if (!process.env.MAPGEN_DRY) {
+  const cut = [];
+  for (let i = 0; i < provFeatures.length; i++) {
+    const f = provFeatures[i], seeds = seedsOf[i], state = f.properties.old, merged = f.properties.merged; // a merged group's name is kept for matching, but it is no real state to show
+    if (!seeds.length) { cut.push({ ...f, properties: { ...f.properties, state, merged } }); continue; }
+    const bb = bboxOf(f.geometry);
+    if (bb[2] - bb[0] > 180) { cut.push({ ...f, properties: { ...f.properties, state, merged } }); continue; } // across the antimeridian: left whole
+    const r = await msRun('-i cells.json -i prov.json -clip prov target=cells -o format=geojson target=cells out.json', {
+      'cells.json': JSON.stringify({ type: 'FeatureCollection', features: cellsFor(seeds, bb) }), 'prov.json': JSON.stringify({ type: 'FeatureCollection', features: [f] }) });
+    const parts = JSON.parse(r['out.json']).features.filter(x => x.geometry);
+    if (parts.length < 2) { cut.push({ ...f, properties: { ...f.properties, state, merged } }); continue; }
+    for (const x of parts) cut.push({ type: 'Feature', properties: { name: x.properties.name, country: f.properties.country, state, merged }, geometry: x.geometry });
+  }
+  // two provinces of one country with the same name (Moscow the city, Moscow the region's capital) get their state added
+  const seen = {}; for (const x of cut) { const k = x.properties.country + ':' + x.properties.name; seen[k] = (seen[k] || 0) + 1; }
+  for (const x of cut) { const k = x.properties.country + ':' + x.properties.name; if (seen[k] > 1 && !x.properties.merged && x.properties.state && x.properties.state !== x.properties.name) x.properties.name += ` (${x.properties.state})`; }
+  provFeatures.length = 0; provFeatures.push(...cut);
+  log('provinces after regions', provFeatures.length);
+}
+if (process.env.MAPGEN_DRY) { const top = provFeatures.map((f, i) => [f.properties.country + ' ' + f.properties.name, seedsOf[i].map(s => s.name).join(', ')]).filter(x => x[1]); for (const c of ['BRA', 'DEU', 'FRA', 'USA', 'IND']) console.log(top.filter(x => x[0].startsWith(c)).slice(0, 8).map(x => x.join(': ')).join('\n')); process.exit(0); }
 
 // ---------------------------------------------------------------------------
 // 3. Clean up: erase big lakes, simplify, drop specks, and build the final topology.
@@ -251,7 +321,7 @@ for (let i = 0; i < N; i++) {
   else if (R > 195 && R - G > 7 && R - B < 60 && terrain !== 'mountains') terrain = 'desert';
   else if (G > R + 6 && (terrain === 'plains' || terrain === 'hills')) terrain = Math.abs(lat) < 18 ? 'jungle' : terrain === 'hills' ? 'hills' : 'forest';
   const label = labelPts[i] || pFeats[i].geometry.coordinates.flat(3).slice(0, 2);
-  provinces.push({ id: i, name: props[i].name, country: props[i].country, label, area: Math.round(geomArea(pFeats[i].geometry)), terrain, elev: Math.round(elev), rough: Math.round(rgh),
+  provinces.push({ id: i, name: props[i].name, ...(props[i].state && props[i].state !== props[i].name ? { state: props[i].state } : {}), ...(props[i].merged ? { merged: 1 } : {}), country: props[i].country, label, area: Math.round(geomArea(pFeats[i].geometry)), terrain, elev: Math.round(elev), rough: Math.round(rgh),
     coastal: coastal[i], nbr: [...new Set(pNbr[i])].sort((a, b) => a - b), _city: provCityPop[i], _hab: terrain === 'desert' || terrain === 'arctic' ? 0.08 : terrain === 'mountains' ? 0.35 : terrain === 'jungle' ? 0.5 : 1 });
 }
 // distribute each country's population and GDP over its provinces

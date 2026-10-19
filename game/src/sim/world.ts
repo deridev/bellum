@@ -13,11 +13,13 @@ const GROUP_POWER: Record<Gov, [number, number, number, number]> = { // military
 };
 
 /** Build the 2026 world from the static map and scenario tables. */
+/** Bumped when saves from before cannot be read: 3 = provinces are regions around cities (§22) */
+export const WORLD_VERSION = 3;
 export function createWorld(S: MapStatic, opts: { seed?: number; player?: number; startDate?: number; scenario?: string; tables?: Tables } = {}): World {
   const TB = opts.tables ?? TABLES_2026, modern = (opts.scenario ?? '2026') === '2026';
   const nC = S.countries.length;
   const w: World = {
-    version: 2, seed: opts.seed ?? 2026, rng: opts.seed ?? 2026, day: 0, startDate: opts.startDate ?? DAY0, scenario: opts.scenario ?? '2026',
+    version: WORLD_VERSION, seed: opts.seed ?? 2026, rng: opts.seed ?? 2026, day: 0, startDate: opts.startDate ?? DAY0, scenario: opts.scenario ?? '2026',
     provinces: [], countries: [], divisions: [], armies: [], nextId: 1, wars: [], theaters: [], treaties: [], blocs: {},
     relations: new Int8Array(nC * nC), log: [], agenda: [], cooldowns: {}, settings: { turnMode: 'continuous', difficulty: 1 },
   };

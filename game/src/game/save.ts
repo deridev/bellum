@@ -1,4 +1,5 @@
 import type { World } from '../sim/types';
+import { WORLD_VERSION } from '../sim/world';
 /** Save games: JSON with typed arrays as base64, kept in localStorage slots. */
 const KEY = 'bellum.saves.v1';
 const b64 = (a: ArrayBufferView) => { const u = new Uint8Array(a.buffer, a.byteOffset, a.byteLength); let s = ''; for (let i = 0; i < u.length; i += 0x8000) s += String.fromCharCode(...u.subarray(i, i + 0x8000)); return btoa(s); };
@@ -29,5 +30,5 @@ export function saveGame(slot: string, w: World, meta: Omit<SaveMeta, 'slot' | '
   } catch (e: any) { return 'Could not save: ' + (e?.message || e); }
 }
 /** Saves from older versions of the game can't be read (the world format changed); they load as null. */
-export function loadGame(slot: string): World | null { try { const s = localStorage.getItem(`${KEY}.${slot}`); const w = s ? deserialize(s) : null; return w && w.version === 2 ? w : null; } catch { return null; } }
+export function loadGame(slot: string): World | null { try { const s = localStorage.getItem(`${KEY}.${slot}`); const w = s ? deserialize(s) : null; return w && w.version === WORLD_VERSION ? w : null; } catch { return null; } }
 export function deleteSave(slot: string) { try { localStorage.removeItem(`${KEY}.${slot}`); localStorage.setItem(KEY, JSON.stringify(listSaves().filter(s => s.slot !== slot))); } catch { /* ignore */ } }

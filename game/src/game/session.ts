@@ -32,7 +32,7 @@ export class Session {
     this.ctx = ovc.getContext('2d')!;
     this.scenario = presentDay(assets); this.owner = this.scenario.owner;
     this.setScenario(this.scenario);
-    onLang(() => this.relabel()); setProvinceNames(this.assets.provinces.map(p => p.name));
+    onLang(() => this.relabel()); setProvinceNames(this.assets.provinces.map(p => p.name), this.assets.provinces.map(p => p.merged ? undefined : p.state));
     this.resize(); this.cam.upp = 360 / this.cam.w; this.cam.x = 15; this.cam.y = 28; this.cam.clamp();
     this.bindInput();
     window.addEventListener('resize', () => this.resize());

@@ -3,7 +3,7 @@ import type { Session } from '../game/session';
 import { useStore } from '../game/store';
 import { loadScenario, SCENARIOS, type ScenarioId } from '../game/scenarios';
 import { listSaves } from '../game/save';
-import { nameFor, t } from '../i18n';
+import { nameFor, provName, provState, t } from '../i18n';
 import { Flag } from './common';
 import { fmtBig, fmtMoney } from './format';
 import { Settings } from './Settings';
@@ -102,5 +102,5 @@ export function HoverTip({ s }: { s: Session }) {
   if (document.elementFromPoint(mouse[0], mouse[1])?.closest('.ui:not(.tip)')) return null; // the pointer is over a panel, not the map
   const p = s.assets.provinces[hover], c = s.countries[s.owner[hover]], occ = s.occupier?.(hover);
   if (!c) return null;
-  return <div class={`tip panel ${mouse[0] > s.cam.w - 320 ? 'flip' : ''}`} style={{ left: mouse[0], top: mouse[1] }}><b>{p.name}</b> <span>· {nameFor(c.code, c.name, c.iso2)}{occ ? <span class="bad"> · {t('tip.heldBy', { c: occ })}</span> : null} · {t('terrain.' + p.terrain)}</span></div>;
+  return <div class={`tip panel ${mouse[0] > s.cam.w - 320 ? 'flip' : ''}`} style={{ left: mouse[0], top: mouse[1] }}><b>{provName(hover)}</b> <span>{provState(hover) ? `· ${provState(hover)} ` : ''}· {nameFor(c.code, c.name, c.iso2)}{occ ? <span class="bad"> · {t('tip.heldBy', { c: occ })}</span> : null} · {t('terrain.' + p.terrain)}</span></div>;
 }

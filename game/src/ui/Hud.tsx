@@ -7,7 +7,7 @@ import { groupMood, stabilityTarget } from '../sim/politics';
 import { DIPLO, diploOdds, type DiploAction } from '../sim/diplomacy';
 import { type Conscription, type Country, type LogEntry, type UnitType, type War } from '../sim/types';
 import { CONSCRIPTION_GROWTH, CONSCRIPTION_RATE, rel } from '../sim/world';
-import { armyName, countryName, fmtDate, has, say, t, unitName, onLang } from '../i18n';
+import { armyName, countryName, fmtDate, has, provName, provState, say, t, unitName, onLang } from '../i18n';
 import { HoverTip } from './App';
 import { Bar, Block, Delta, Flag, Icon, IconBtn, MoreFooter, Ring, Sheet, SignedBar, Slider, Spark, StackBar, UnitSymbol, useMore } from './common';
 import { LedgerScreen } from './Ledger';
@@ -393,7 +393,7 @@ function DiplomacyPanel({ g }: { g: Game }) {
 function ProvincePanel({ g, id }: { g: Game; id: number }) {
   const P = g.s.assets.provinces[id], p = g.w.provinces[id];
   const here = g.w.divisions.filter(d => d.prov === id && d.theater < 0);
-  return <Sheet onClose={() => g.openPanel(null)} icon="political" eyebrow={t('panel.province')} title={<div><div class="h2">{P.name}</div><div class="sub"><Flag s={g.s} code={g.w.countries[p.owner].code} h={11} /> {countryName(g.w, p.owner)}{p.controller !== p.owner ? <span class="bad"> · {t('tip.heldBy', { c: countryName(g.w, p.controller) })}</span> : null}</div></div>}>
+  return <Sheet onClose={() => g.openPanel(null)} icon="political" eyebrow={t('panel.province')} title={<div><div class="h2">{provName(id)}</div><div class="sub">{provState(id) && <>{provState(id)} · </>}<Flag s={g.s} code={g.w.countries[p.owner].code} h={11} /> {countryName(g.w, p.owner)}{p.controller !== p.owner ? <span class="bad"> · {t('tip.heldBy', { c: countryName(g.w, p.controller) })}</span> : null}</div></div>}>
     <div class="facts">
       <Fact icon="terrain" label={t('stat.terrain')} v={t('terrain.' + P.terrain)} />
       <Fact icon="population" label={t('stat.population')} v={fmtBig(p.pop)} />

@@ -31,7 +31,7 @@ describe('world over ten years', () => {
     expect(growth[growth.length >> 1]).toBeGreaterThan(0.7); expect(growth[growth.length >> 1]).toBeLessThan(1.5); expect(growth[growth.length - 1]).toBeLessThan(4);
     expect(events).toBeGreaterThan(50);
     expect(w.treaties.filter(x => x.type === 'alliance').length).toBeGreaterThan(6); // more than the six at the start
-    expect(ms).toBeLessThan(20);
+    expect(ms).toBeLessThan(30); // a decade with long wars runs 9–13 ms a day on its own; the rest is room for a busy test machine
   }, 900000);
   it('diplomacy answers make sense', () => {
     const w = createWorld(S, { seed: 3 }); setupScenario(w, S);

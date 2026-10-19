@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const CACHE = path.join(ROOT, 'tools/cache'), OUT = path.join(ROOT, 'public/data');
+const CACHE = path.join(ROOT, 'tools/cache'), OUT = process.env.MAPGEN_OUT ? path.resolve(process.env.MAPGEN_OUT) : path.join(ROOT, 'public/data');
 const read = f => JSON.parse(fs.readFileSync(f, 'utf8'));
 const provinces = read(path.join(OUT, 'provinces.json'));
 const modern = read(path.join(OUT, 'countries.json'));
@@ -78,8 +78,8 @@ const SCENARIOS = [{
   },
   modern: { ...COLONIES, FIN: 'RUS', MDA: 'RUS', SYR: 'OTT', LBN: 'OTT', ISR: 'OTT', JOR: 'OTT', IRQ: 'OTT', LBY: 'ITA', IRL: 'GBR', FSM: 'GER', PLW: 'GER', WSM: 'GER' },
   prov: {
-    ...SHARED_PROV, 'CAN:Newfoundland and Labrador': 'GBR', 'SAU:Makkah': 'OTT', 'SRB:South Bačka': 'SRB' /* holds Belgrade */, 'YEM:Al Jawf': 'OTT', "YEM:Ma'rib": 'OTT', 'GAB:Estuaire': 'FRA',
-    ...Object.fromEntries(['Sandaun', 'East Sepik', 'Madang', 'Morobe', 'Western Highlands & Chimbu', 'Enga', 'Eastern Highlands', 'West New Britain', 'East New Britain',
+    ...SHARED_PROV, 'CAN:Newfoundland and Labrador': 'GBR', 'SAU:Makkah': 'OTT', 'SRB:Belgrade': 'SRB' /* holds Belgrade */, 'TUR:Istanbul': 'OTT', 'YEM:Al Jawf': 'OTT', "YEM:Ma'rib": 'OTT', 'GAB:Estuaire': 'FRA',
+    ...Object.fromEntries(['Sandaun', 'East Sepik', 'Madang', 'Morobe', 'Western Highlands', 'Chimbu', 'Enga', 'Eastern Highlands', 'West New Britain', 'East New Britain',
       'New Ireland', 'Manus', 'of Bougainville'].map(n => ['PNG:' + n, 'GER'])), // German New Guinea
     ...Object.fromEntries(['Rota', 'Tinian', 'Saipan', 'Northern Mariana Islands'].map(n => ['USA:' + n, 'GER'])),
   },
@@ -161,7 +161,9 @@ for (const S of SCENARIOS) {
   const feats = read(path.join(CACHE, S.src)).features.filter(f => f.geometry && f.properties.NAME);
   const codeOf = Object.fromEntries(Object.entries(AMERICAS).map(([c, [name]]) => [name, c]));
   for (const [code, list] of Object.entries(S.names)) for (const n of list) codeOf[n] = code;
-  const provKey = {}; provinces.forEach(p => { const k = `${p.country}:${p.name}`; if (k in S.prov) { if (k in provKey) throw new Error(`${S.id}: ambiguous override ${k}`); provKey[k] = p.id; } });
+  // an override names a province, or a state (then it covers every region the state was cut into)
+  const keysOf = p => [`${p.country}:${p.name}`, ...(p.state ? [`${p.country}:${p.state}`] : [])];
+  const provKey = {}, byName = {}; provinces.forEach(p => { const k = `${p.country}:${p.name}`; if (k in S.prov) { if (k in byName) throw new Error(`${S.id}: ambiguous override ${k}`); byName[k] = provKey[k] = p.id; } if (p.state && `${p.country}:${p.state}` in S.prov) provKey[`${p.country}:${p.state}`] = p.id; });
   for (const k of Object.keys(S.prov)) if (!(k in provKey)) throw new Error(`${S.id}: override ${k} matches no province`);
 
   const unmapped = new Set(), how = { override: 0, polygon: 0, capital: 0, nearest: 0, none: 0 };
@@ -169,7 +171,7 @@ for (const S of SCENARIOS) {
   const memo = new Map();
   function ownerOf(p) {
     if (memo.has(p.id)) return memo.get(p.id);
-    let code = S.prov[`${p.country}:${p.name}`] || S.modern[p.country], kind = 'override';
+    let code = keysOf(p).map(k => S.prov[k]).find(Boolean) || S.modern[p.country], kind = 'override';
     const lookup = f => { const { NAME, SUBJECTO } = f.properties, c = codeOf[NAME] || codeOf[SUBJECTO]; if (!c) unmapped.add(`${NAME} [${SUBJECTO}]`); return c || null; };
     if (!code && hit[p.id]) { code = lookup(hit[p.id]); kind = 'polygon'; }
     if (!code && !hit[p.id]) {
