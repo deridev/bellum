@@ -67,6 +67,7 @@ export interface War {
   lost?: [number, number]; // divisions each side has lost outright (destroyed, or captured in a pocket)
   winner?: 1 | -1 | 0; // set when it ends: the side that dictated the peace (0: white peace or ceasefire)
   total?: boolean; // a world war: the great powers fight it out rather than settle early
+  left?: Record<number, 1 | -1>; // members who left it by a separate peace, and the side they fought on
 }
 export interface Bloc { name: string; members: number[]; alliance: boolean; leader: number }
 export interface Treaty { type: TreatyType; a: number; b: number; since: number; until: number }
@@ -97,6 +98,7 @@ export interface World {
   crisis?: { id: string; start: number; until: number; choice: Record<number, 0 | 1> }; // the world crisis under way, and how each nation met it
   landings?: { id: number; country: number; army: number; war: number; theater: number; at: [number, number]; prov: number; day: number; p: number }[]; // armies at sea, landing on `day` with chance `p`
   missions?: Mission[]; // the player's national missions under way
+  chains?: { c: number; id: string; day: number; other: number }[]; // follow-up events owed by earlier choices
   outcome?: { kind: 'victory' | 'defeat' | 'end'; reason: string; day: number; rank?: number; playOn?: boolean }; // how the game ended for the player
 }
 

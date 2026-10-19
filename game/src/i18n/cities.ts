@@ -30,4 +30,8 @@ const ES: Record<string, string> = {
   Antwerpen: 'Amberes', Kathmandu: 'Katmandú', Ulaanbaatar: 'Ulán Bator', Muscat: 'Mascate', Valletta: 'La Valeta', 'New Delhi': 'Nueva Delhi', Bern: 'Berna', Nicosia: 'Nicosia', Luxembourg: 'Luxemburgo',
   'Vatican City': 'Ciudad del Vaticano', Babylon: 'Babilonia', Jeddah: 'Yeda', Nice: 'Niza', Odessa: 'Odesa', 'Panama City': 'Ciudad de Panamá', 'Santo Domingo': 'Santo Domingo', Mosul: 'Mosul',
 };
-export const cityNameIn = (lang: string, name: string) => (lang === 'pt' ? PT[name] : lang === 'es' ? ES[name] : undefined) ?? name.replace(/\s{2,}/g, ' ');
+/** Brazilian forms first (the map data's Portuguese is European: Nova Iorque, Nuremberga), then the data's own name for the language. */
+export const cityTable = (lang: string, name: string): string | undefined => lang === 'pt' ? PT[name] : lang === 'es' ? ES[name] : undefined;
+const DATA = new Map<string, { pt?: string; es?: string }>();
+export function registerCities(list: { name: string; pt?: string; es?: string }[]) { for (const c of list) if (c.pt || c.es) DATA.set(c.name, { pt: c.pt, es: c.es }); }
+export const cityNameIn = (lang: string, name: string) => cityTable(lang, name) ?? (lang === 'pt' || lang === 'es' ? DATA.get(name)?.[lang] : undefined) ?? name.replace(/\s{2,}/g, ' ');

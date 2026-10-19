@@ -4,7 +4,8 @@ import { en } from './en';
 import { pt } from './pt';
 import { es } from './es';
 import { fillCountries, genderOf, type Gender } from './grammar';
-import { cityNameIn } from './cities';
+import { cityNameIn, cityTable } from './cities';
+export { registerCities } from './cities';
 
 export type Lang = 'en' | 'pt' | 'es';
 export const LANGS: { id: Lang; label: string }[] = [{ id: 'en', label: 'English' }, { id: 'pt', label: 'Português (Brasil)' }, { id: 'es', label: 'Español' }];
@@ -59,12 +60,13 @@ function arg(w: World, v: MsgArg): string | number {
 }
 /** Province names come with the map data, not the simulation; the session registers them once loaded. */
 let provNames: string[] = [];
-export function setProvinceNames(names: string[], states: (string | undefined)[] = []) { provNames = names; provStates = states; }
-let provStates: (string | undefined)[] = [];
-/** A province's name in the current language (regions are named after their city) */
-export const provName = (id: number) => provNames[id] === undefined ? '' : cityNameIn(lang, provNames[id]);
-/** The state a region belongs to, when it was cut from one */
-export const provState = (id: number) => provStates[id];
+type ProvNames = { name: string; pt?: string; es?: string; state?: string; statePt?: string; stateEs?: string; merged?: 1 };
+let provData: ProvNames[] = [];
+export function setProvinceNames(list: ProvNames[]) { provData = list; provNames = list.map(p => p.name); }
+/** A province's name in the current language (regions are named after their city): Brazilian forms first, then the map data's */
+export const provName = (id: number) => { const p = provData[id]; if (!p) return provNames[id] ?? ''; return cityTable(lang, p.name) ?? (lang === 'pt' ? p.pt : lang === 'es' ? p.es : undefined) ?? p.name; };
+/** The state a region belongs to, when it was cut from one (merged groups of small units are no state) */
+export const provState = (id: number) => { const p = provData[id]; if (!p || !p.state || p.merged) return undefined; return (lang === 'pt' ? p.statePt : lang === 'es' ? p.stateEs : undefined) ?? p.state; };
 
 // ---- names ----
 let regionNames: Intl.DisplayNames | null = null;

@@ -5,7 +5,7 @@ import { computeLabels, drawCountryLabels, type CountryLabel } from '../render/l
 import { MapRenderer, type MapMode } from '../render/map';
 import { createStore } from './store';
 import { presentDay, type Scenario } from './scenarios';
-import { cityName, nameFor, onLang, setProvinceNames } from '../i18n';
+import { cityName, nameFor, onLang, registerCities, setProvinceNames } from '../i18n';
 
 export interface UIState {
   phase: 'pick' | 'play';
@@ -32,7 +32,7 @@ export class Session {
     this.ctx = ovc.getContext('2d')!;
     this.scenario = presentDay(assets); this.owner = this.scenario.owner;
     this.setScenario(this.scenario);
-    onLang(() => this.relabel()); setProvinceNames(this.assets.provinces.map(p => p.name), this.assets.provinces.map(p => p.merged ? undefined : p.state));
+    onLang(() => this.relabel()); setProvinceNames(this.assets.provinces); registerCities(this.assets.cities);
     this.resize(); this.cam.upp = 360 / this.cam.w; this.cam.x = 15; this.cam.y = 28; this.cam.clamp();
     this.bindInput();
     window.addEventListener('resize', () => this.resize());

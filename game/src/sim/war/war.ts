@@ -265,7 +265,7 @@ function weeklyWar(w: World, S: MapStatic, war: War) {
   const sc = warScore(w, war); if (Math.abs(sc - war.score) >= 4) (war as any).lastChange = w.day; war.score = sc;
   for (const [i, side] of [[0, war.attackers], [1, war.defenders]] as const) {
     const pop = side.reduce((a, c) => a + popTotal(w, c), 0);
-    war.exhaustion[i] = clamp01(war.casualties[i] / Math.max(1, pop) * 40 + Math.max(0, w.day - war.start) / 3650);
+    war.exhaustion[i] = clamp01(war.casualties[i] / Math.max(1, pop) * 40 * (war.total ? 0.6 : 1) + Math.max(0, w.day - war.start) / 3650); // nations in a world war, fully mobilised, bear far more
     for (const c of side) { const C = w.countries[c]; C.warSupport = clamp01(C.warSupport - war.exhaustion[i] * 0.01 - (C.gov === 'democracy' ? 0.002 : 0)); }
   }
   for (const side of [1, -1] as const) if (!war.ended && surrenders(w, S, war, side)) { capitulate(w, S, war, side); return; }
@@ -327,6 +327,7 @@ function separatePeace(w: World, S: MapStatic, war: War, c: number, side: 1 | -1
   if (w.provinces.some(p => p.owner === c)) { if (puppet) w.treaties.push({ type: 'puppet', a: lead, b: c, since: w.day, until: w.day + 365 * 10 }); }
   else { w.countries[c].alive = false; say(w, msg('log.gone', { c: { c } }), 'war', { who: [c], big: 'big.annexed' }); }
   if (side > 0) war.attackers = war.attackers.filter(x => x !== c); else war.defenders = war.defenders.filter(x => x !== c);
+  (war.left ??= {})[c] = side; // remembered: a nation that fell out of a world war lost it
   war.score = warScore(w, war); // the score now counts only those still fighting
   for (const e of winners) w.cooldowns[truceKey(c, e)] = w.day + 365 * 5;
   const strongest = rest.slice().sort((a, b) => w.divisions.filter(d => d.country === b).length - w.divisions.filter(d => d.country === a).length)[0];
@@ -336,7 +337,7 @@ function separatePeace(w: World, S: MapStatic, war: War, c: number, side: 1 | -1
   say(w, msg('log.separatePeace', { c: { c }, war: { m: war.name }, b: { c: strongest } }), 'peace', { who: [c, ...winners], big: 'big.capitulation' });
   // what is left of a side that has lost its great powers gives in with them
   const divs = (cs: number[]) => w.divisions.filter(d => cs.includes(d.country)).length, losers = side > 0 ? war.attackers : war.defenders;
-  if (war.total && divs(losers) < 0.35 * divs(winners)) makePeace(w, S, war, win, { type: 'treaty', provinces: w.provinces.filter(p => losers.includes(p.owner) && winners.includes(p.controller)).map(p => p.id) });
+  if (war.total && divs(losers) < 0.35 * divs(winners) && war.exhaustion[side > 0 ? 0 : 1] >= 0.5) makePeace(w, S, war, win, { type: 'treaty', provinces: w.provinces.filter(p => losers.includes(p.owner) && winners.includes(p.controller)).map(p => p.id) });
 }
 /** A member leaves a world war of its own accord (a revolution, say): the enemy keeps what it holds, but there is no overlord. */
 export function leaveWar(w: World, S: MapStatic, war: War, c: number) {

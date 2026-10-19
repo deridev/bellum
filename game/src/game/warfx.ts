@@ -158,7 +158,7 @@ export class WarFx {
     const s = Math.min(1.7, Math.max(0.8, Math.pow(zoom / 6, 0.4))), fw = 10.5 * s, fh = 7 * s, A = this.A;
     const blink = 0.55 + 0.45 * Math.sin(now * 6);
     // one flag per small patch of screen and side: a crowded front shows its density, not a heap that hides the line
-    const taken = new Set<number>(), cw = fw * 1.35, ch = fh * 1.9;
+    const taken = new Set<number>(), cw = fw * 1.8, ch = fh * 2.4;
     for (const d of w.divisions) {
       if (d.theater < 0 || d.arrive > w.day) continue;
       const u = this.units.get(d.id), t = thById.get(d.theater); if (!u || !t) continue;

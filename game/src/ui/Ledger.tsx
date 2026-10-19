@@ -6,7 +6,7 @@ import { rel } from '../sim/world';
 import { allied, enemies } from '../sim/war/war';
 import { countryName, fmtDate, say, t } from '../i18n';
 import { dashOf, Delta, Flag, Icon, LineChart, MoreFooter, SignedBar, useMore, type Series } from './common';
-import { fmtBig, fmtInt, fmtMoney, pct } from './format';
+import { fmtBig, fmtInt, fmtMoney, pct, moneyDelta } from './format';
 import { Goals } from './Goals';
 
 type Tab = 'overview' | 'rankings' | 'compare';
@@ -84,7 +84,7 @@ function Overview({ g }: { g: Game }) {
     <Goals g={g} />
     <div class="kpis">
       {kpi('gdp', t('stat.gdp'), fmtMoney(c.gdp), since(c.gdp, first?.gdp, fmtMoney), 'gdp')}
-      {kpi('treasury', t('ledger.treasury'), fmtMoney(c.treasury), <span class={bal < 0 ? 'bad' : 'good'}>{t('eco.perMonth', { v: (bal >= 0 ? '+' : '−') + fmtMoney(Math.abs(bal)) })}</span>)}
+      {kpi('treasury', t('ledger.treasury'), fmtMoney(c.treasury), <span class={moneyDelta(bal)[1]}>{moneyDelta(bal)[1] ? t('eco.perMonth', { v: moneyDelta(bal)[0] }) : '–'}</span>)}
       {kpi('military', t('mil.divisions'), fmtInt(g.series('divisions').at(-1) ?? 0), since(g.series('divisions').at(-1) ?? 0, first?.divisions, fmtInt), 'divisions')}
       {kpi('political', t('led.col.provinces'), fmtInt(provs.at(-1) ?? 0), since(provs.at(-1) ?? 0, provs[0], fmtInt), 'provinces')}
     </div>

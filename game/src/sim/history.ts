@@ -6,7 +6,7 @@ import { msg } from './types';
 import { declareWar, joinWar, leaveWar, sideOf } from './war/war';
 import { newLeader } from './politics';
 import { addRel, clamp01, say } from './world';
-import { cellLonLat, deployAlongFront } from './war/theater';
+import { cellLonLat, deployAlongFront, T } from './war/theater';
 import { nextRand } from './rng';
 
 // names for historical states
@@ -225,6 +225,7 @@ export function setupHistory(w: World, S: MapStatic) {
     war.aggr = [1.15, 1.0]; war.total = true; w.goalWar = war.id;
     const W = [6, 49.5], E = [21, 52], B = [20, 44.5];
     deploy(war, { GER: [[W[0], W[1], 0.72], [E[0], E[1], 0.22]], FRA: [[W[0], W[1], 0.88]], GBR: [[W[0], W[1], 0.6]], BEL: [[W[0], W[1], 0.9]], RUS: [[E[0], E[1], 0.75]], AUH: [[E[0], E[1], 0.5], [B[0], B[1], 0.35]], SRB: [[B[0], B[1], 0.95]], MNE: [[B[0], B[1], 0.9]] });
+    for (const t of w.theaters.filter(x => x.war === war.id)) for (let k = 0; k < t.W * t.H; k++) t.ent[k] = T.entMax * (t.trench ?? 1); // the armies of 1914 dig in where they meet: every front starts entrenched
   }
   if (w.scenario === '1939' && has('GER', 'POL')) {
     // Fall Weiss: Germany invades Poland; Britain and France stand by their guarantee

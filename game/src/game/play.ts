@@ -7,11 +7,11 @@ import { km, project, unproject } from '../geo';
 import type { Session } from './session';
 import { createStore } from './store';
 import { TheaterLayer } from '../render/theaters';
-import { WarFx } from './warfx';
+import { aimVerdict, WarFx } from './warfx';
 import { armyName, countryName, say, t } from '../i18n';
 import { acceptsPeace, activeWars, allied, declareWar, makePeace, sideOf, theatersOf, type PeaceTerms } from '../sim/war/war';
 import { strikeOdds } from '../sim/war/ai';
-import { armyWhere, mergeArmies, orderArmy, releaseArmy, reserveArmy, splitArmy } from '../sim/war/armies';
+import { armyWhere, mergeArmies, orderArmy, releaseArmy, reserveArmy, splitArmy, deployIdleArmies } from '../sim/war/armies';
 import { queueUnit } from '../sim/economy';
 import { landingPlan } from '../sim/war/landing';
 import { guideSeen } from '../ui/Guide';
@@ -25,7 +25,7 @@ import { audio, type Cue } from './audio';
 export type Panel = { kind: 'economy' | 'politics' | 'military' | 'diplomacy' | 'ledger' | 'chronicle' | 'timelapse' } | { kind: 'province'; id: number } | { kind: 'country'; id: number } | { kind: 'war'; id: number } | null;
 /** What an order at the pointer would do, while an army is picked up (for an attack, see strikeOdds). */
 /** org: the army's organisation now; supTo: its supply once it reaches the objective (estimated) */
-export interface Aim { kind?: 'attack' | 'hold' | 'wait' | 'station' | 'landing'; days?: number; org?: number; supTo?: number; err: string | null; odds: number; n: number; reserves: number; foes: number; def: number; from: [number, number] | null; to: [number, number] | null; ids: number[] }
+export interface Aim { kind?: 'attack' | 'hold' | 'wait' | 'station' | 'landing' | 'merge'; into?: number; days?: number; org?: number; supTo?: number; err: string | null; odds: number; n: number; reserves: number; foes: number; def: number; from: [number, number] | null; to: [number, number] | null; ids: number[] }
 export interface GameState { day: number; speed: number; paused: boolean; tick: number; panel: Panel; turnMode: World['settings']['turnMode']; menu: boolean; toast: string; declare: number; aim: Aim | null; army: number | null; guide: boolean }
 /** a cell of ours within 80 km of the front: an army sent there holds it (further back, it waits in reserve) */
 const nearFront = (th: Theater, k: number) => { const d = work(th).distF[k]; return d >= 0 && d * th.cellKm <= 80; };
@@ -66,6 +66,7 @@ export class Game {
   private adopt() {
     this.layer.reset(); this.layer.setPalette(this.w.countries.map(c => c.color)); this.s.ren.setPalette(this.w.countries.map(c => c.color));
     this.fx = new WarFx(this.s, this.layer); this.history = []; this.startProvinces = this.w.provinces.filter(p => p.owner === this.player).length;
+    if (this.w.day === 0 && this.me.deficit === 0) this.me.deficit = -0.03; // a new government starts by putting a little aside, so the treasury moves
     if (this.w.day === 0 && !this.w.missions?.length) monthlyMissions(this.w, this.S); // the first mission is offered at once: the first month is never empty
     this.record(); this.afterDay(); this.syncMap(true);
   }
@@ -96,6 +97,8 @@ export class Game {
     this.selectArmy(n.id); this.focusArmy(n.id);
   }
   /** an action from the army card: back to the general's line, pull back into reserve, split in two, raise a division for it */
+  /** the War desk's button: every army idle at home goes to the front */
+  sendIdle() { const n = deployIdleArmies(this.w, this.S, this.player); if (n) { this.toast(t('war.idleSent', { n })); this.afterDay(); this.bump(); this.sound('order'); } }
   armyAction(kind: 'release' | 'reserve' | 'split' | 'raise') {
     const id = this.st.get().army, a = id !== null ? this.w.armies.find(x => x.id === id) : undefined; if (!a) return;
     let err: string | null = null, done = '';
@@ -124,8 +127,13 @@ export class Game {
       if (err) { this.toast(t(err)); return; }
       this.toast(t('army.did.merge', { a: armyName(a.num), b: armyName(b.num) })); this.selectArmy(hit); this.afterDay(); this.bump(); this.sound('order'); return;
     }
+    // an attack the army is in no state for (worn out, or outrunning its supply) needs a second click on the same spot
+    const aim = this.st.get().aim, warned = aim?.kind === 'attack' && !aim.err && (aimVerdict(aim) === 'tired' || aimVerdict(aim) === 'overreach');
+    if (warned && !(this.confirm && Math.hypot(this.confirm[0] - sx, this.confirm[1] - sy) < 24 && performance.now() - this.confirm[2] < 4000)) { this.confirm = [sx, sy, performance.now()]; this.toast(t('army.confirmAttack')); this.sound('alert'); return; }
+    this.confirm = null;
     const [lon, lat] = unproject(...this.s.cam.toWorld(sx, sy)); this.orderSelected(lon, lat);
   }
+  private confirm: [number, number, number] | null = null;
   /** pointer pressed on the map: on one of our armies, a drag will carry it to its order */
   private pressHit: number | null = null;
   private press(p: [number, number]) { this.pressHit = this.fx.armyAt(p[0], p[1]); return this.pressHit !== null; }
@@ -140,6 +148,7 @@ export class Game {
     const m = this.s.ui.get().mouse, key = `${Math.round(m[0] / 4)},${Math.round(m[1] / 4)},${this.w.day},${this.s.cam.upp}`; if (key === this.aimAt) return; this.aimAt = key;
     const [lon, lat] = unproject(...this.s.cam.toWorld(m[0], m[1]));
     const base = { odds: 0, n: at.total, reserves: 0, foes: 0, def: 1, from: [at.x, at.y] as [number, number], to: [lon, lat] as [number, number], ids: at.divs.map(d => d.id) };
+    const over = this.fx.armyAt(m[0], m[1]); if (over !== null && over !== id) { this.st.set({ aim: { ...base, kind: 'merge', err: null, into: over } }); return; } // a click on another army joins it
     for (const war of activeWars(this.w)) for (const th of theatersOf(this.w, war)) {
       const k = cellOf(th, lon, lat); if (k < 0 || !th.land[k] || !th.sideOf[this.player] || th.frozen) continue;
       if (th.c[k] * th.sideOf[this.player] > 0) { this.st.set({ aim: { ...base, kind: nearFront(th, k) ? 'hold' : 'wait', err: null } }); return; }

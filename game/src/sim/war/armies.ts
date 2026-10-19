@@ -40,6 +40,19 @@ function frontSpots(t: Theater, side: number, x: number, y: number, n: number, f
   while (out.length && out.length < n) out.push(out[out.length % Math.max(1, out.length)]);
   return out.length ? out : null;
 }
+/** Every army of a nation still waiting at home goes to the line of its nearest war zone (by rail when far), for its generals to place. Returns how many divisions went. */
+export function deployIdleArmies(w: World, S: MapStatic, c: number): number {
+  const ths = activeWars(w).filter(x => sideOf(x, c)).flatMap(x => theatersOf(w, x)).filter(t => t.sideOf[c] && !t.frozen); if (!ths.length) return 0;
+  let n = 0; const used = new Set<Theater>();
+  for (const a of w.armies.filter(a => a.country === c)) {
+    const divs = armyDivs(w, a.id).filter(d => d.theater < 0); if (!divs.length) continue;
+    const [hx, hy] = S.provinces[divs[0].prov].label, t = ths.slice().sort((p, q) => km(hx, hy, p.lon0 + p.W * p.cw / 2, p.lat0 - p.H * p.ch / 2) - km(hx, hy, q.lon0 + q.W * q.cw / 2, q.lat0 - q.H * q.ch / 2))[0];
+    for (const d of divs) { const [lon, lat] = S.provinces[d.prov].label; placeUnit(w, t, d, lon, lat, w.day + 2); d.goal = [lon, lat, 2]; n++; }
+    used.add(t);
+  }
+  for (const t of used) deployLine(w, t, c, true);
+  return n;
+}
 /** Send divisions to a point in a war zone: near the front they spread out to hold it, further back they wait in reserve.
  *  Those far away go by rail (gone from the map until they arrive); those nearby march. */
 export function sendArmy(w: World, S: MapStatic, t: Theater, divs: Division[], x: number, y: number, frontKm = 80, mode = 1) {
@@ -58,7 +71,7 @@ export function deployLine(w: World, t: Theater, c: number, rail = true) {
   const side = t.sideOf[c], wk = work(t), divs = w.divisions.filter(d => d.country === c && d.theater === t.id && !d.op && (!d.goal || d.goal[2] === 2));
   const own = side > 0 ? wk.P0 : wk.P1, foe = side > 0 ? wk.P1 : wk.P0;
   const cells: [number, number][] = [], weight: number[] = [], near = homeReach(w, t, c);
-  for (let k = 0; k < t.W * t.H; k++) if (t.land[k] && t.main[k] && wk.distF[k] >= 2 && wk.distF[k] <= 3 && t.c[k] * side >= 0.5 && (!near || near[k])) { cells.push(cellLonLat(t, k)); weight.push((1 + 3 * foe[k] / (own[k] + foe[k] + T.P0)) * (w.provinces[t.prov[k]]?.owner === c ? 3 : 1)); } // a nation guards its own soil first, then its allies'
+  for (let k = 0; k < t.W * t.H; k++) if (t.land[k] && t.main[k] && wk.distF[k] >= 2 && wk.distF[k] <= 3 && t.c[k] * side >= 0.5 && (!near || near[k])) { cells.push(cellLonLat(t, k)); weight.push((1 + 3 * foe[k] / (own[k] + foe[k] + T.P0)) * (w.provinces[t.prov[k]]?.owner === c ? 3 : 1)); } // a nation guards its own soil first, then its allies' // a nation guards its own soil first, then its allies'
   if (!divs.length || !cells.length) return;
   // the front's long axis (principal direction of its cells), to order both the front and the armies along it
   const cl = Math.cos(cells.reduce((s, p) => s + p[1], 0) / cells.length * Math.PI / 180);
@@ -70,13 +83,17 @@ export function deployLine(w: World, t: Theater, c: number, rail = true) {
   const groups = new Map<number, Division[]>(); for (const d of divs) { const l = groups.get(d.army) || []; l.push(d); groups.set(d.army, l); }
   const mean = (l: Division[]) => l.reduce((s, d) => s + along(d.x, d.y), 0) / l.length;
   const ordered = [...groups.values()].sort((a, b) => mean(a) - mean(b)).flat();
-  let j = 0;
+  let j = 0, railed = 0; const railCap = Math.ceil(ordered.length / 6);
   ordered.forEach((d, i) => {
     const q = (i + 0.5) / ordered.length * tot; while (j < cum.length - 1 && cum[j] < q) j++;
     const [gx, gy] = cells[order[j]];
     const dk = km(d.x, d.y, gx, gy);
-    // a weekly re-balance never sends a division across the theater: it keeps its stretch while that is still ours
-    if (!rail && dk > 250 && d.goal) { const ok = cellOf(t, d.goal[0], d.goal[1]); if (ok >= 0 && t.c[ok] * side > 0) return; }
+    // a weekly re-balance moves few divisions far: up to a sixth of them go by rail to where they are needed; the rest keep their stretch
+    if (!rail && dk > 250 && d.goal) {
+      const ok = cellOf(t, d.goal[0], d.goal[1]);
+      if (ok >= 0 && t.c[ok] * side > 0 && railed >= railCap) return;
+      railed++; d.goal = [gx, gy, 2]; placeUnit(w, t, d, gx, gy, w.day + Math.round(2 + dk / 450)); return;
+    }
     d.goal = [gx, gy, 2];
     if (rail && dk > 200) placeUnit(w, t, d, gx, gy, w.day + Math.round(2 + dk / 450));
   });

@@ -38,4 +38,13 @@ describe('victory and defeat', () => {
     expect(war.defenders.includes(pol.id)).toBe(false); // Poland made its separate peace (or is gone)
     expect(war.ended).toBe(0); // and the war goes on a year later
   }, 300000);
+  it('1939: a player whose nation falls out of the world war has lost it, though the war goes on', () => {
+    const f = JSON.parse(fs.readFileSync('public/data/scenario-1939.json', 'utf8')); const sc = fromFile(base.provinces, base.countries, f, '1939', Date.parse(f.start + 'T00:00:00Z')); const S = withScenario(base, sc);
+    const pol = S.countries.findIndex(c => c.code === 'POL');
+    const w = createWorld(S, { seed: 3, scenario: '1939', startDate: sc.startDate, player: pol, tables: tablesFor('1939') }); setupScenario(w, S); w.countries[pol].player = true;
+    const war = goalWar(w)!;
+    for (let d = 0; d < 365 && !war.left?.[pol] && w.countries[pol].alive; d++) { stepDay(w, S); w.agenda = w.agenda.filter(a => a.country !== pol); }
+    expect(w.outcome?.kind).toBe('defeat');
+    expect(['greatWarLost', 'annexed']).toContain(w.outcome?.reason);
+  }, 300000);
 });

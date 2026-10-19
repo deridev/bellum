@@ -232,7 +232,7 @@ export function stepTheater(w: World, S: MapStatic, t: Theater, units: Division[
   // the band where the field can move today: near yesterday's front (it moves a few cells a day at most) and in pockets
   { const d = wk.distF, act = wk.act; let n = 0; for (let k = 0; k < N; k++) if (land[k] && ((d[k] >= 0 && d[k] <= 10) || t.pocket[k])) act[n++] = k; wk.nAct = n; }
   computeForcing(w, t, wk);
-  const sub = Math.max(6, Math.min(36, Math.round(30 * T.frontSpeedRef / t.cellKm)));
+  const sub = Math.max(3, Math.min(36, Math.round(30 * T.frontSpeedRef / t.cellKm * ((t.trench ?? 1) > 1 ? 0.5 : 1)))); // before 1918 armies walked and fronts crawled
   for (let s = 0; s < sub; s++) fieldStep(t, wk, true);
   // entrenchment, flips, heat
   for (let k = 0; k < N; k++) {
@@ -301,12 +301,15 @@ export function supplyAt(t: Theater, k: number, side: number): number {
 export function balanceAt(t: Theater, wk: Work, k: number): [number, number] {
   const holder = c0(t, k), push = pushAt(t, k, holder === 0 ? -1 : 1);
   // a fresh offensive's barrage cancels most of the trench bonus in its corridor
-  const def = T.baseDef + 0.8 * t.mtn[k] + t.ent[k] * (1 - T.shock * Math.max(0, push - 1) / T.offBoost);
+  const def = baseDef(t) + 0.8 * t.mtn[k] + t.ent[k] * (1 - T.shock * Math.max(0, push - 1) / T.offBoost);
   const ea = wk.P0[k] * (holder === 0 ? def : wk.aggr[0] * push);
   const eb = wk.P1[k] * (holder === 1 ? def : wk.aggr[1] * push);
   return [ea, eb];
 }
 const c0 = (t: Theater, k: number) => t.c[k] >= 0 ? 0 : 1;
+/** the defender's edge on open ground: in the machine-gun years before 1918 defence ruled, trenches or not */
+export const baseDef = (t: Theater) => T.baseDef * ((t.trench ?? 1) > 1 ? TRENCH_ERA_DEF : 1);
+export const TRENCH_ERA_DEF = 1.5;
 /** Stance: Hold digs in and spares men; All-out pushes everywhere and pays for it. (aggr < 1 is Hold, > 1.15 All-out) */
 export const stanceLoss = (aggr: number) => aggr < 1 ? 0.65 : aggr > 1.15 ? 1.35 : 1;
 export const stanceDig = (aggr: number) => aggr < 1 ? 2 : 1;

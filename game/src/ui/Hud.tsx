@@ -11,7 +11,7 @@ import { armyName, countryName, fmtDate, has, provName, provState, say, t, unitN
 import { HoverTip } from './App';
 import { Bar, Block, Delta, Flag, Icon, IconBtn, MoreFooter, Ring, Sheet, SignedBar, Slider, Spark, StackBar, UnitSymbol, useMore } from './common';
 import { LedgerScreen } from './Ledger';
-import { fmt1, fmtBig, fmtInt, fmtMoney, fmtMoney2, pct, pct1, cssPct } from './format';
+import { fmt1, fmtBig, fmtInt, fmtMoney, fmtMoney2, pct, pct1, cssPct, moneyDelta } from './format';
 import { listSaves, loadGame, saveGame, deleteSave } from '../game/save';
 import { EndScreen, Missions } from './Goals';
 import { Guide } from './Guide';
@@ -197,7 +197,7 @@ function Banner({ g }: { g: Game }) {
     }, 200);
     return () => clearInterval(id);
   }, [cur, w]);
-  if (!cur) return null;
+  if (!cur || (w.outcome && !w.outcome.playOn)) return null; // the end screen speaks for itself
   return <div class="ui banner" role="status" key={cur.day + cur.msg.k}><div class="banner-date mono">{fmtDate(w, cur.day)}</div><div class="banner-title">{t(cur.big!)}</div><div class="banner-text">{say(w, cur.msg)}</div></div>;
 }
 
@@ -233,7 +233,7 @@ function EconomyPanel({ g }: { g: Game }) {
   return <NationSheet g={g} kind="economy" fig={<RibbonFig label={t('eco.gdpRank')} v={`#${g.w.countries.filter(x => x.alive && x.gdp > c.gdp).length + 1}`} />} cols={[<>
     <div class="figures three">
       <Figure icon="gdp" label={t('led.col.gdp')} value={fmtMoney(c.gdp)} spark={g.series('gdp')} sub={(() => { const s = g.series('gdp'), a = s[Math.max(0, s.length - 13)], r = a ? c.gdp / a - 1 : 0; return <span class={r < 0 ? 'bad' : 'good'}><Icon name={r < 0 ? 'trendDown' : 'trend'} size={13} /> {t('eco.perYear', { v: (r > 0 ? '+' : '') + pct(r) })}</span>; })()} />
-      <Figure icon="treasury" label={t('ledger.treasury')} value={fmtMoney(c.treasury)} spark={g.series('treasury')} sub={<span class="tr-sub"><b class={bal < 0 ? 'bad' : 'good'}>{(bal >= 0 ? '+' : '−') + fmtMoney(Math.abs(bal))}{t('hud.perMo')}</b><small class="muted">{t('eco.net')}</small></span>} />
+      <Figure icon="treasury" label={t('ledger.treasury')} value={fmtMoney(c.treasury)} spark={g.series('treasury')} sub={<span class="tr-sub"><b class={moneyDelta(bal)[1]}>{moneyDelta(bal)[0]}{moneyDelta(bal)[1] && t('hud.perMo')}</b><small class="muted">{t('eco.net')}</small></span>} />
       <Figure icon="trendDown" label={t('eco.debt')} value={pct(debt)} spark={g.series('debt')} tone={debt > 1 ? 'bad' : debt > 0.8 ? 'warn' : ''} sub={<span class="muted">{fmtMoney(c.debt)}</span>} />
     </div>
     {(debt > 0.8 || (bal < 0 && c.treasury <= 0)) && <div class={`debt-row ${debt > 0.8 ? 'danger' : 'warn'}`}><Icon name="coup" size={20} /><small>{debt > 1.2 && bal < 0 && c.treasury <= 0 ? `${t('eco.debtHigh')} · ${t('eco.borrowingNow', { v: fmtMoney(-bal) })}` : t(debt > 1.2 ? 'eco.debtHigh' : bal < 0 && c.treasury <= 0 ? 'eco.debtBorrowing' : 'eco.debtMid', { v: fmtMoney(-bal) })}</small>
@@ -267,7 +267,7 @@ function CashFlow({ c, f }: { c: Country; f: ReturnType<typeof cashFlow> }) {
     <ul class="flow">
       <li class="in"><span><b>{t('eco.flow.taxes')}</b><small>{t('eco.flow.taxesSub', { t: pct(c.taxRate), c: pct(f.collect) })}</small></span><b class="num good">+{fmtMoney(f.revenue)}</b></li>
       {out.map(x => <li key={x.k}><span><i class="chip-dot" style={{ background: x.color }} /><b>{t(x.k === 'interest' ? 'eco.flow.interest' : x.k === 'savingsProd' ? 'eco.flow.savingsProd' : 'eco.' + x.k)}</b>{x.sub && <small>{x.sub}</small>}</span><b class="num">−{fmtMoney(x.v)}</b></li>)}
-      <li class="total"><span><b>{t('eco.flow.net')}</b><small class={net < 0 ? 'bad' : ''}>{net < 0 ? (c.treasury > 0 ? t('eco.flow.lasts', { n: months }) : t('eco.flow.borrowing')) : c.deficit <= 0 && c.treasury > f.revenue * 12 ? t('eco.flow.repay') : t('eco.flow.saving')}</small></span><b class={`num ${net < 0 ? 'bad' : 'good'}`}>{net < 0 ? '−' : '+'}{fmtMoney(Math.abs(net))}</b></li>
+      <li class="total"><span><b>{t('eco.flow.net')}</b><small class={net < 0 ? 'bad' : ''}>{net < 0 ? (c.treasury > 0 ? t('eco.flow.lasts', { n: months }) : t('eco.flow.borrowing')) : c.deficit <= 0 && c.treasury > f.revenue * 12 ? t('eco.flow.repay') : t('eco.flow.saving')}</small></span><b class={`num ${moneyDelta(net)[1]}`}>{moneyDelta(net)[0]}</b></li>
     </ul>
   </Block>;
 }
@@ -393,7 +393,7 @@ function DiplomacyPanel({ g }: { g: Game }) {
 function ProvincePanel({ g, id }: { g: Game; id: number }) {
   const P = g.s.assets.provinces[id], p = g.w.provinces[id];
   const here = g.w.divisions.filter(d => d.prov === id && d.theater < 0);
-  return <Sheet onClose={() => g.openPanel(null)} icon="political" eyebrow={t('panel.province')} title={<div><div class="h2">{provName(id)}</div><div class="sub">{provState(id) && <>{provState(id)} · </>}<Flag s={g.s} code={g.w.countries[p.owner].code} h={11} /> {countryName(g.w, p.owner)}{p.controller !== p.owner ? <span class="bad"> · {t('tip.heldBy', { c: countryName(g.w, p.controller) })}</span> : null}</div></div>}>
+  return <Sheet onClose={() => g.openPanel(null)} icon="political" eyebrow={t('panel.province')} title={<div><div class="h2">{provName(id)}</div><div class="sub"><Flag s={g.s} code={g.w.countries[p.owner].code} h={11} /> {countryName(g.w, p.owner)}{provState(id) && <> · {provState(id)}</>}{p.controller !== p.owner ? <span class="bad"> · {t('tip.heldBy', { c: countryName(g.w, p.controller) })}</span> : null}</div></div>}>
     <div class="facts">
       <Fact icon="terrain" label={t('stat.terrain')} v={t('terrain.' + P.terrain)} />
       <Fact icon="population" label={t('stat.population')} v={fmtBig(p.pop)} />
@@ -407,7 +407,7 @@ function ProvincePanel({ g, id }: { g: Game; id: number }) {
 }
 
 const Fact = ({ icon, label, v }: { icon: string; label: string; v: string }) => <span class="fact"><Icon name={icon} size={18} /><span><small>{label}</small><b>{v}</b></span></span>;
-const ACTIONS: DiploAction[] = ['improve', 'trade', 'nap', 'alliance', 'guarantee', 'denounce', 'demand', 'break'];
+const ACTIONS: DiploAction[] = ['improve', 'trade', 'nap', 'alliance', 'guarantee', 'aid', 'denounce', 'claim', 'subvert', 'demand', 'break'];
 function CountryPanel({ g, id }: { g: Game; id: number }) {
   const w = g.w, c = w.countries[id], me = g.player, r = rel(w, id, me);
   const [, force] = useState(0); const [focus, setFocus] = useState<DiploAction | null>(null);
@@ -429,7 +429,7 @@ function CountryPanel({ g, id }: { g: Game; id: number }) {
     {c.alive && id !== me && !war && <Block title={t('panel.diplomacy')} icon="diplomacy">
       <div class="action-grid">{shown.map(a => { const o = diploOdds(w, me, id, a, g.S);
         const cost = DIPLO[a].cost, poor = cost > g.me.polCap;
-        return <button key={a} class={`act ${a === 'denounce' || a === 'break' || a === 'demand' ? 'hostile' : ''} ${o.ok ? 'ok' : ''} ${focus === a ? 'focus' : ''}`} aria-disabled={!o.ok}
+        return <button key={a} class={`act ${a === 'denounce' || a === 'break' || a === 'demand' || a === 'claim' || a === 'subvert' ? 'hostile' : ''} ${o.ok ? 'ok' : ''} ${focus === a ? 'focus' : ''}`} aria-disabled={!o.ok}
           onMouseEnter={() => setFocus(a)} onFocus={() => setFocus(a)} onClick={() => { if (o.ok) { g.diplo(id, a); force(x => x + 1); } else setFocus(a); }}>
           <Icon name={a} size={20} /><span class="act-l">{t('dip.act.' + a)}{cost ? <small class={`act-c num ${poor ? 'poor' : ''}`}><Icon name="influence" size={12} />{poor ? t('dip.needMore', { n: Math.ceil(cost - g.me.polCap) }) : t('dip.costOf', { n: cost, have: fmtInt(g.me.polCap) })}</small> : null}</span>{!o.ok && <i class="act-s bad"><Icon name="cross" size={12} /></i>}</button>; })}</div>
       <div class={`act-why ${fo ? (fo.ok ? 'ok' : 'no') : ''}`}>{focus && fo ? <><b>{t('dip.act.' + focus)}</b> <span>{say(w, fo.why)}</span></> : <span class="muted">{t('dip.hover')}</span>}</div>

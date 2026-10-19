@@ -15,3 +15,5 @@ export const pct = (v: number) => nf({ style: 'percent', maximumFractionDigits: 
 export const pct1 = (v: number) => nf({ style: 'percent', maximumFractionDigits: Math.abs(v) < 0.1 ? 1 : 0 }).format(v);
 /** A percentage for CSS (never localized: '50 %' or '50,5%' is not valid CSS). */
 export const cssPct = (v: number) => `${+(v * 100).toFixed(3)}%`;
+/** A monthly money change: its text with sign, and its tone ('' for no change, shown as a dash rather than a green +0) */
+export const moneyDelta = (v: number): [string, '' | 'good' | 'bad'] => Math.abs(v) < 0.5 ? ['–', ''] : [(v > 0 ? '+' : '−') + fmtMoney(Math.abs(v)), v > 0 ? 'good' : 'bad'];

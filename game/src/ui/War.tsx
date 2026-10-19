@@ -52,6 +52,7 @@ export function WarPanel({ g, id }: { g: Game; id: number }) {
       <div class="war-force" data-tip={t('war.reserveHint')}><span><small>{t('war.onFront')}</small><b class="num">{fmtInt(onFront)}</b></span><span><small>{t('war.reserve')}</small><b class={`num ${reserve ? '' : 'muted'}`}>{fmtInt(reserve)}</b></span></div>
     </Block>
     {ths.length === 0 && <p class="muted">{t('war.noFront')}</p>}
+    {(() => { const idle = w.divisions.filter(d => d.country === me && d.theater < 0 && w.armies.some(a => a.id === d.army)).length; return idle > 0 && ths.length > 0 ? <div class="idle-line"><span>{t('war.idle', { n: idle })}</span><button class="primary" onClick={() => g.sendIdle()}><Icon name="advance" size={14} />{t('war.sendIdle')}</button></div> : null; })()}
     <ArmyList g={g} />
     <Block title={t('war.offensives')} icon="offensive" aside={<b class="num">{offs.length}/3</b>}>
       {offs.length > 0 && <ul class="offs">{offs.map(o => { const us = w.divisions.filter(d => d.op === o.id), coming = us.some(d => d.arrive > w.day); return <li key={o.id}><Icon name="advance" size={14} /><span>{t('off.divs', { n: us.length })}</span><small class="num">{coming ? t('off.gathering') : t('war.day', { n: w.day - o.created })}</small><div class="meter" data-tip={t('war.momentum')}><div class="fill amber" style={{ width: cssPct(o.org) }} /></div></li>; })}</ul>}
@@ -178,6 +179,7 @@ function ArmyCard({ g, id }: { g: Game; id: number }) {
     <div class="ac-order">{!m ? <span class="muted">{t('army.hint')}</span> : m.err ? <span class="muted">{t(m.err)}</span>
       : m.kind === 'attack' ? <span class="aim"><b class={`verdict v-${v}`}>{t('aim.' + v)}</b><span>{t('aim.force', { n: m.n, m: m.foes })}<small> · {t('aim.def', { x: fmt1(m.def) })}</small></span>{m.foes > 0 && <b class="num">{m.odds >= 10 ? '10+' : fmt1(m.odds)} : 1</b>}<small class="aim-sup" data-tip={t('aim.supHint')}>{t('aim.supThere', { p: pct(m.supTo ?? 1) })}</small></span>
       : m.kind === 'landing' ? <span class="aim"><b class={`verdict v-${m.odds >= 0.6 ? 'likely' : m.odds >= 0.35 ? 'hard' : 'stall'}`}>{t('aim.landing')}</b><span>{t('aim.landingOdds', { p: pct(m.odds), n: m.days ?? 0, m: m.foes })}</span></span>
+      : m.kind === 'merge' ? <span class="aim"><b class="verdict v-move">{t('army.go.merge', { a: armyName(w.armies.find(x => x.id === m.into)?.num ?? 0) })}</b></span>
       : <span class="aim"><b class="verdict v-move">{t('army.go.' + m.kind)}</b></span>}</div>
     <div class="ac-acts">
       {act('release', 'advance', 'L', atWar && at.state !== 'front', t('army.tip.release'))}

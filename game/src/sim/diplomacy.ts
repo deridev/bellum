@@ -4,12 +4,15 @@ import { allied, defendersOf, enemies, sideOf, warsOf } from './war/war';
 import type { MapStatic, Msg, TreatyType, World } from './types';
 import { msg } from './types';
 
-export type DiploAction = 'improve' | 'alliance' | 'nap' | 'guarantee' | 'trade' | 'denounce' | 'break' | 'demand';
+export type DiploAction = 'improve' | 'alliance' | 'nap' | 'guarantee' | 'trade' | 'denounce' | 'break' | 'demand' | 'aid' | 'claim' | 'subvert';
 /** Influence cost and cooldown (days) of each action. */
 export const DIPLO: Record<DiploAction, { cost: number; cooldown: number }> = {
   improve: { cost: 20, cooldown: 60 }, alliance: { cost: 40, cooldown: 180 }, nap: { cost: 15, cooldown: 180 }, guarantee: { cost: 25, cooldown: 180 },
   trade: { cost: 15, cooldown: 180 }, denounce: { cost: 10, cooldown: 90 }, break: { cost: 0, cooldown: 30 }, demand: { cost: 10, cooldown: 365 },
+  aid: { cost: 15, cooldown: 120 }, claim: { cost: 35, cooldown: 365 }, subvert: { cost: 40, cooldown: 365 },
 };
+/** Aid costs money as well as influence: a month of the giver's revenue, at most */
+export const aidCost = (w: World, from: number) => w.countries[from].income;
 export const hasTreaty = (w: World, a: number, b: number, type: TreatyType) => w.treaties.some(t => t.type === type && ((t.a === a && t.b === b) || (t.a === b && t.b === a)));
 const cdKey = (a: number, b: number, act: DiploAction) => `${a}:${b}:${act}`;
 
@@ -21,6 +24,11 @@ export function power(w: World, c: number) {
 }
 const ideoDist = (w: World, a: number, b: number) => { const A = w.countries[a].ideology, B = w.countries[b].ideology; return Math.hypot(A[0] - B[0], A[1] - B[1]); };
 
+/** A claim can be pressed on a border province of theirs that is not ours already (their richest one). */
+export function claimTarget(w: World, S: MapStatic, from: number, to: number) {
+  const cap = w.countries[to].capital;
+  return w.provinces.filter(p => p.owner === to && p.id !== cap && !p.core.includes(from) && S.provinces[p.id].nbr.some(n => w.provinces[n].owner === from)).sort((a, b) => b.gdp - a.gdp)[0]?.id ?? -1;
+}
 /** An ultimatum asks for one border province: land we claim first, else their richest province touching ours (never the capital). */
 export function demandTarget(w: World, S: MapStatic, from: number, to: number) {
   const cap = w.countries[to].capital;
@@ -57,6 +65,10 @@ export function diploOdds(w: World, from: number, to: number, act: DiploAction, 
   switch (act) {
     case 'improve': return { ok: opinion < 90, why: msg(opinion < 90 ? 'dip.why.improve' : 'dip.why.maxed') };
     case 'denounce': return { ok: true, why: msg('dip.why.denounce') };
+    case 'aid': if (A.treasury < aidCost(w, from)) return { ok: false, why: msg('dip.why.aidMoney') };
+      return opinion > -40 ? { ok: true, why: msg('dip.why.aidOk') } : { ok: false, why: msg('dip.why.opinion', { n: -40 }) };
+    case 'claim': { const prov = S ? claimTarget(w, S, from, to) : -1; return prov >= 0 ? { ok: true, why: msg('dip.why.claimOk', { p: { p: prov } }) } : { ok: false, why: msg('dip.why.noBorder') }; }
+    case 'subvert': return allied(w, from, to) ? { ok: false, why: msg('dip.why.ally') } : { ok: true, why: msg('dip.why.subvert') };
     case 'demand': { const prov = S ? demandTarget(w, S, from, to) : -1; if (prov < 0) return { ok: false, why: msg('dip.why.noBorder') };
       return { ok: true, why: msg(demandAccepted(w, from, to) ? 'dip.why.demandYes' : 'dip.why.demandNo', { p: { p: prov } }) }; }
     case 'break': { const t = w.treaties.find(t => t.type !== 'puppet' && ((t.a === from && t.b === to) || (t.a === to && t.b === from))); return { ok: !!t, why: msg(t ? 'dip.why.break' : 'dip.why.noTreaty') }; }
@@ -105,6 +117,13 @@ export function doDiplo(w: World, from: number, to: number, act: DiploAction, S?
     case 'nap': add('nap', 10); addRel(w, from, to, 8); say(w, msg('log.treaty.nap', { a: { c: from }, b: { c: to } }), 'diplo', { who: [from, to] }); break;
     case 'guarantee': add('guarantee', 0); addRel(w, to, from, 15, false); say(w, msg('log.treaty.guarantee', { a: { c: from }, b: { c: to } }), 'diplo', { who: [from, to] }); break;
     case 'demand': if (S) resolveDemand(w, from, to, demandTarget(w, S, from, to), demandAccepted(w, from, to)); break;
+    case 'aid': { const m = aidCost(w, from); A.treasury = Math.max(0, A.treasury - m); B.treasury += m; addRel(w, to, from, 20, false); B.stability = clamp01(B.stability + 0.02);
+      say(w, msg('log.aid', { a: { c: from }, b: { c: to } }), 'diplo', { who: [from, to] }); break; }
+    case 'claim': { const prov = S ? claimTarget(w, S, from, to) : -1; if (prov < 0) break; w.provinces[prov].core.push(from); addRel(w, to, from, -15, false);
+      say(w, msg('log.claim', { a: { c: from }, b: { c: to }, p: { p: prov } }), 'diplo', { who: [from, to], prov }); break; }
+    case 'subvert': { B.stability = clamp01(B.stability - 0.08); B.warSupport = clamp01(B.warSupport - 0.05);
+      // a third of the time the agents are caught
+      if (((w.day * 7919 + to * 104729) % 100) < 30) { addRel(w, to, from, -25, false); say(w, msg('log.subvertCaught', { a: { c: from }, b: { c: to } }), 'diplo', { who: [from, to] }); } break; }
     case 'alliance': add('alliance', 0); addRel(w, from, to, 15); say(w, msg('log.treaty.alliance', { a: { c: from }, b: { c: to } }), 'diplo', { who: [from, to], big: A.player || B.player ? 'big.alliance' : undefined }); break;
   }
 }

@@ -18,6 +18,8 @@ interface EventDef {
   aiPick?: (x: Ctx) => number;
   peace?: boolean; // only at peace
   era?: 'modern' | 'hist'; // only in the present day, or only in the historical scenarios
+  then?: (string | undefined)[]; // per option: an event it leads to, a few months later
+  chain?: boolean; // only ever comes as the consequence of an earlier choice
 }
 const group = (c: Country, id: string) => c.groups.find(g => g.id === id)!;
 const shift = (c: Country, k: keyof Country['budget'], d: number) => { const v = Math.max(0.02, Math.min(0.8, c.budget[k] + d)); const others = (Object.keys(c.budget) as (keyof Country['budget'])[]).filter(x => x !== k); const rest = others.reduce((a, x) => a + c.budget[x], 0) || 1; c.budget[k] = v; for (const x of others) c.budget[x] = c.budget[x] / rest * (1 - v); };
@@ -50,19 +52,19 @@ export const EVENTS: EventDef[] = [
     options: [({ c }) => { c.treasury = Math.max(0, c.treasury - c.income); c.stability = clamp01(c.stability + 0.03); }, ({ c }) => { c.stability = clamp01(c.stability - 0.05); }],
     aiPick: ({ c }) => c.treasury > c.income ? 0 : 1 },
   // ---- the everyday business of government: each asks for a choice with a cost either way
-  { id: 'election', chance: 1, cooldown: 365 * 3, when: ({ w, c }) => c.gov === 'democracy' && c.nextElection - w.day > 30 && c.nextElection - w.day < 120,
+  { id: 'election', then: ['promisesDue'], chance: 1, cooldown: 365 * 3, when: ({ w, c }) => c.gov === 'democracy' && c.nextElection - w.day > 30 && c.nextElection - w.day < 120,
     options: [({ c }) => { shift(c, 'welfare', 0.04); c.deficit = Math.min(0.5, c.deficit + 0.03); c.stability = clamp01(c.stability + 0.06); },
       ({ c }) => { c.polCap += 15; }], aiPick: () => 1 },
-  { id: 'strike', chance: 0.12, cooldown: 450, when: ({ c }) => group(c, 'labor').support < 0.55,
+  { id: 'strike', then: [undefined, 'riots'], chance: 0.12, cooldown: 450, when: ({ c }) => group(c, 'labor').support < 0.55,
     options: [({ c }) => { shift(c, 'welfare', 0.04); group(c, 'labor').support = clamp01(group(c, 'labor').support + 0.12); group(c, 'industry').support = clamp01(group(c, 'industry').support - 0.06); },
       ({ c }) => { c.stability = clamp01(c.stability - 0.04); group(c, 'labor').support = clamp01(group(c, 'labor').support - 0.1); group(c, 'industry').support = clamp01(group(c, 'industry').support + 0.06); }] },
-  { id: 'investment', peace: true, chance: 0.07, cooldown: 540, when: ({ w, c }) => w.countries.find(k => k.alive && k.id !== c.id && k.gdp > 2 * c.gdp && rel(w, k.id, c.id) >= 0)?.id ?? false,
+  { id: 'investment', then: ['firmDemands'], peace: true, chance: 0.07, cooldown: 540, when: ({ w, c }) => w.countries.find(k => k.alive && k.id !== c.id && k.gdp > 2 * c.gdp && rel(w, k.id, c.id) >= 0)?.id ?? false,
     options: [({ w, c, other }) => { for (const p of w.provinces) if (p.owner === c.id) p.gdp *= 1.02; addRel(w, c.id, other, 10); group(c, 'rural').support = clamp01(group(c, 'rural').support - 0.06); },
       ({ c }) => { c.polCap += 10; group(c, 'rural').support = clamp01(group(c, 'rural').support + 0.04); }] },
   { id: 'armsDeal', chance: 0.06, cooldown: 540, when: ({ w, c }) => w.countries.find(k => k.alive && k.id !== c.id && (k.quality ?? 1) > (c.quality ?? 1) + 0.12 && rel(w, k.id, c.id) >= 5)?.id ?? false,
     options: [({ w, c, other }) => { const cost = c.income * 2; c.debt += Math.max(0, cost - c.treasury); c.treasury = Math.max(0, c.treasury - cost); c.quality = Math.min(1.6, (c.quality ?? 1) + 0.06); addRel(w, c.id, other, 6); },
       ({ w, c, other }) => { addRel(w, c.id, other, -5); c.polCap += 10; }], aiPick: ({ w, c }) => atWar(w, c.id) || c.treasury > c.income * 3 ? 0 : 1 },
-  { id: 'spyRing', chance: 0.05, cooldown: 540, when: ({ w, c, pw = [] }) => w.countries.find(k => k.alive && k.id !== c.id && rel(w, c.id, k.id) < -20 && pw[k.id] > pw[c.id] * 0.3)?.id ?? false,
+  { id: 'spyRing', then: [undefined, 'doubleAgent'], chance: 0.05, cooldown: 540, when: ({ w, c, pw = [] }) => w.countries.find(k => k.alive && k.id !== c.id && rel(w, c.id, k.id) < -20 && pw[k.id] > pw[c.id] * 0.3)?.id ?? false,
     options: [({ w, c, other }) => { addRel(w, c.id, other, -12); c.warSupport = clamp01(c.warSupport + 0.05); },
       ({ c }) => { c.polCap += 25; }] },
   { id: 'breakthrough', chance: 0.05, cooldown: 540, when: ({ c }) => c.budget.research >= 0.04,
@@ -92,7 +94,7 @@ export const EVENTS: EventDef[] = [
   { id: 'corruption', chance: 0.05, cooldown: 540, when: () => true,
     options: [({ c }) => { c.polCap = Math.max(0, c.polCap - 15); c.stability = clamp01(c.stability + 0.03); },
       ({ c }) => { c.polCap += 10; c.stability = clamp01(c.stability - 0.03); }] },
-  { id: 'megaproject', peace: true, chance: 0.04, cooldown: 720, when: ({ c }) => c.treasury > c.income,
+  { id: 'megaproject', then: ['overrun'], peace: true, chance: 0.04, cooldown: 720, when: ({ c }) => c.treasury > c.income,
     options: [({ w, c }) => { c.treasury = Math.max(0, c.treasury - c.income * 2); for (const p of w.provinces) if (p.owner === c.id) p.gdp *= 1.015; group(c, 'industry').support = clamp01(group(c, 'industry').support + 0.05); },
       ({ c }) => { group(c, 'industry').support = clamp01(group(c, 'industry').support - 0.05); c.polCap += 5; }], aiPick: ({ c }) => c.treasury > c.income * 4 ? 0 : 1 },
   { id: 'press', chance: 0.05, cooldown: 540, when: ({ c }) => c.stability < 0.75,
@@ -101,6 +103,22 @@ export const EVENTS: EventDef[] = [
   { id: 'games', chance: 0.03, cooldown: 1460, when: ({ w, c }) => c.gdp > 2e5 && !atWar(w, c.id),
     options: [({ c }) => { c.treasury = Math.max(0, c.treasury - c.income * 1.5); c.stability = clamp01(c.stability + 0.05); c.polCap += 15; },
       ({ c }) => { c.polCap += 5; c.stability = clamp01(c.stability - 0.01); }], aiPick: ({ c }) => c.treasury > c.income * 3 ? 0 : 1 },
+  // ---- consequences: these come only from an earlier choice
+  { id: 'riots', chain: true, chance: 1, cooldown: 0, when: () => true,
+    options: [({ c }) => { c.stability = clamp01(c.stability - 0.03); group(c, 'labor').support = clamp01(group(c, 'labor').support - 0.1); c.polCap += 5; },
+      ({ c }) => { c.polCap = Math.max(0, c.polCap - 15); group(c, 'labor').support = clamp01(group(c, 'labor').support + 0.1); c.stability = clamp01(c.stability + 0.02); }] },
+  { id: 'firmDemands', chain: true, chance: 1, cooldown: 0, when: () => true,
+    options: [({ w, c, other }) => { c.treasury = Math.max(0, c.treasury - c.income * 0.5); if (other >= 0) addRel(w, c.id, other, 5); },
+      ({ w, c, other }) => { if (other >= 0) addRel(w, c.id, other, -10); group(c, 'industry').support = clamp01(group(c, 'industry').support + 0.03); }] },
+  { id: 'doubleAgent', chain: true, chance: 1, cooldown: 0, when: () => true,
+    options: [({ w, c, other }) => { c.polCap += 20; if (other >= 0) w.countries[other].stability = clamp01(w.countries[other].stability - 0.03); },
+      ({ c }) => { c.warSupport = clamp01(c.warSupport + 0.04); }] },
+  { id: 'promisesDue', chain: true, chance: 1, cooldown: 0, when: ({ c }) => c.gov === 'democracy',
+    options: [({ c }) => { shift(c, 'welfare', 0.03); c.deficit = Math.min(0.5, c.deficit + 0.02); },
+      ({ c }) => { c.stability = clamp01(c.stability - 0.05); c.polCap += 10; }] },
+  { id: 'overrun', chain: true, chance: 1, cooldown: 0, when: () => true,
+    options: [({ w, c }) => { c.treasury = Math.max(0, c.treasury - c.income); for (const p of w.provinces) if (p.owner === c.id) p.gdp *= 1.005; },
+      ({ c }) => { c.stability = clamp01(c.stability - 0.02); }] },
   // ---- the present day
   { id: 'cyberattack', era: 'modern', chance: 0.06, cooldown: 540, when: ({ w, c }) => w.countries.find(k => k.alive && k.id !== c.id && rel(w, c.id, k.id) < -20 && k.tech >= c.tech)?.id ?? false,
     options: [({ w, c, other }) => { addRel(w, c.id, other, -10); c.warSupport = clamp01(c.warSupport + 0.04); c.polCap = Math.max(0, c.polCap - 10); },
@@ -131,30 +149,43 @@ export function monthlyEvents(w: World, S: MapStatic) {
   for (const c of w.countries) {
     if (!c.alive || popOf(w, c.id) < 3e5) continue;
     if (c.player && w.agenda.some(a => a.kind === 'event' && a.country === c.id)) continue; // one at a time for the player
+    // a consequence that is due comes first
+    const due = (w.chains ?? []).find(x => x.c === c.id && x.day <= w.day);
+    if (due) { w.chains = w.chains!.filter(x => x !== due); const e = EVENTS.find(x => x.id === due.id); if (e && e.when({ w, c, other: due.other, pw }, nb[c.id]) !== false) { fire(w, c, e, due.other); continue; } }
     const quiet = c.player && w.day - (w.cooldowns[`ev:${c.id}:last`] ?? 0) > QUIET_DAYS;
     const from = Math.floor(nextRand(w) * EVENTS.length); // no event always comes first
     for (let k = 0; k < EVENTS.length; k++) {
       const e = EVENTS[(from + k) % EVENTS.length];
-      if ((e.peace && atWar(w, c.id)) || (e.era && (e.era === 'modern') !== (w.scenario === '2026' || !w.scenario))) continue;
+      if (e.chain || (e.peace && atWar(w, c.id)) || (e.era && (e.era === 'modern') !== (w.scenario === '2026' || !w.scenario))) continue;
       const key = `ev:${c.id}:${e.id}`; if ((w.cooldowns[key] ?? -1) > w.day) continue;
       const hit = e.when({ w, c, other: -1, pw }, nb[c.id]); if (hit === false) continue;
       if (!quiet && nextRand(w) > e.chance * (c.player ? PLAYER_CHANCE : 1)) continue;
       if (e.id === 'disaster' && quiet && nextRand(w) > 0.1) continue; // disasters stay rare
-      const other = typeof hit === 'number' ? hit : -1, x: Ctx = { w, c, other };
+      const other = typeof hit === 'number' ? hit : -1;
       w.cooldowns[key] = w.day + e.cooldown;
-      if (c.player) {
-        const a: Record<string, MsgArg> = { c: { c: c.id } }; if (other >= 0) a.o = { c: other };
-        const item: AgendaItem = { id: w.nextId++, country: c.id, day: w.day, kind: 'event', title: msg(`ev.${e.id}.title`, a), text: msg(`ev.${e.id}.text`, a),
-          options: e.options.map((_, i) => ({ label: msg(`ev.${e.id}.o${i}`, a), effect: `event.${e.id}`, hint: msg(`ev.${e.id}.h${i}`, a) })), data: { other }, expires: w.day + 45, dflt: e.aiPick ? e.aiPick(x) : 0 };
-        w.agenda.push(item); w.cooldowns[`ev:${c.id}:last`] = w.day;
-      } else e.options[e.aiPick ? e.aiPick(x) : 0](x);
-      if (e.id === 'protests' || e.id === 'disaster') say(w, msg(`log.ev.${e.id}`, { c: { c: c.id } }), 'event', { who: [c.id] });
+      fire(w, c, e, other);
       break; // at most one event per country per month
     }
   }
+}
+/** An event happens to a country: the player gets a card; an AI country chooses at once. */
+function fire(w: World, c: Country, e: EventDef, other: number) {
+  const x: Ctx = { w, c, other };
+  if (c.player) {
+    const a: Record<string, MsgArg> = { c: { c: c.id } }; if (other >= 0) a.o = { c: other };
+    const item: AgendaItem = { id: w.nextId++, country: c.id, day: w.day, kind: 'event', title: msg(`ev.${e.id}.title`, a), text: msg(`ev.${e.id}.text`, a),
+      options: e.options.map((_, i) => ({ label: msg(`ev.${e.id}.o${i}`, a), effect: `event.${e.id}`, hint: msg(`ev.${e.id}.h${i}`, a) })), data: { other }, expires: w.day + 45, dflt: e.aiPick ? e.aiPick(x) : 0 };
+    w.agenda.push(item); w.cooldowns[`ev:${c.id}:last`] = w.day;
+  } else { const i = e.aiPick ? e.aiPick(x) : 0; e.options[i](x); follow(w, c, e, i, other); }
+  if (e.id === 'protests' || e.id === 'disaster') say(w, msg(`log.ev.${e.id}`, { c: { c: c.id } }), 'event', { who: [c.id] });
+}
+/** A choice that has consequences: the follow-up comes two to five months later. */
+function follow(w: World, c: Country, e: EventDef, option: number, other: number) {
+  const next = e.then?.[option]; if (next) (w.chains ??= []).push({ c: c.id, id: next, day: w.day + 60 + Math.floor(nextRand(w) * 90), other });
 }
 /** The player's choice on an event card. */
 export function applyEvent(w: World, item: AgendaItem, option: number) {
   const e = EVENTS.find(e => item.options[0]?.effect === `event.${e.id}`); if (!e) return;
   e.options[option]?.({ w, c: w.countries[item.country], other: item.data?.other ?? -1 });
+  follow(w, w.countries[item.country], e, option, item.data?.other ?? -1);
 }

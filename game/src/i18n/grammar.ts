@@ -29,17 +29,24 @@ const PT_JOIN: Record<string, Record<'m' | 'f' | 'mp' | 'fp', string>> = {
 };
 const ES_JOIN: Record<string, Partial<Record<'m' | 'f' | 'mp' | 'fp', string>>> = { de: { m: 'del' }, a: { m: 'al' } };
 
+/** The third person plural of a Portuguese verb in the present: declara → declaram, rompe → rompem, é → são */
+const IRREG: Record<string, string> = { 'é': 'são', 'está': 'estão', 'tem': 'têm', 'vai': 'vão', 'cai': 'caem', 'sai': 'saem', 'faz': 'fazem', 'diz': 'dizem', 'põe': 'põem', 'vem': 'vêm', 'dá': 'dão' };
+const NOT_VERBS = new Set(['e', 'de', 'do', 'da', 'a', 'o', 'os', 'as', 'que', 'com', 'em', 'no', 'na', 'ao', 'à', 'para', 'por', 'pela', 'pelo', 'como', 'entre']);
+function pluralVerb(v: string) { if (NOT_VERBS.has(v) || v.length < 3 && !IRREG[v]) return v; if (IRREG[v]) return IRREG[v]; return /[ae]$/.test(v) ? v + 'm' : v; }
 const SKIP = new Set(['city', 'p', 'leader', 'old', 'name', 'war', 'm', 't', 'u', 'g']); // arguments that are never a country, even when a city shares its name
 /** Fill a template's {placeholders}, giving country names (those `gender` knows) their article and contracting it with the preposition before it. */
 export function fillCountries(lang: 'pt' | 'es', e: string, args: Record<string, string | number>, gender: (v: string) => Gender | undefined, plain: (k: string) => string): string {
+  const MARK = '\u0001'; // after a plural subject: its verb is made plural in a second pass
   return e.replace(/(^|[\s(])(?:(de|em|a|por|De|Em|A|Por) )?\{(\w+)\}/g, (all, pre: string, prep: string | undefined, k: string, off: number, src: string) => {
+    const tail = (plural: boolean) => plural ? MARK : '';
     const v = args[k], g = typeof v === 'string' && !SKIP.has(k) ? gender(v) : undefined;
     const after = src.slice(off + all.length, off + all.length + 2), before = src.slice(Math.max(0, off - 2), off + pre.length);
-    if (!g || /[–→]/.test(after) || /[–→]/.test(before) || /^ ?vs/.test(after)) return pre + (prep ? prep + ' ' : '') + plain(k);
+    if (!g || /[–→]/.test(after) || /[–→]/.test(before) || /^ ?vs/.test(after)) return pre + (prep ? prep + ' ' : '') + plain(k) + tail(false);
     const art = ART[lang][g], join = prep ? (lang === 'pt' ? PT_JOIN : ES_JOIN)[prep.toLowerCase()]?.[g] : undefined;
     let out = join ? `${join} ${v}` : prep ? `${prep} ${art} ${v}` : `${art} ${v}`;
     if (prep && prep[0] === prep[0].toUpperCase()) out = out[0].toUpperCase() + out.slice(1);
-    else if (!prep && (off === 0 || /[.:!?]\s*$/.test(src.slice(0, off + pre.length)))) out = out[0].toUpperCase() + out.slice(1); // a sentence starts with it
-    return pre + out;
-  });
+    const subject = !prep && (off === 0 || /[.:!?]\s*$/.test(src.slice(0, off + pre.length)));
+    if (subject) out = out[0].toUpperCase() + out.slice(1); // a sentence starts with it
+    return pre + out + tail(lang === 'pt' && subject && (g === 'mp' || g === 'fp')); // "Os Estados Unidos declaram"
+  }).replace(/\u0001((?: (?:se|não|nos|lhe))? )([a-záéíóúâêôãõç]+)/gu, (_, gap: string, verb: string) => gap + pluralVerb(verb)).replace(/\u0001/g, '');
 }

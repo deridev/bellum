@@ -33,9 +33,11 @@ export function checkOutcome(w: World, S: MapStatic) {
   if (!me.alive) return end('defeat', 'annexed');
   if (outputShare(w, me.id) >= DOMINATION) return end('victory', 'domination');
   const gw = goalWar(w);
-  if (gw?.ended && sideOf(gw, me.id) && gw.winner) return end(gw.winner === sideOf(gw, me.id) ? 'victory' : 'defeat', gw.winner === sideOf(gw, me.id) ? 'greatWarWon' : 'greatWarLost');
+  if (gw?.left?.[me.id]) return end('defeat', 'greatWarLost'); // the nation fell out of the great war (a separate peace, a revolution)
+  const side = gw ? sideOf(gw, me.id) : 0;
+  if (gw?.ended && side && gw.winner) return end(gw.winner === side ? 'victory' : 'defeat', gw.winner === side ? 'greatWarWon' : 'greatWarLost');
   if (w.day >= endDay(w)) { const rank = powerScores(w).findIndex(x => x.c === me.id) + 1; return end(rank === 1 ? 'victory' : 'end', rank === 1 ? 'firstPower' : 'endDate', rank); }
   void S;
 }
 /** Daily: the player's fall ends the game at once (the rest is checked monthly). */
-export function dailyOutcome(w: World, S: MapStatic) { if (!w.outcome && w.countries.some(c => c.player && !c.alive)) checkOutcome(w, S); }
+export function dailyOutcome(w: World, S: MapStatic) { if (!w.outcome && (w.countries.some(c => c.player && !c.alive) || (goalWar(w)?.left && w.countries.some(c => c.player && goalWar(w)!.left![c.id])))) checkOutcome(w, S); }

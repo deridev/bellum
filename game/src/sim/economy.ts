@@ -59,7 +59,7 @@ export function monthlyEconomy(w: World, S: MapStatic) {
     // manpower and political capital
     const pop = popOf(w, c.id), max = pop * CONSCRIPTION_RATE[c.conscription];
     c.manpower = Math.min(max, c.manpower + max * 0.025);
-    c.polCap = Math.min(300, c.polCap + 4 + 6 * c.stability);
+    c.polCap = Math.min(400, c.polCap + 4 + 6 * c.stability);
     c.stats.peakProvinces = Math.max(c.stats.peakProvinces, w.provinces.filter(p => p.owner === c.id).length);
   }
 }

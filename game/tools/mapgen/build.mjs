@@ -44,6 +44,11 @@ for (const [c, n] of Object.entries(RENAME)) if (COUNTRY[c]) COUNTRY[c].name = n
 const MERGE_INTO = { VAT: 'ITA', SMR: 'ITA', MCO: 'FRA', LIE: 'CHE', ATA: null, ATC: null, KAS: 'IND', ESB: 'CYP', WSB: 'CYP', USG: 'CUB', BJN: 'COL', SER: 'COL', SCR: 'CHN', CNM: 'CYP', IOA: null, SPI: null, KAB: 'KAZ', CLP: 'FRA', PGA: 'CHN', BRT: null };
 const gameCode = a3 => { if (a3 in MERGE_INTO) return MERGE_INTO[a3]; return SOV[a3] || (COUNTRY[a3] ? a3 : null); };
 
+// Names in Portuguese and Spanish come with Natural Earth. Its Portuguese is European: Brazilian spelling puts a circumflex
+// before m and n (Colónia → Colônia). In countries that speak the language, the local name is the name.
+const LUSO = new Set(['BRA', 'PRT', 'AGO', 'MOZ', 'CPV', 'GNB', 'STP', 'TLS']);
+const HISPANO = new Set(['ESP', 'MEX', 'ARG', 'COL', 'PER', 'VEN', 'CHL', 'ECU', 'GTM', 'CUB', 'BOL', 'DOM', 'HND', 'PRY', 'SLV', 'NIC', 'CRI', 'PAN', 'URY', 'GNQ']);
+const brPt = n => n && n.replace(/ó(?=[mn][aeiouáéíóúâêô])/g, 'ô').replace(/é(?=[mn][aeiouáéíóúâêô])/g, 'ê');
 // ---------------------------------------------------------------------------
 // 2. Admin-1 -> topology, then merge small units inside each country.
 log('reading admin-1');
@@ -51,7 +56,9 @@ const adm1 = readJSON('ne_10m_admin_1_states_provinces.geojson');
 adm1.features = adm1.features.filter(f => gameCode(f.properties.adm0_a3));
 for (const f of adm1.features) {
   const p = f.properties;
-  f.properties = { name: p.name_en || p.name || p.gn_name || p.adm1_code, country: gameCode(p.adm0_a3), area0: +p.area_sqkm || 0 };
+  const local = p.name || p.name_en, code = gameCode(p.adm0_a3);
+  f.properties = { name: p.name_en || p.name || p.gn_name || p.adm1_code, country: code, area0: +p.area_sqkm || 0,
+    pt: LUSO.has(code) ? local : brPt(p.name_pt || p.name_en || local), es: HISPANO.has(code) ? local : (p.name_es || p.name_en || local) };
 }
 async function msRun(cmd, inputs) { return await mapshaper.applyCommands(cmd, inputs); }
 log('building topology');
@@ -111,11 +118,12 @@ for (const [r, members] of groups) {
   const biggest = members.slice().sort((a, b) => areas[b] - areas[a])[0];
   const byArea = members.slice().sort((a, b) => areas[b] - areas[a]);
   // a group of several units is named after the one holding its largest city (else the largest unit): "Nord", not "Côtes-d'Armor"
-  const hub = members.length > 2 ? (bigPlaces.find(c => members.some(i => inBox(i, c) && inGeom(feats[i].geometry, c.LONGITUDE, c.LATITUDE)))?.__m ?? null) : null;
+  const hub = members.length > 1 ? (bigPlaces.find(c => members.some(i => inBox(i, c) && inGeom(feats[i].geometry, c.LONGITUDE, c.LATITUDE)))?.__m ?? null) : null;
   const hubM = hub === null ? null : members.find(i => inBox(i, hub) && inGeom(feats[i].geometry, hub.LONGITUDE, hub.LATITUDE));
-  const name = members.length > 2 ? geoms[hubM ?? biggest].properties.name : byArea.map(i => geoms[i].properties.name).join(' & ');
-  const old = members.length > 2 ? geoms[biggest].properties.name : name; // the name it had before regions: scenario overrides still use it
-  provFeatures.push({ type: 'Feature', properties: { name, old, country: geoms[r].properties.country, merged: members.length > 1 }, geometry: geom });
+  const namer = hubM !== null && hub.POP_MAX >= 1e6 ? [hubM] : members.length > 2 ? [hubM ?? biggest] : byArea, nm = (k) => namer.map(i => geoms[i].properties[k]).join(' & ');
+  const name = nm('name'), pt = nm('pt'), es = nm('es');
+  const old = members.length > 2 ? geoms[biggest].properties.name : byArea.map(i => geoms[i].properties.name).join(' & '); // the name it had before regions: scenario overrides still use it
+  provFeatures.push({ type: 'Feature', properties: { name, pt, es, old, country: geoms[r].properties.country, merged: members.length > 1 }, geometry: geom });
 }
 log('provinces after merge', provFeatures.length);
 
@@ -136,7 +144,7 @@ const seedsOf = provFeatures.map(f => {
   const bb = bboxOf(f.geometry);
   const here = places.filter(c => c.LONGITUDE >= bb[0] && c.LONGITUDE <= bb[2] && c.LATITUDE >= bb[1] && c.LATITUDE <= bb[3] && inGeom(f.geometry, c.LONGITUDE, c.LATITUDE)).sort((a, b) => (b.POP_MAX || 0) - (a.POP_MAX || 0));
   const pick = [];
-  for (const c of here) { const at = [c.LONGITUDE, c.LATITUDE]; if (pick.length < SPLIT.maxPer && pick.every(p => kmBetween(p.at, at) >= SPLIT.sepKm)) pick.push({ name: c.NAME, at }); }
+  for (const c of here) { const at = [c.LONGITUDE, c.LATITUDE]; if (pick.length < SPLIT.maxPer && pick.every(p => kmBetween(p.at, at) >= SPLIT.sepKm)) pick.push({ name: c.NAME, pt: LUSO.has(f.properties.country) ? (c.NAME_PT || c.NAME) : brPt(c.NAME_PT || c.NAME), es: c.NAME_ES || c.NAME, at }); }
   return pick.length > 1 ? pick : [];
 });
 log('regions: states cut', seedsOf.filter(s => s.length).length, 'into', seedsOf.reduce((a, s) => a + s.length, 0), '-> provinces', provFeatures.length - seedsOf.filter(s => s.length).length + seedsOf.reduce((a, s) => a + s.length, 0));
@@ -154,25 +162,25 @@ function cellsFor(seeds, bb) {
       poly = out;
     }
     const ring = poly.map(q => [q[0] / k, q[1]]); ring.push(ring[0]);
-    return { type: 'Feature', properties: { name: s.name }, geometry: { type: 'Polygon', coordinates: [ring] } };
+    return { type: 'Feature', properties: { name: s.name, pt: s.pt, es: s.es }, geometry: { type: 'Polygon', coordinates: [ring] } };
   });
 }
 if (!process.env.MAPGEN_DRY) {
   const cut = [];
   for (let i = 0; i < provFeatures.length; i++) {
     const f = provFeatures[i], seeds = seedsOf[i], state = f.properties.old, merged = f.properties.merged; // a merged group's name is kept for matching, but it is no real state to show
-    if (!seeds.length) { cut.push({ ...f, properties: { ...f.properties, state, merged } }); continue; }
+    if (!seeds.length) { cut.push({ ...f, properties: { ...f.properties, state, statePt: f.properties.pt, stateEs: f.properties.es, merged } }); continue; }
     const bb = bboxOf(f.geometry);
     if (bb[2] - bb[0] > 180) { cut.push({ ...f, properties: { ...f.properties, state, merged } }); continue; } // across the antimeridian: left whole
     const r = await msRun('-i cells.json -i prov.json -clip prov target=cells -o format=geojson target=cells out.json', {
       'cells.json': JSON.stringify({ type: 'FeatureCollection', features: cellsFor(seeds, bb) }), 'prov.json': JSON.stringify({ type: 'FeatureCollection', features: [f] }) });
     const parts = JSON.parse(r['out.json']).features.filter(x => x.geometry);
     if (parts.length < 2) { cut.push({ ...f, properties: { ...f.properties, state, merged } }); continue; }
-    for (const x of parts) cut.push({ type: 'Feature', properties: { name: x.properties.name, country: f.properties.country, state, merged }, geometry: x.geometry });
+    for (const x of parts) cut.push({ type: 'Feature', properties: { name: x.properties.name, pt: x.properties.pt, es: x.properties.es, country: f.properties.country, state, statePt: f.properties.pt, stateEs: f.properties.es, merged }, geometry: x.geometry });
   }
   // two provinces of one country with the same name (Moscow the city, Moscow the region's capital) get their state added
   const seen = {}; for (const x of cut) { const k = x.properties.country + ':' + x.properties.name; seen[k] = (seen[k] || 0) + 1; }
-  for (const x of cut) { const k = x.properties.country + ':' + x.properties.name; if (seen[k] > 1 && !x.properties.merged && x.properties.state && x.properties.state !== x.properties.name) x.properties.name += ` (${x.properties.state})`; }
+  for (const x of cut) { const k = x.properties.country + ':' + x.properties.name, q = x.properties; if (seen[k] > 1 && !q.merged && q.state && q.state !== q.name) { q.name += ` (${q.state})`; q.pt += ` (${q.statePt})`; q.es += ` (${q.stateEs})`; } }
   provFeatures.length = 0; provFeatures.push(...cut);
   log('provinces after regions', provFeatures.length);
 }
@@ -297,6 +305,7 @@ for (let j = 1; j < RH - 1; j += 2) for (let i = 1; i < RW - 1; i += 2) {
   rough[p] += hi - lo; roughN[p]++;
 }
 const cities = readJSON('ne_10m_populated_places.geojson').features.map(f => f.properties);
+const provinces0Country = i => props[i]?.country;
 const provCityPop = new Float64Array(N);
 const cityOut = [];
 const provAt = (lon, lat) => { const i = Math.min(RW - 1, Math.max(0, Math.floor((lon + 180) / 360 * RW))), j = Math.min(RH - 1, Math.max(0, Math.floor((90 - lat) / 180 * RH))); let p = idr[j * RW + i];
@@ -306,8 +315,10 @@ for (const c of cities) {
   const p = provAt(c.LONGITUDE, c.LATITUDE); if (p < 0) continue;
   const pop = c.POP_MAX || 0; provCityPop[p] += pop;
   const cap = /Admin-0 capital/.test(c.FEATURECLA || '') && !/alt|region/i.test(c.FEATURECLA);
-  if (cap || c.SCALERANK <= 5 || pop >= 600000)
-    cityOut.push({ name: c.NAME, lon: +c.LONGITUDE.toFixed(3), lat: +c.LATITUDE.toFixed(3), pop, prov: p, capital: cap, rank: c.SCALERANK });
+  if (cap || c.SCALERANK <= 5 || pop >= 600000) {
+    const cc = provinces0Country(p), pt = LUSO.has(cc) ? (c.NAME_PT || c.NAME) : brPt(c.NAME_PT || c.NAME), es = c.NAME_ES || c.NAME;
+    cityOut.push({ name: c.NAME, ...(pt !== c.NAME ? { pt } : {}), ...(es !== c.NAME ? { es } : {}), lon: +c.LONGITUDE.toFixed(3), lat: +c.LATITUDE.toFixed(3), pop, prov: p, capital: cap, rank: c.SCALERANK });
+  }
 }
 
 const provinces = [];
@@ -321,7 +332,10 @@ for (let i = 0; i < N; i++) {
   else if (R > 195 && R - G > 7 && R - B < 60 && terrain !== 'mountains') terrain = 'desert';
   else if (G > R + 6 && (terrain === 'plains' || terrain === 'hills')) terrain = Math.abs(lat) < 18 ? 'jungle' : terrain === 'hills' ? 'hills' : 'forest';
   const label = labelPts[i] || pFeats[i].geometry.coordinates.flat(3).slice(0, 2);
-  provinces.push({ id: i, name: props[i].name, ...(props[i].state && props[i].state !== props[i].name ? { state: props[i].state } : {}), ...(props[i].merged ? { merged: 1 } : {}), country: props[i].country, label, area: Math.round(geomArea(pFeats[i].geometry)), terrain, elev: Math.round(elev), rough: Math.round(rgh),
+  const q = props[i], hasState = q.state && q.state !== q.name;
+  provinces.push({ id: i, name: q.name, ...(q.pt && q.pt !== q.name ? { pt: q.pt } : {}), ...(q.es && q.es !== q.name ? { es: q.es } : {}),
+    ...(hasState ? { state: q.state, ...(q.statePt && q.statePt !== q.state ? { statePt: q.statePt } : {}), ...(q.stateEs && q.stateEs !== q.state ? { stateEs: q.stateEs } : {}) } : {}),
+    ...(q.merged ? { merged: 1 } : {}), country: q.country, label, area: Math.round(geomArea(pFeats[i].geometry)), terrain, elev: Math.round(elev), rough: Math.round(rgh),
     coastal: coastal[i], nbr: [...new Set(pNbr[i])].sort((a, b) => a - b), _city: provCityPop[i], _hab: terrain === 'desert' || terrain === 'arctic' ? 0.08 : terrain === 'mountains' ? 0.35 : terrain === 'jungle' ? 0.5 : 1 });
 }
 // distribute each country's population and GDP over its provinces
