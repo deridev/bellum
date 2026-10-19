@@ -235,10 +235,10 @@ export function IconBtn({ icon, label, onClick, pressed, badge, cls, size = 20, 
   return <button class={`icon-btn ${cls || ''}`} aria-label={label} data-tip={kbd ? `${label}  ·  ${kbd}` : label} aria-pressed={pressed} disabled={disabled} onClick={onClick}><Icon name={icon} size={size} />{badge ? <i class="badge">{badge}</i> : null}</button>;
 }
 
-export function Slider({ id, label, value, min, max, step, fmt, onInput, hint, color, sub, danger }: { id: string; label: string; value: number; min: number; max: number; step: number; fmt: (v: number) => string; onInput: (v: number) => void; hint?: string; color?: string; sub?: string; danger?: boolean }) {
+export function Slider({ id, label, value, min, max, step, fmt, onInput, hint, color, sub, danger, ends }: { ends?: [string, string]; id: string; label: string; value: number; min: number; max: number; step: number; fmt: (v: number) => string; onInput: (v: number) => void; hint?: string; color?: string; sub?: string; danger?: boolean }) {
   const c = danger ? 'var(--red)' : color || 'var(--brass)', f = (value - min) / (max - min) * 100;
   return <label class={`slider ${danger ? 'danger' : ''}`} for={id} title={hint}><span class="sl-top"><span class="sl-l">{color && <i class="chip-dot" style={{ background: color }} />}{label}</span>{sub && <small class="sl-sub">{sub}</small>}<b class="num">{fmt(value)}</b></span>
-    <input id={id} type="range" min={min} max={max} step={step} value={value} style={{ '--c': c, '--f': `${f}%` }} onInput={e => onInput(+(e.target as HTMLInputElement).value)} /></label>;
+    <input id={id} type="range" min={min} max={max} step={step} value={value} style={{ '--c': c, '--f': `${f}%` }} onInput={e => onInput(+(e.target as HTMLInputElement).value)} />{ends && <span class="sl-ends"><small>{ends[0]}</small><small>{ends[1]}</small></span>}</label>;
 }
 /** Segmented control (text or icons). */
 export function Seg<T extends string | number>({ value, options, onPick, label }: { value: T; options: { v: T; label: string; icon?: string; title?: string }[]; onPick: (v: T) => void; label: string }) {

@@ -254,11 +254,11 @@ export function resample(w: World, S: MapStatic, t: Theater, box: [number, numbe
   (w as any)._theaterResized = true;
 }
 /** a country joining a war mid-way: its land becomes playable in every theater of the war */
-export function joinWar(w: World, S: MapStatic, war: War, c: number, side: 1 | -1) {
+export function joinWar(w: World, S: MapStatic, war: War, c: number, side: 1 | -1, silent = false) {
   if (sideOf(war, c)) return; (side > 0 ? war.attackers : war.defenders).push(c);
   for (const t of theatersOf(w, war)) { t.sideOf[c] = side; buildMasks(t, w, S, false); for (let k = 0; k < t.W * t.H; k++) if (t.land[k] && t.c[k] === 0) t.c[k] = side; deployInto(w, S, t); }
   openTheaters(w, S, war); // new fronts where the newcomer touches the enemy
-  say(w, msg('log.joinsWar', { c: { c }, war: { m: war.name }, b: { c: side > 0 ? war.leadA : war.leadD } }), 'war', { who: [c] });
+  if (!silent) say(w, msg('log.joinsWar', { c: { c }, war: { m: war.name }, b: { c: side > 0 ? war.leadA : war.leadD } }), 'war', { who: [c] });
 }
 
 function weeklyWar(w: World, S: MapStatic, war: War) {
@@ -334,6 +334,9 @@ function separatePeace(w: World, S: MapStatic, war: War, c: number, side: 1 | -1
   for (const d of w.divisions) if (d.country === c && d.theater >= 0) withdraw(d);
   for (const t of theatersOf(w, war)) { delete t.sideOf[c]; buildMasks(t, w, S, false); }
   say(w, msg('log.separatePeace', { c: { c }, war: { m: war.name }, b: { c: strongest } }), 'peace', { who: [c, ...winners], big: 'big.capitulation' });
+  // what is left of a side that has lost its great powers gives in with them
+  const divs = (cs: number[]) => w.divisions.filter(d => cs.includes(d.country)).length, losers = side > 0 ? war.attackers : war.defenders;
+  if (war.total && divs(losers) < 0.35 * divs(winners)) makePeace(w, S, war, win, { type: 'treaty', provinces: w.provinces.filter(p => losers.includes(p.owner) && winners.includes(p.controller)).map(p => p.id) });
 }
 /** A member leaves a world war of its own accord (a revolution, say): the enemy keeps what it holds, but there is no overlord. */
 export function leaveWar(w: World, S: MapStatic, war: War, c: number) {
@@ -354,6 +357,11 @@ function governmentCrisis(w: World, S: MapStatic, war: War, c: number) {
 const popTotal = (w: World, c: number) => { let s = 0; for (const p of w.provinces) if (p.owner === c) s += p.pop; return s; };
 /** -100..100 from the attackers' view: occupied value, casualties, capitals */
 export function warScore(w: World, war: War): number {
+  const p = warScoreParts(w, war);
+  return Math.max(-100, Math.min(100, Math.round(p.land + p.casualties + p.lost + p.capitals)));
+}
+/** What the war score is made of, in points for the attackers: land held, casualties, whole divisions lost, capitals taken. */
+export function warScoreParts(w: World, war: War) {
   const val = (side: number[]) => { let g = 0, p = 0; for (const pr of w.provinces) if (side.includes(pr.owner)) { g += pr.gdp; p += pr.pop; } return { g: g || 1, p: p || 1 }; };
   const VA = val(war.attackers), VD = val(war.defenders);
   // the share of each province each side holds on the ground (inside a war zone), else who controls it: every kilometre the front moves counts
@@ -372,7 +380,7 @@ export function warScore(w: World, war: War): number {
   const lost = 40 * (ld / Math.max(1, army(war.defenders) + ld) - la / Math.max(1, army(war.attackers) + la));
   const capA = war.attackers.some(c => war.defenders.includes(w.provinces[w.countries[c].capital].controller)) ? -25 : 0;
   const capD = war.defenders.some(c => war.attackers.includes(w.provinces[w.countries[c].capital].controller)) ? 25 : 0;
-  return Math.max(-100, Math.min(100, Math.round((occD - occA) * 160 + cas + lost + capA + capD)));
+  return { land: (occD - occA) * 160, casualties: cas, lost, capitals: capA + capD };
 }
 
 export interface PeaceTerms { type: 'white' | 'ceasefire' | 'treaty'; provinces: number[]; puppet?: boolean; reparations?: boolean }
@@ -400,7 +408,10 @@ export function acceptsPeace(w: World, war: War, from: 1 | -1, terms: PeaceTerms
   const myScore = war.score * from; // from proposer's view
   const theirEx = war.exhaustion[from > 0 ? 1 : 0];
   // a world war is fought out: no settlement while a side has allies standing, or until it is worn out or crushed
-  if (war.total) { const losers = from > 0 ? war.defenders : war.attackers; if (theirEx < (losers.length > 1 ? 0.85 : 0.6)) return { ok: false, why: msg('why.total') }; } // allies who still stand fall one by one; the last gives in when worn out
+  if (war.total) { // a world war ends with a winner: no white peace, no ceasefire; allies who still stand fall one by one, the last gives in when worn out
+    const losers = from > 0 ? war.defenders : war.attackers;
+    if (terms.type !== 'treaty' || myScore <= 0 || theirEx < (losers.length > 1 ? 0.85 : 0.6)) return { ok: false, why: msg('why.total') };
+  }
   if (terms.type === 'white') { const ok = myScore < 15 || theirEx > 0.5 || w.day - war.start > 900; return { ok, why: msg(ok ? 'why.white.ok' : 'why.white.no') }; }
   if (terms.type === 'ceasefire') { const static_ = w.day - ((war as any).lastChange ?? war.start) > 180; const ok = myScore > -25 && (theirEx > 0.4 || (static_ && Math.abs(war.score) < 20)); return { ok, why: msg(ok ? 'why.cease.ok' : 'why.cease.no') }; }
   const cost = termsCost(w, war, from, terms), days = w.day - war.start;

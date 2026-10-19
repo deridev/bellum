@@ -37,7 +37,7 @@ export function startCrisis(w: World, id: Id) {
   for (const c of w.countries) {
     if (!c.alive || (d.who && !d.who(c))) continue;
     if (!c.player) { chooseCrisis(w, c, d.ai(c)); continue; }
-    w.agenda.push({ id: w.nextId++, country: c.id, day: w.day, kind: 'crisis', title: msg(`crisis.${id}.title`), text: msg(`crisis.${id}.text`), expires: w.day + 60, data: { crisis: id },
+    w.agenda.push({ id: w.nextId++, country: c.id, day: w.day, kind: 'crisis', title: msg(`crisis.${id}.title`), text: msg(`crisis.${id}.text`), expires: w.day + 60, dflt: 0, data: { crisis: id },
       options: [0, 1].map(i => ({ label: msg(`crisis.${id}.o${i}`), effect: 'crisis.choose', hint: msg(`crisis.${id}.h${i}`) })) });
   }
 }

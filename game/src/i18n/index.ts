@@ -3,6 +3,8 @@ import type { Msg, MsgArg, World } from '../sim/types';
 import { en } from './en';
 import { pt } from './pt';
 import { es } from './es';
+import { fillCountries, genderOf, type Gender } from './grammar';
+import { cityNameIn } from './cities';
 
 export type Lang = 'en' | 'pt' | 'es';
 export const LANGS: { id: Lang; label: string }[] = [{ id: 'en', label: 'English' }, { id: 'pt', label: 'Português (Brasil)' }, { id: 'es', label: 'Español' }];
@@ -20,7 +22,7 @@ function detect(): Lang {
 }
 export const getLang = () => lang;
 export const locale = () => LOCALE[lang];
-export function setLang(l: Lang) { lang = l; try { localStorage.setItem('bellum.lang', l); } catch { /* storage blocked */ } regionNames = null; listeners.forEach(f => f()); }
+export function setLang(l: Lang) { lang = l; GENDER.clear(); try { localStorage.setItem('bellum.lang', l); } catch { /* storage blocked */ } regionNames = null; listeners.forEach(f => f()); }
 export function onLang(f: () => void) { listeners.add(f); return () => listeners.delete(f); }
 
 /** Translate a UI key. Missing keys fall back to English, then to the key itself. */
@@ -28,14 +30,21 @@ export function t(key: string, args: Record<string, string | number> = {}): stri
   let e = DICTS[lang][key] ?? en[key];
   if (e === undefined) return key;
   if (typeof e !== 'string') e = Number(args.n ?? 0) === 0 && e.zero ? e.zero : new Intl.PluralRules(LOCALE[lang]).select(Number(args.n ?? 0)) === 'one' ? e.one : e.other;
-  return e.replace(/\{(\w+)\}/g, (_, k) => k in args ? (typeof args[k] === 'number' ? fmtNum(args[k] as number) : String(args[k])) : `{${k}}`);
+  const plain = (k: string) => k in args ? (typeof args[k] === 'number' ? fmtNum(args[k] as number) : String(args[k])) : `{${k}}`;
+  if (lang === 'pt' || lang === 'es') e = fillCountries(lang, e, args, v => GENDER.get(v), plain); // country names take their article
+  return e.replace(/\{(\w+)\}/g, (_, k) => plain(k));
 }
+/** The country names given out in the current language, with their grammatical gender (for articles) */
+const GENDER = new Map<string, Gender>();
+const named = (n: string) => { if (lang !== 'en' && !GENDER.has(n)) GENDER.set(n, genderOf(n, lang)); return n; };
+/** A city's name in the current language */
+export const cityName = (name: string) => cityNameIn(lang, name);
 export const has = (key: string) => key in DICTS[lang] || key in en;
 
 /** Render a simulation message in the current language. */
 export function say(w: World, m: Msg): string {
   const args: Record<string, string | number> = {};
-  for (const [k, v] of Object.entries(m.a || {})) args[k] = arg(w, v);
+  for (const [k, v] of Object.entries(m.a || {})) args[k] = k === 'city' && typeof v === 'string' ? cityName(v) : arg(w, v);
   return t(m.k, args);
 }
 function arg(w: World, v: MsgArg): string | number {
@@ -62,10 +71,10 @@ export function countryName(w: World, id: number): string { const c = w.countrie
 const MODERN_NAME: Record<string, string> = {}; const histIso = (code: string, name: string) => MODERN_NAME[code] === name ? ISO2[code] : '';
 /** A country's name in the current language: our own dictionary first, then the browser's region names. */
 export function nameFor(code: string, name: string, iso2 = ISO2[code]): string {
-  const hist = DICTS[lang]['cname.' + name]; if (typeof hist === 'string') return hist; // historical names ("Kingdom of Italy")
-  const own = DICTS[lang]['country.' + code]; if (typeof own === 'string') return own;
-  if (lang === 'en' || !iso2 || !/^[A-Z]{2}$/.test(iso2)) return name;
-  try { regionNames ||= new Intl.DisplayNames([LOCALE[lang]], { type: 'region' }); return regionNames.of(iso2) || name; } catch { return name; }
+  const hist = DICTS[lang]['cname.' + name]; if (typeof hist === 'string') return named(hist); // historical names ("Kingdom of Italy")
+  const own = DICTS[lang]['country.' + code]; if (typeof own === 'string') return named(own);
+  if (lang === 'en' || !iso2 || !/^[A-Z]{2}$/.test(iso2)) return named(name);
+  try { regionNames ||= new Intl.DisplayNames([LOCALE[lang]], { type: 'region' }); return named(regionNames.of(iso2) || name); } catch { return named(name); }
 }
 const ordEn = (n: number) => { const s = n % 100 >= 11 && n % 100 <= 13 ? 'th' : ['th', 'st', 'nd', 'rd'][n % 10] || 'th'; return n + s; };
 /** "1st Infantry Division" / "1ª Divisão de Infantaria" */

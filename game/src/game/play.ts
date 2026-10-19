@@ -3,7 +3,7 @@ import type { LogEntry, MapStatic, War, World } from '../sim/types';
 import { createWorld, rel } from '../sim/world';
 import { initSim } from '../sim';
 import { setupScenario, tablesFor } from '../sim/scenario';
-import { project, unproject } from '../geo';
+import { km, project, unproject } from '../geo';
 import type { Session } from './session';
 import { createStore } from './store';
 import { TheaterLayer } from '../render/theaters';
@@ -15,6 +15,8 @@ import { armyWhere, mergeArmies, orderArmy, releaseArmy, reserveArmy, splitArmy 
 import { queueUnit } from '../sim/economy';
 import { landingPlan } from '../sim/war/landing';
 import { guideSeen } from '../ui/Guide';
+import { prefs } from './settings';
+import { monthlyMissions } from '../sim/missions';
 import { cellOf, provAtLonLat, work, type Theater } from '../sim/war/theater';
 import { diploOdds, doDiplo, type DiploAction } from '../sim/diplomacy';
 import { loadScenario, staticFor } from './scenarios';
@@ -22,7 +24,8 @@ import { audio, type Cue } from './audio';
 
 export type Panel = { kind: 'economy' | 'politics' | 'military' | 'diplomacy' | 'ledger' | 'chronicle' | 'timelapse' } | { kind: 'province'; id: number } | { kind: 'country'; id: number } | { kind: 'war'; id: number } | null;
 /** What an order at the pointer would do, while an army is picked up (for an attack, see strikeOdds). */
-export interface Aim { kind?: 'attack' | 'hold' | 'wait' | 'station' | 'landing'; days?: number; err: string | null; odds: number; n: number; reserves: number; foes: number; def: number; from: [number, number] | null; to: [number, number] | null; ids: number[] }
+/** org: the army's organisation now; supTo: its supply once it reaches the objective (estimated) */
+export interface Aim { kind?: 'attack' | 'hold' | 'wait' | 'station' | 'landing'; days?: number; org?: number; supTo?: number; err: string | null; odds: number; n: number; reserves: number; foes: number; def: number; from: [number, number] | null; to: [number, number] | null; ids: number[] }
 export interface GameState { day: number; speed: number; paused: boolean; tick: number; panel: Panel; turnMode: World['settings']['turnMode']; menu: boolean; toast: string; declare: number; aim: Aim | null; army: number | null; guide: boolean }
 /** a cell of ours within 80 km of the front: an army sent there holds it (further back, it waits in reserve) */
 const nearFront = (th: Theater, k: number) => { const d = work(th).distF[k]; return d >= 0 && d * th.cellKm <= 80; };
@@ -63,6 +66,7 @@ export class Game {
   private adopt() {
     this.layer.reset(); this.layer.setPalette(this.w.countries.map(c => c.color)); this.s.ren.setPalette(this.w.countries.map(c => c.color));
     this.fx = new WarFx(this.s, this.layer); this.history = []; this.startProvinces = this.w.provinces.filter(p => p.owner === this.player).length;
+    if (this.w.day === 0 && !this.w.missions?.length) monthlyMissions(this.w, this.S); // the first mission is offered at once: the first month is never empty
     this.record(); this.afterDay(); this.syncMap(true);
   }
   /** load a saved game (its scenario decides the flags and starting map) */
@@ -141,7 +145,10 @@ export class Game {
       if (th.c[k] * th.sideOf[this.player] > 0) { this.st.set({ aim: { ...base, kind: nearFront(th, k) ? 'hold' : 'wait', err: null } }); return; }
       const r = strikeOdds(this.w, war, th, this.player, [lon, lat], id);
       if (r.err === 'off.blocked' || r.err === 'off.tooFar') { const l = landingPlan(this.w, this.S, id, lon, lat); if (!l.err) { this.st.set({ aim: { ...base, kind: 'landing', err: null, odds: l.p, foes: l.foes, days: l.days } }); return; } }
-      this.st.set({ aim: { kind: 'attack', err: r.err, odds: r.odds, n: r.units.length, reserves: 0, foes: r.foes, def: r.def, from: r.from, to: r.to ?? null, ids: r.units.filter(d => d.theater === th.id).map(d => d.id) } }); return;
+      // the army's state and how far it would push past the front decide whether a good-looking attack is a trap
+      const divs = at!.divs, mean = (f: (d: typeof divs[number]) => number) => divs.reduce((s, d) => s + f(d), 0) / Math.max(1, divs.length);
+      const org = mean(d => d.org), sup = mean(d => d.theater >= 0 ? d.sup : 1), depth = r.at ? km(r.at[0], r.at[1], lon, lat) : 0;
+      this.st.set({ aim: { kind: 'attack', err: r.err, odds: r.odds, n: r.units.length, reserves: 0, foes: r.foes, def: r.def, from: r.from, to: r.to ?? null, ids: r.units.filter(d => d.theater === th.id).map(d => d.id), org, supTo: Math.max(0, sup - 0.65 * depth / 900) } }); return;
     }
     const p = provAtLonLat(this.S, lon, lat), pr = p >= 0 ? this.w.provinces[p] : null;
     if (pr && pr.controller !== this.player) { const l = landingPlan(this.w, this.S, id, lon, lat); if (!l.err) { this.st.set({ aim: { ...base, kind: 'landing', err: null, odds: l.p, foes: l.foes, days: l.days } }); return; } } // enemy coast with no front: a landing
@@ -193,6 +200,16 @@ export class Game {
   }
   /** after each simulated day: hand the new state to the war layer and effects */
   afterDay() { this.layer.record(this.w); this.fx.record(this.w); this.assignTheaters(); }
+  /** a decision has just arrived that should stop the clock (by the player's setting): history, crises, peace offers and ultimatums, or all */
+  private seenAgenda = -1;
+  private newDecision() {
+    const mode = prefs.get().pauseOn, fresh = this.w.agenda.filter(a => a.country === this.player && a.id > this.seenAgenda);
+    if (!fresh.length) return false;
+    const first = this.seenAgenda < 0; this.seenAgenda = Math.max(...fresh.map(a => a.id));
+    if (first) return false; // what was waiting when the game loaded does not stop the clock again
+    if (mode === 'never') return false;
+    return mode === 'all' || fresh.some(a => a.kind === 'history' || a.kind === 'crisis' || a.kind === 'peace' || a.data?.act === 'demand');
+  }
   private record() {
     const c = this.me, w = this.w, n = w.countries.length, all = new Float32Array(n * NATION_STATS.length);
     w.countries.forEach((x, i) => (all[i * 4] = x.alive ? x.gdp : 0));
@@ -226,6 +243,7 @@ export class Game {
         const monthStart = new Date(this.w.startDate + this.w.day * 864e5).getUTCDate() === 1;
         if (monthStart) this.record();
         if (this.w.settings.turnMode === 'monthly' && monthStart) { this.st.set({ paused: true }); this.acc = 0; break; }
+        if (this.newDecision()) { this.st.set({ paused: true }); this.acc = 0; this.sound('alert'); break; }
       }
       if (this.acc >= 1) this.acc = Math.min(this.acc, 1); // fell behind: drop the backlog rather than stutter
       if (n) this.syncMap(false);

@@ -157,6 +157,8 @@ export class WarFx {
   private drawUnits(ctx: CanvasRenderingContext2D, cam: Camera, w: World, thById: Map<number, Theater>, mix: number, now: number, zoom: number, scr: (lon: number, lat: number) => [number, number]) {
     const s = Math.min(1.7, Math.max(0.8, Math.pow(zoom / 6, 0.4))), fw = 10.5 * s, fh = 7 * s, A = this.A;
     const blink = 0.55 + 0.45 * Math.sin(now * 6);
+    // one flag per small patch of screen and side: a crowded front shows its density, not a heap that hides the line
+    const taken = new Set<number>(), cw = fw * 1.35, ch = fh * 1.9;
     for (const d of w.divisions) {
       if (d.theater < 0 || d.arrive > w.day) continue;
       const u = this.units.get(d.id), t = thById.get(d.theater); if (!u || !t) continue;
@@ -192,6 +194,7 @@ export class WarFx {
         else { const q = (ph - 0.45) / 0.55; off = 5 * (1 - q * q * (3 - 2 * q)); }
         off = Math.min(off * amp, room); x += fwx * off; y += fwy * off; sx = 1 + 0.2 * bell * amp; sy = 1 - 0.15 * bell * amp;
       } else if (d.retreat) { const q = Math.sin(now * 7 + d.id) * 0.5 + 0.5; sx = 1 - 0.05 * q; }
+      { const key = (Math.floor(x / cw) * 4099 + Math.floor(y / ch)) * 2 + (sg > 0 ? 1 : 0); if (taken.has(key)) continue; taken.add(key); }
       // a new division pops in
       const pop = Math.min(1, (now - u.seen) / 0.35), ps = pop < 1 ? easeOutBack(pop) : 1, ww = fw * sx * ps, hh = fh * sy * ps;
       ctx.globalAlpha = (0.65 + 0.35 * Math.min(1, d.str / d.max)) * Math.min(1, pop * 2);
@@ -309,6 +312,7 @@ export class WarFx {
     for (const a of w.armies) {
       if (a.country !== me) continue; const at = armyWhere(w, S, a); if (!at) continue;
       let [x, y] = scr(at.x, at.y); if (off(x, y)) continue;
+      y = Math.max(y, 88); // never under the top bar, where it could not be clicked
       while (placed.some(([px, py]) => Math.abs(px - x) < 40 && Math.abs(py - y) < 20)) y += 24;
       placed.push([x, y]);
       const on = a.id === sel, st: ArmyState = at.state;
@@ -361,5 +365,6 @@ export class WarFx {
 }
 const hex = (h: string) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
 /** the verdict colours shared by the aim arrow and its readout */
-export const aimVerdict = (a: Aim) => a.foes === 0 ? 'open' : a.odds >= 1.5 ? 'likely' : a.odds >= 1 ? 'hard' : 'stall';
-const aimColor = (a: Aim) => ({ open: '#8fd07a', likely: '#8fd07a', hard: '#e8c063', stall: '#e0645a' })[aimVerdict(a)];
+/** what an attack order would come to: a worn-out army or one that outruns its supply is warned first, whatever the odds */
+export const aimVerdict = (a: Aim) => (a.org ?? 1) < 0.4 ? 'tired' : (a.supTo ?? 1) < 0.35 ? 'overreach' : a.foes === 0 ? 'open' : a.odds >= 1.5 ? 'likely' : a.odds >= 1 ? 'hard' : 'stall';
+const aimColor = (a: Aim) => ({ open: '#8fd07a', likely: '#8fd07a', hard: '#e8c063', stall: '#e0645a', tired: '#e0645a', overreach: '#e0645a' })[aimVerdict(a)];

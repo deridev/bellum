@@ -23,7 +23,8 @@ export function resolveAgenda(w: World, S: MapStatic, id: number, option: number
   else if (eff === 'mission.pick') pickMission(w, item.data.offers, option);
   else if (eff === 'crisis.choose') chooseCrisis(w, w.countries[item.country], option as 0 | 1);
 }
-export function expireAgenda(w: World) {
+export function expireAgenda(w: World, S: MapStatic) {
+  for (const a of w.agenda.filter(a => a.expires >= 0 && a.expires < w.day && a.dflt !== undefined)) resolveAgenda(w, S, a.id, a.dflt!); // an unanswered card takes its stated default
   for (const a of w.agenda) if (a.expires >= 0 && a.expires < w.day && a.data?.act === 'demand') resolveDemand(w, a.data.from, a.country, a.data.prov, false); // ignoring an ultimatum is refusing it
   w.agenda = w.agenda.filter((a: AgendaItem) => a.expires < 0 || a.expires >= w.day);
 }

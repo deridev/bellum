@@ -5,7 +5,7 @@ import { computeLabels, drawCountryLabels, type CountryLabel } from '../render/l
 import { MapRenderer, type MapMode } from '../render/map';
 import { createStore } from './store';
 import { presentDay, type Scenario } from './scenarios';
-import { nameFor, onLang, setProvinceNames } from '../i18n';
+import { cityName, nameFor, onLang, setProvinceNames } from '../i18n';
 
 export interface UIState {
   phase: 'pick' | 'play';
@@ -142,7 +142,7 @@ export class Session {
       c.fillStyle = city.capital ? '#fff' : 'rgba(255,255,255,0.85)'; c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 1.5;
       c.beginPath(); if (city.capital) { c.rect(x - 3, y - 3, 6, 6); } else c.arc(x, y, 2.2, 0, 7); c.fill(); c.stroke();
       c.font = `${city.capital ? 600 : 500} ${city.capital ? 12 : 11}px Barlow, system-ui, sans-serif`;
-      c.lineWidth = 3; c.strokeStyle = 'rgba(6,10,16,0.75)'; c.strokeText(city.name, x + 6, y); c.fillStyle = 'rgba(244,246,248,0.92)'; c.fillText(city.name, x + 6, y);
+      c.lineWidth = 3; c.strokeStyle = 'rgba(6,10,16,0.75)'; const nm = cityName(city.name); c.strokeText(nm, x + 6, y); c.fillStyle = 'rgba(244,246,248,0.92)'; c.fillText(nm, x + 6, y);
     }
     this.onOverlay?.(c);
   }

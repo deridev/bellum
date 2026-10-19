@@ -16,5 +16,8 @@ export function Settings({ g }: { s?: Session; g?: Game }) {
     {g && <div class="field"><span class="eyebrow">{t('set.turns')}</span>
       <Seg label={t('set.turns')} value={g.st.get().turnMode} options={[{ v: 'continuous', label: t('set.continuous') }, { v: 'monthly', label: t('set.monthly') }]} onPick={v => g.setTurnMode(v)} />
       <small class="muted">{t('set.turnsHint')}</small></div>}
+    <div class="field"><span class="eyebrow">{t('set.pauseOn')}</span>
+      <Seg label={t('set.pauseOn')} value={p.pauseOn} options={(['big', 'all', 'never'] as const).map(v => ({ v, label: t('set.pauseOn.' + v) }))} onPick={v => prefs.set({ pauseOn: v as 'big' })} />
+      <small class="muted">{t('set.pauseOnHint')}</small></div>
   </div>;
 }

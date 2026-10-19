@@ -163,16 +163,16 @@ function moment(w: World, S: MapStatic, m: Moment) {
   invade(w, S, war, m, c, side);
 }
 function enter(w: World, S: MapStatic, war: War, m: Moment, c: number, side: 1 | -1) {
-  joinWar(w, S, war, c, side);
+  joinWar(w, S, war, c, side, true);
   const big = (side > 0 ? war.attackers : war.defenders).filter(k => k !== c).sort((a, b) => w.divisions.filter(d => d.country === b).length - w.divisions.filter(d => d.country === a).length)[0];
   say(w, msg('hist.joins', { c: { c }, war: { m: war.name }, o: { c: big } }), 'war', { who: [c, ...war.attackers, ...war.defenders], big: 'big.war', prov: w.countries[c].capital });
 }
 function invade(w: World, S: MapStatic, war: War, m: Moment, c: number, side: 1 | -1) {
   const lead = code(w, m.by!), targets = [c, ...(m.also ?? []).map(x => code(w, x)).filter(k => k >= 0 && !sideOf(war, k))];
   w.treaties = w.treaties.filter(t => !(targets.includes(t.a) && t.b === lead) && !(targets.includes(t.b) && t.a === lead)); // the pact is torn up
-  if (!sideOf(war, lead)) joinWar(w, S, war, lead, -side as 1 | -1);
+  if (!sideOf(war, lead)) joinWar(w, S, war, lead, -side as 1 | -1, true);
   for (const k of (m.with ?? []).map(x => code(w, x))) if (k >= 0 && !sideOf(war, k)) joinWar(w, S, war, k, -side as 1 | -1);
-  for (const k of targets) joinWar(w, S, war, k, side);
+  for (const k of targets) joinWar(w, S, war, k, side, k === c);
   say(w, msg('hist.' + m.id, { c: { c: lead }, o: { c } }), 'war', { who: [c, lead, ...war.attackers, ...war.defenders], big: 'big.war', prov: w.countries[c].capital });
 }
 function revolution(w: World, S: MapStatic, war: War, c: number) {
@@ -186,7 +186,7 @@ function ask(w: World, war: War, m: Moment, c: number, side: 1 | -1) {
   const lead = side > 0 ? war.leadA : war.leadD, foe = side > 0 ? war.leadD : war.leadA;
   const k = m.kind === 'revolution' ? 'revolution' : m.kind === 'invade' ? m.id : 'join';
   const a = { c: { c: w.countries.findIndex(x => x.player) }, o: { c: m.kind === 'invade' ? c : lead }, e: { c: foe }, war: { m: war.name } };
-  w.agenda.push({ id: w.nextId++, country: w.countries.findIndex(x => x.player), day: w.day, kind: 'history', title: msg(`hist.ask.${k}.title`, a), text: msg(`hist.ask.${k}.text`, a), expires: w.day + 30,
+  w.agenda.push({ id: w.nextId++, country: w.countries.findIndex(x => x.player), day: w.day, kind: 'history', title: msg(`hist.ask.${k}.title`, a), text: msg(`hist.ask.${k}.text`, a), expires: w.day + 60, dflt: 0,
     data: { moment: m.id, war: war.id, c, side }, options: [0, 1].map(i => ({ label: msg(`hist.ask.${k}.o${i}`, a), hint: msg(`hist.ask.${k}.h${i}`, a), effect: 'history.' + i })) });
 }
 /** The player's answer to a history card. */

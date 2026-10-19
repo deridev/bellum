@@ -16,7 +16,7 @@ export function monthlyUprisings(w: World, S: MapStatic) {
     if (d.alive || (w.cooldowns[`rose:${d.id}`] ?? 0) >= 2) continue; // a nation rises twice at most
     const key = `gone:${d.id}`; w.cooldowns[key] ??= w.day;
     if (w.day - w.cooldowns[key] < 270) continue; // not in the first months after the fall
-    const lost = w.provinces.filter(p => p.core.includes(d.id) && p.owner !== d.id && p.owner === p.controller && w.countries[p.owner].alive);
+    const lost = w.provinces.filter(p => p.core.includes(d.id) && !p.core.includes(p.owner) && p.owner !== d.id && p.owner === p.controller && w.countries[p.owner].alive); // never the conqueror's own core land
     if (!lost.length) continue;
     const by = new Map<number, number>(); for (const p of lost) by.set(p.owner, (by.get(p.owner) ?? 0) + 1);
     const occ = [...by.entries()].sort((a, b) => b[1] - a[1])[0][0], X = w.countries[occ];

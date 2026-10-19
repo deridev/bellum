@@ -81,7 +81,7 @@ export const msg = (k: string, a?: Record<string, MsgArg>): Msg => (a ? { k, a }
 export interface LogEntry { day: number; msg: Msg; kind: LogKind; who?: number[]; prov?: number; big?: string; at?: [number, number] }
 export type LogKind = 'war' | 'peace' | 'diplo' | 'politics' | 'economy' | 'event' | 'city' | 'pocket' | 'player';
 
-export interface AgendaItem { id: number; country: number; day: number; title: Msg; text: Msg; options: AgendaOption[]; kind: string; data?: any; expires: number }
+export interface AgendaItem { id: number; country: number; day: number; title: Msg; text: Msg; options: AgendaOption[]; kind: string; data?: any; expires: number; dflt?: number } // dflt: the option taken if it runs out unanswered
 export interface AgendaOption { label: Msg; effect: string; hint?: Msg }
 
 export interface World {

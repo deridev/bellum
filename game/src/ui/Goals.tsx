@@ -1,7 +1,7 @@
 // What the player is playing for, and how the game ended.
 import type { Game } from '../game/play';
 import { DOMINATION, endDay, goalWar, outputShare, powerScores } from '../sim/victory';
-import { missionProgress, missionTitle } from '../sim/missions';
+import { missionCount, missionProgress, missionTitle } from '../sim/missions';
 import { sideOf } from '../sim/war/war';
 import { countryName, fmtDate, say, t } from '../i18n';
 import { Flag, Icon } from './common';
@@ -31,7 +31,7 @@ export function Missions({ g }: { g: Game }) {
     {ms.map(m => { const p = missionProgress(w, g.me, m); return <div class="mission" key={m.id}>
       <span class="mission-t">{say(w, missionTitle(m, g.me))}</span>
       <span class="mission-bar" role="progressbar" aria-valuenow={Math.round(p * 100)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: cssPct(p) }} /></span>
-      <small>{timeLeft(m.until - w.day)}</small></div>; })}
+      <small>{(() => { const n = missionCount(w, g.me, m); return n ? `${fmtInt(n[0])}/${fmtInt(n[1])} · ` : ''; })()}{timeLeft(m.until - w.day)}</small></div>; })}
   </section>;
 }
 
@@ -44,7 +44,7 @@ export function EndScreen({ g }: { g: Game }) {
     <div class="end-head"><div class="eyebrow">{fmtDate(w, o.day)}</div><div class="end-title">{t('end.kind.' + o.kind)}</div><p>{t('end.reason.' + o.reason, { c: countryName(w, c.id), n: o.rank ?? 0 })}</p></div>
     <dl class="stat end-stats">
       <dt>{t('end.years')}</dt><dd class="num">{years}</dd>
-      <dt>{t('end.provinces')}</dt><dd class="num">{fmtInt(provs)} <small class="muted">({t('end.peak', { n: c.stats.peakProvinces })})</small></dd>
+      <dt>{t('end.provinces')}</dt><dd class="num">{fmtInt(provs)} <small class="muted">({t('end.peak', { n: Math.max(provs, c.stats.peakProvinces) })})</small></dd>
       <dt>{t('end.gdp')}</dt><dd class="num">{fmtMoney(c.gdpStart)} → {fmtMoney(c.gdp)}</dd>
       <dt>{t('end.wars')}</dt><dd class="num">{fmtInt(c.stats.wars)}</dd>
       <dt>{t('end.casualties')}</dt><dd class="num">{fmtBig(c.stats.casualties)}</dd>

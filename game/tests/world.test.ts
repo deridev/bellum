@@ -25,7 +25,7 @@ describe('world over ten years', () => {
     console.log(`treaties ${treaties0} -> ${w.treaties.length} (${['alliance', 'nap', 'guarantee', 'trade'].map(t => t + ' ' + w.treaties.filter(x => x.type === t).length).join(', ')}) | gone ${w.countries.filter(c => !c.alive).map(c => c.code).join(',')}`);
     console.log(`debt/gdp median ${debt[debt.length >> 1].toFixed(2)} max ${debt[debt.length - 1].toFixed(2)} | stability median ${stab[stab.length >> 1].toFixed(2)} min ${stab[0].toFixed(2)} | army size x start: median ${growth[growth.length >> 1].toFixed(2)} max ${growth[growth.length - 1].toFixed(2)} | log events ${events}`);
     console.log(w.log.filter(l => l.kind === 'war' || l.kind === 'peace' || l.big).slice(-25).map(l => `${l.day} ${logText(w, l.msg)}`).join('\n'));
-    expect(wars.length).toBeGreaterThanOrEqual(2); expect(wars.length).toBeLessThanOrEqual(15);
+    expect(wars.length).toBeGreaterThanOrEqual(2); expect(wars.length).toBeLessThanOrEqual(25); // a living world: rivalries and uprisings (§21), but not chaos
     expect(debt[debt.length >> 1]).toBeLessThan(1);
     expect(stab[stab.length >> 1]).toBeGreaterThan(0.45);
     expect(growth[growth.length >> 1]).toBeGreaterThan(0.7); expect(growth[growth.length >> 1]).toBeLessThan(1.5); expect(growth[growth.length - 1]).toBeLessThan(4);

@@ -6,7 +6,7 @@ import { aimVerdict } from '../game/warfx';
 import { armyWhere } from '../sim/war/armies';
 import { GENERAL } from '../sim/war/theater';
 import { UNIT_SPEC } from '../sim/economy';
-import { acceptsPeace, heldDemand, sideOf, theatersOf, truceKey, warCost, warsOf, type PeaceTerms } from '../sim/war/war';
+import { acceptsPeace, heldDemand, sideOf, theatersOf, truceKey, warCost, warScoreParts, warsOf, type PeaceTerms } from '../sim/war/war';
 import type { War } from '../sim/types';
 import { armyName, countryName, fmtDate, say, t } from '../i18n';
 import { Block, Flag, Icon, Sheet, Tug, UnitSymbol } from './common';
@@ -28,7 +28,7 @@ export function WarPanel({ g, id }: { g: Game; id: number }) {
   const oursD = inWar(ours), theirsD = inWar(theirs), transit = oursD.filter(d => d.arrive > w.day).length;
   const posture = POSTURES.reduce((b, p) => Math.abs(p.aggr - war.aggr[si]) < Math.abs(b.aggr - war.aggr[si]) ? p : b, POSTURES[1] as typeof POSTURES[number]);
   const offs = ths.flatMap(x => x.offensives.filter(o => !o.ended && o.country === me));
-  const all = warsOf(w, me), commit = war.commit?.[me], reserve = warReserve(w, war, me).length, onFront = oursD.filter(d => d.country === me).length;
+  const all = warsOf(w, me), commit = war.commit?.[me], waiting = oursD.filter(d => d.country === me && d.goal?.[2] === 0).length, reserve = warReserve(w, war, me).length + waiting, onFront = oursD.filter(d => d.country === me).length - waiting; // armies held back count as reserve, not as the line
   const flags = (cs: number[]) => <span class="flags">{cs.slice(0, 4).map(c => <Flag key={c} s={g.s} code={w.countries[c].code} h={14} />)}{cs.length > 4 && <small>+{cs.length - 4}</small>}</span>;
   const pair = (a: number, b: number, fmt: (v: number) => string, label: string, icon: string, lowerIsBetter?: boolean) => { const tot = a + b || 1, win = lowerIsBetter ? a < b : a > b;
     return <div class="pair"><span class="pair-l"><Icon name={icon} size={16} />{label}</span><b class={`num ${win ? 'good' : ''}`}>{fmt(a)}</b><span class={`pair-bar ${lowerIsBetter ? 'inv' : ''}`}><i style={{ width: `${a / tot * 100}%` }} /></span><b class="num">{fmt(b)}</b></div>; };
@@ -36,6 +36,8 @@ export function WarPanel({ g, id }: { g: Game; id: number }) {
     {all.length > 1 && <div class="seg wrap">{all.map(x => <button key={x.id} aria-pressed={x.id === id} onClick={() => g.openPanel({ kind: 'war', id: x.id })}>{say(w, x.name)}</button>)}</div>}
     <div class="war-score" data-tip={t('war.scoreHint')}><span><span class="eyebrow">{t('war.score')}</span><small class="muted">{t(score > 20 ? 'war.winning' : score < -20 ? 'war.losing' : 'war.even')}</small></span><b class={`num big ${score < -20 ? 'bad' : score > 20 ? 'good' : ''}`}>{score > 0 ? '+' : ''}{Math.round(score)}</b></div>
     <Tug v={score} left={flags(ours)} right={flags(theirs)} />
+    {(() => { const parts = warScoreParts(w, war), row = (k: keyof typeof parts) => { const v = Math.round(parts[k] * side); return <span key={k} class={v > 0 ? 'good' : v < 0 ? 'bad' : 'muted'}><small>{t('war.part.' + k)}</small><b class="num">{v > 0 ? '+' : ''}{v}</b></span>; };
+      return <div class="score-parts" data-tip={t('war.partsHint')}>{(['land', 'casualties', 'lost', 'capitals'] as const).map(row)}</div>; })()}
     <div class="pairs">
       <div class="pair head"><span /><small>{t('war.us')}</small><span /><small>{t('war.them')}</small></div>
       {pair(oursD.length, theirsD.length, fmtInt, t('mil.divisions'), 'military')}
@@ -118,7 +120,8 @@ export function AgendaCards({ g, slim, drawer, onDrawer }: { g: Game; slim?: boo
   useEffect(() => {
     const fresh = items.find(a => !seen.current.has(a.id)); items.forEach(a => seen.current.add(a.id));
     if (!fresh || (open !== null && items.find(a => a.id === open && (RANK[a.kind] ?? 3) < (RANK[fresh.kind] ?? 3)))) return; // never bury a bigger decision
-    // every decision arrives folded; the strip's button (gold for peace) carries the urgency
+    // a decision big enough to stop the clock opens by itself; the rest arrive folded, and the strip's button carries the urgency
+    if (fresh.kind === 'history' || fresh.kind === 'crisis' || fresh.kind === 'peace' || fresh.data?.act === 'demand') { setOpen(fresh.id); setAsked(fresh.id); }
   }, [items.map(a => a.id).join()]);
   if (!items.length) return null;
   const decide = (id: number, i: number) => { resolveAgenda(g.w, g.S, id, i); g.afterOrder(); g.sound('click'); };
@@ -135,10 +138,11 @@ export function AgendaCards({ g, slim, drawer, onDrawer }: { g: Game; slim?: boo
       <div class="cable-head"><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={18} /></span><span class="eyebrow">{t('agenda.' + a.kind)}</span><time class="mono">{a.expires ? t('agenda.daysLeft', { n: Math.max(0, a.expires - g.w.day) }) : fmtDate(g.w, a.day, 'short')}</time><button class="x" aria-label={t('agenda.fold')} onClick={() => { setOpen(null); setAsked(null); }}><Icon name="down" size={12} /></button></div>
       <div class="h3 plain">{say(g.w, a.title)}</div><p>{say(g.w, a.text)}</p>
       <div class="opts">{a.options.map((o, i) => <button key={i} onClick={() => decide(a.id, i)}><span>{say(g.w, o.label)}</span>{o.hint && <small>{say(g.w, o.hint)}</small>}{a.kind === 'peace' && <span class="fx">{peaceFx(a, i).map(([txt, tone]) => <i key={txt} class={tone}>{txt}</i>)}</span>}</button>)}</div>
+      {a.dflt !== undefined && a.options[a.dflt] && <small class="if-ignored">{t('agenda.ifIgnored', { o: say(g.w, a.options[a.dflt].label) })}</small>}
     </section>
     : <div class={`agenda-slip plate k-${a.kind}`} key={a.id}><button class="slip-open" onClick={() => { setOpen(a.id); setAsked(a.id); }}><span class="cable-ic"><Icon name={AGENDA_ICON[a.kind] || 'chronicle'} size={16} /></span><span class="slip-tt">{a.kind === 'diplo' && a.data?.act ? <><span class="slip-t slip-terms"><Icon name={a.data.act} size={14} />{t('treaty.' + a.data.act)}</span><small class="slip-from"><Flag s={g.s} code={g.w.countries[a.data.from].code} h={11} />{countryName(g.w, a.data.from)}</small></> : <span class="slip-t">{say(g.w, a.title)}</span>}</span></button>
       {a.kind !== 'diplo' ? <button class="slip-review" onClick={() => { setOpen(a.id); setAsked(a.id); }}>{t('agenda.review')}</button> : a.options.length === 2 && <><button class="slip-yes" aria-label={say(g.w, a.options[0].label)} data-tip={say(g.w, a.options[0].label)} onClick={() => decide(a.id, 0)}><Icon name="check" size={16} /></button><button class="slip-no" aria-label={say(g.w, a.options[1].label)} data-tip={say(g.w, a.options[1].label)} onClick={() => decide(a.id, 1)}><Icon name="cross" size={16} /></button></>}</div>)}
-    {!drawer && items.length > 1 && <small class="slip-count">{t('agenda.moreIn', { n: items.length - 1 })}</small>}
+    {!drawer && items.length > 1 && <button class="slip-count link" onClick={() => onDrawer(true)}>{t('agenda.moreIn', { n: items.length - 1 })}</button>}
   </div>;
 }
 
@@ -172,7 +176,7 @@ function ArmyCard({ g, id }: { g: Game; id: number }) {
     <div class="ac-body"><span class="ac-units">{Object.entries(by).map(([k, n]) => <span key={k} data-tip={t('unitShort.' + k)}><UnitSymbol type={k} size={18} /><b class="num">{n}</b></span>)}</span>
       {meter(t('army.strength'), at.str, t('army.strengthHint'))}{meter(t('army.org'), org, t('army.orgHint'))}{meter(t('army.supply'), sup, t('army.supplyHint'))}</div>
     <div class="ac-order">{!m ? <span class="muted">{t('army.hint')}</span> : m.err ? <span class="muted">{t(m.err)}</span>
-      : m.kind === 'attack' ? <span class="aim"><b class={`verdict v-${v}`}>{t('aim.' + v)}</b><span>{t('aim.force', { n: m.n, m: m.foes })}<small> · {t('aim.def', { x: fmt1(m.def) })}</small></span>{m.foes > 0 && <b class="num">{m.odds >= 10 ? '10+' : fmt1(m.odds)} : 1</b>}</span>
+      : m.kind === 'attack' ? <span class="aim"><b class={`verdict v-${v}`}>{t('aim.' + v)}</b><span>{t('aim.force', { n: m.n, m: m.foes })}<small> · {t('aim.def', { x: fmt1(m.def) })}</small></span>{m.foes > 0 && <b class="num">{m.odds >= 10 ? '10+' : fmt1(m.odds)} : 1</b>}<small class="aim-sup" data-tip={t('aim.supHint')}>{t('aim.supThere', { p: pct(m.supTo ?? 1) })}</small></span>
       : m.kind === 'landing' ? <span class="aim"><b class={`verdict v-${m.odds >= 0.6 ? 'likely' : m.odds >= 0.35 ? 'hard' : 'stall'}`}>{t('aim.landing')}</b><span>{t('aim.landingOdds', { p: pct(m.odds), n: m.days ?? 0, m: m.foes })}</span></span>
       : <span class="aim"><b class="verdict v-move">{t('army.go.' + m.kind)}</b></span>}</div>
     <div class="ac-acts">
