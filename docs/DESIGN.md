@@ -645,9 +645,15 @@ An engine bug surfaced: a new front of a war could get its own theater **overlap
 
 Smaller fixes: claims cost 35 influence plus 4 per province of the target (up to 155); every town of a homeland supplies what is near it (250 km, 75%), so armies at the border no longer starve; a sum of money never breaks across lines; place names in Brazilian Portuguese (Stuttgart, Nuremberg, Bonn, Rouen) and compass names say what they are ("Província Oriental"); fewer flags on crowded fronts.
 
+Round 4 (same critic): **APPROVE, 8/10** (was 7). Its 1914 runs: Brussels and the Great Retreat in two of three seeds, then 30–60 km of movement in 1915–18, the revolution on 7 November 1917 and the armistice on 11 November 1918 in all three. 1939: Gelb → Sedan → Paris → armistice, Barbarossa → Minsk → Smolensk, no uprisings.
+
 ### 23.1 Known issues
 - Breakthroughs are scripted on the historical lines; a player who wins the opening some other way gets no breakthrough of their own.
-- The Entente slowly pushes the 1914 front back east over 1915–17 in most runs.
+- In about one 1914 game in three, Liège holds and the West is a border trench war.
+- The default posture (Advance) wears a front's supply and organisation down over months; the War desk does not warn about it.
+- With long nation names (Império Alemão) the top bar still cuts the influence label at 1440 px.
+- A capitulation banner can cover an open desk; news toasts can sit behind the army card.
+- The 1939 Eastern Front can freeze for 1942–43; AI wars in 2026 vary from about 1.5 to 4 a year by seed.
 
 ---
 
