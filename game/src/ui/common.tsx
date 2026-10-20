@@ -275,12 +275,15 @@ export function TipLayer() {
     const tipOf = (e: Event) => (e.target as HTMLElement | null)?.closest?.('[data-tip]') as HTMLElement | null;
     const over = (e: PointerEvent) => { if (e.pointerType === 'touch') return; const t = tipOf(e); if (t) show(t, 250); else if (cur) hide(); };
     const out = (e: PointerEvent) => { if (!e.relatedTarget) hide(); };
-    const focus = (e: FocusEvent) => { const t = tipOf(e); if (t?.matches(':focus-visible')) show(t, 0); };
-    document.addEventListener('pointerover', over); document.addEventListener('pointerout', out); document.addEventListener('pointerdown', hide);
+    let touched = false; // after a tap, focus comes from the finger: no tip (it would stay up with nothing to move off)
+    const down = (e: PointerEvent) => { touched = e.pointerType === 'touch'; hide(); };
+    const key = () => { touched = false; };
+    const focus = (e: FocusEvent) => { const t = tipOf(e); if (!touched && t?.matches(':focus-visible')) show(t, 0); };
+    document.addEventListener('pointerover', over); document.addEventListener('pointerout', out); document.addEventListener('pointerdown', down); document.addEventListener('keydown', key);
     document.addEventListener('focusin', focus); document.addEventListener('focusout', hide); window.addEventListener('scroll', hide, true); window.addEventListener('blur', hide);
     return () => {
       hide(); el.remove();
-      document.removeEventListener('pointerover', over); document.removeEventListener('pointerout', out); document.removeEventListener('pointerdown', hide);
+      document.removeEventListener('pointerover', over); document.removeEventListener('pointerout', out); document.removeEventListener('pointerdown', down); document.removeEventListener('keydown', key);
       document.removeEventListener('focusin', focus); document.removeEventListener('focusout', hide); window.removeEventListener('scroll', hide, true); window.removeEventListener('blur', hide);
     };
   }, []);

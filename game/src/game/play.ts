@@ -9,7 +9,7 @@ import { createStore } from './store';
 import { TheaterLayer } from '../render/theaters';
 import { aimVerdict, WarFx } from './warfx';
 import { armyName, countryName, provName, say, t } from '../i18n';
-import { acceptsPeace, activeWars, allied, declareWar, makePeace, sideOf, theatersOf, travelDays, whereNow, type PeaceTerms } from '../sim/war/war';
+import { acceptsPeace, activeWars, allied, declareWar, makePeace, sideOf, theatersOf, travelDays, tripWear, whereNow, type PeaceTerms } from '../sim/war/war';
 import { strikeOdds } from '../sim/war/ai';
 import { armyWhere, mergeArmies, orderArmy, releaseArmy, reserveArmy, splitArmy, deployIdleArmies } from '../sim/war/armies';
 import { queueUnit } from '../sim/economy';
@@ -26,7 +26,7 @@ import { audio, type Cue } from './audio';
 export type Panel = { kind: 'economy' | 'politics' | 'military' | 'diplomacy' | 'ledger' | 'chronicle' | 'timelapse' } | { kind: 'province'; id: number } | { kind: 'country'; id: number } | { kind: 'war'; id: number } | null;
 /** What an order at the pointer would do, while an army is picked up (for an attack, see strikeOdds). */
 /** org: the army's organisation now; supTo: its supply once it reaches the objective (estimated) */
-export interface Aim { kind?: 'attack' | 'hold' | 'wait' | 'station' | 'landing' | 'merge'; into?: number; days?: number; place?: number; fort?: number; org?: number; supTo?: number; err: string | null; odds: number; n: number; reserves: number; foes: number; def: number; from: [number, number] | null; to: [number, number] | null; ids: number[] }
+export interface Aim { kind?: 'attack' | 'hold' | 'wait' | 'station' | 'landing' | 'merge'; into?: number; days?: number; place?: number; fort?: number; org?: number; orgTo?: number; supTo?: number; err: string | null; odds: number; n: number; reserves: number; foes: number; def: number; from: [number, number] | null; to: [number, number] | null; ids: number[] }
 export interface GameState { day: number; speed: number; paused: boolean; tick: number; panel: Panel; turnMode: World['settings']['turnMode']; menu: boolean; toast: string; declare: number; aim: Aim | null; army: number | null; guide: boolean; pend?: boolean }
 /** a cell of ours within 80 km of the front: an army sent there holds it (further back, it waits in reserve) */
 const nearFront = (th: Theater, k: number) => { const d = work(th).distF[k]; return d >= 0 && d * th.cellKm <= 80; };
@@ -98,7 +98,7 @@ export class Game {
   /** a touch order waiting to be confirmed: the screen point it was tapped at */
   private pending: [number, number] | null = null; private pendingWorld: [number, number] | null = null;
   /** give the order previewed by a tap */
-  confirmOrder() { if (!this.pending || !this.pendingWorld) return; const [sx, sy] = this.s.cam.toScreen(...this.pendingWorld); this.pending = null; this.st.set({ pend: false }); this.orderAt(sx, sy); }
+  confirmOrder() { if (!this.pending || !this.pendingWorld) return; const [sx, sy] = this.s.cam.toScreen(...this.pendingWorld); this.pending = null; this.st.set({ pend: false }); this.orderAt(sx, sy, true); }
   cancelOrder() { this.pending = null; this.st.set({ pend: false, aim: null }); this.aimAt = ''; }
   /** the next (or previous) of the player's armies, picked up and in view */
   cycleArmy(dir: 1 | -1) {
@@ -136,7 +136,7 @@ export class Game {
     this.aimAt = ''; this.afterDay(); this.bump(); this.sound('order'); // the army stays picked up, for the next order
   }
   /** an order given at a screen point (a click, a right-click or a drop): onto another of our armies = merge into it, else an order there */
-  private orderAt(sx: number, sy: number) {
+  private orderAt(sx: number, sy: number, confirmed = false) {
     const sel = this.st.get().army; if (sel === null) return;
     const hit = this.fx.armyAt(sx, sy);
     if (hit !== null && hit !== sel) {
@@ -146,7 +146,7 @@ export class Game {
     }
     // an attack the army is in no state for (worn out, or outrunning its supply) needs a second click on the same spot
     const aim = this.st.get().aim, warned = aim?.kind === 'attack' && !aim.err && (aimVerdict(aim) === 'tired' || aimVerdict(aim) === 'overreach');
-    if (warned && !(this.confirm && Math.hypot(this.confirm[0] - sx, this.confirm[1] - sy) < 24 && performance.now() - this.confirm[2] < 4000)) { this.confirm = [sx, sy, performance.now()]; this.toast(t('army.confirmAttack')); this.sound('alert'); return; }
+    if (warned && !confirmed && !(this.confirm && Math.hypot(this.confirm[0] - sx, this.confirm[1] - sy) < 24 && performance.now() - this.confirm[2] < 4000)) { this.confirm = [sx, sy, performance.now()]; this.toast(t(this.s.touch ? 'army.confirmAttackTouch' : 'army.confirmAttack')); this.sound('alert'); return; }
     this.confirm = null;
     const [lon, lat] = unproject(...this.s.cam.toWorld(sx, sy)); this.orderSelected(lon, lat);
   }
@@ -169,23 +169,33 @@ export class Game {
     const over = this.fx.armyAt(m[0], m[1]); if (over !== null && over !== id) { this.st.set({ aim: { ...base, kind: 'merge', err: null, into: over } }); return; } // a click on another army joins it
     for (const war of activeWars(this.w)) for (const th of theatersOf(this.w, war)) {
       const k = cellOf(th, lon, lat); if (k < 0 || !th.land[k] || !th.sideOf[this.player] || th.frozen) continue;
-      if (th.c[k] * th.sideOf[this.player] > 0) { this.st.set({ aim: { ...base, kind: nearFront(th, k) ? 'hold' : 'wait', err: null, days: this.tripDays(at.divs, lon, lat, true) } }); return; }
+      if (th.c[k] * th.sideOf[this.player] > 0) { this.st.set({ aim: { ...base, kind: nearFront(th, k) ? 'hold' : 'wait', err: null, ...this.tripAim(at.divs, lon, lat) } }); return; }
       const r = strikeOdds(this.w, war, th, this.player, [lon, lat], id);
       if (r.err === 'off.blocked' || r.err === 'off.tooFar') { const l = landingPlan(this.w, this.S, id, lon, lat); if (!l.err) { this.st.set({ aim: { ...base, kind: 'landing', err: null, odds: l.p, foes: l.foes, days: l.days } }); return; } }
       // the army's state and how far it would push past the front decide whether a good-looking attack is a trap
       const divs = at!.divs, mean = (f: (d: typeof divs[number]) => number) => divs.reduce((s, d) => s + f(d), 0) / Math.max(1, divs.length);
       const org = mean(d => d.org), sup = mean(d => d.theater >= 0 ? d.sup : 1), depth = r.at ? km(r.at[0], r.at[1], lon, lat) : 0;
-      this.st.set({ aim: { kind: 'attack', err: r.err, odds: r.odds, n: r.units.length, reserves: 0, foes: r.foes, def: r.def, fort: r.fort, from: r.from, to: r.to ?? null, ids: r.units.filter(d => d.theater === th.id).map(d => d.id), org, supTo: Math.max(0, sup - 0.65 * depth / 900), days: r.from ? this.tripDays(r.units, r.from[0], r.from[1], true) : undefined } }); return;
+      this.st.set({ aim: { kind: 'attack', err: r.err, odds: r.odds, n: r.units.length, reserves: 0, foes: r.foes, def: r.def, fort: r.fort, from: r.from, to: r.to ?? null, ids: r.units.filter(d => d.theater === th.id).map(d => d.id), org, supTo: Math.max(0, sup - 0.65 * depth / 900), ...(r.from ? this.tripAim(r.units, r.from[0], r.from[1]) : {}) } }); return;
     }
     const p = provAtLonLat(this.S, lon, lat), pr = p >= 0 ? this.w.provinces[p] : null;
     if (pr && pr.controller !== this.player) { const l = landingPlan(this.w, this.S, id, lon, lat); if (!l.err) { this.st.set({ aim: { ...base, kind: 'landing', err: null, odds: l.p, foes: l.foes, days: l.days } }); return; } } // enemy coast with no front: a landing
     this.st.set({ aim: pr && pr.owner === this.player && pr.controller === this.player ? { ...base, kind: 'station', err: null, to: this.S.provinces[p].label, place: p, days: this.tripDays(at.divs, ...this.S.provinces[p].label, false) } : { ...base, err: 'army.notOurs', from: null, to: null } });
   }
   /** how long divisions would take to get to a point: by rail and road from where they are (at the front, a short way is marched) */
-  private tripDays(divs: Division[], lon: number, lat: number, march: boolean) {
-    let most = 0;
-    for (const d of divs) { const at = whereNow(this.w, d); if (!at) continue; const dk = km(at[0], at[1], lon, lat); most = Math.max(most, march && d.theater >= 0 && dk <= 200 ? Math.ceil(dk / 15) : travelDays(this.w, d, dk)); }
-    return most;
+  private tripDays(divs: Division[], lon: number, lat: number, march: boolean) { return this.trip(divs, lon, lat, march).days; }
+  /** the longest journey of an army's divisions to a point, and their mean organisation when they get there (a long trip by rail or sea wears them) */
+  private trip(divs: Division[], lon: number, lat: number, march: boolean) {
+    let days = 0, org = 0, n = 0;
+    for (const d of divs) {
+      const at = whereNow(this.w, d); if (!at) continue; const dk = km(at[0], at[1], lon, lat), walk = march && d.theater >= 0 && dk <= 200, dd = walk ? Math.ceil(dk / 15) : travelDays(this.w, d, dk);
+      days = Math.max(days, dd); org += march && !walk ? tripWear(d.org, dd) : d.org; n++;
+    }
+    return { days, org: n ? org / n : 1 };
+  }
+  /** a journey's days, plus the organisation on arrival when the trip wears the army noticeably */
+  private tripAim(divs: Division[], lon: number, lat: number) {
+    const r = this.trip(divs, lon, lat, true), now = divs.reduce((s, d) => s + d.org, 0) / Math.max(1, divs.length);
+    return { days: r.days, orgTo: r.org < now - 0.03 ? r.org : undefined };
   }
   /** while an army is picked up: what an order at the pointer would be (recomputed when the pointer moves or a day passes) */
   private updateAim() {

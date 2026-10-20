@@ -392,7 +392,7 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 .ac-head .x { margin-left: auto; } .ac-gen { font-size: 13px; color: var(--paper); } .stars { color: var(--brass-hi); letter-spacing: 1px; }
 .chip { font-size: 12px; padding: 2px 7px; border-radius: 9px; background: rgba(232, 192, 99, 0.14); color: var(--brass-hi); } .chip.muted { background: rgba(255, 255, 255, 0.06); color: var(--mute); }
 .ac-body { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; } .ac-units { display: flex; gap: 8px; } .ac-units > span { display: inline-flex; align-items: center; gap: 3px; }
-.ac-m { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; } .ac-m small { color: var(--mute); } .ac-m .army-str i.amber { background: var(--brass-hi); } .ac-m .army-str i.bad { background: var(--red); }
+.ac-m { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; } .ac-m small { color: var(--mute); } .ac-m .l-short { display: none; } .ac-m .army-str i.amber { background: var(--brass-hi); } .ac-m .army-str i.bad { background: var(--red); }
 .ac-order { min-height: 24px; display: flex; align-items: center; }
 .ac-acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; } .ac-acts button { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; }
 .ac-acts kbd { font: 600 11px/1 var(--body); padding: 2px 5px; border-radius: 4px; background: rgba(255, 255, 255, 0.08); color: var(--mute); } .ac-keys { margin-left: auto; }
@@ -675,7 +675,8 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 @media (hover: none) { .army-card kbd, .army-card .ac-keys { display: none; } }
 @media (max-width: 560px) {
   .army-card { padding: 7px 9px; gap: 5px; }
-  .army-card .ac-gen, .army-card .chip, .army-card .ac-units, .army-card .ac-keys, .army-card .ac-m small { display: none; }
+  .army-card .ac-gen, .army-card .chip, .army-card .ac-units, .army-card .ac-keys { display: none; }
+  .army-card .ac-m { gap: 4px; } .army-card .ac-m small { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; } .ac-m .l-long { display: none; } .ac-m .l-short { display: inline; }
   .army-card .ac-body { gap: 6px; } .army-card .ac-acts { gap: 5px; } .army-card .ac-acts button { padding: 6px 8px; font-size: 12px; }
   .army-card .ac-sub { display: none; }
 }
@@ -695,5 +696,6 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 .bld-go:disabled { opacity: 0.4; cursor: not-allowed; filter: grayscale(0.6); }
 /* news can take two lines rather than be cut off */
 .toast-t { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
-@media (max-width: 560px) { .army-list .army-n { min-width: 74px; white-space: nowrap; } .queue.by-place li { grid-template-columns: auto minmax(0, 1fr) 50px auto auto; } }
+@media (max-width: 560px) { .army-list .army-n { min-width: 74px; white-space: nowrap; }
+  .armies.compact li { grid-template-columns: minmax(0, 1fr) 24px 44px 34px auto !important; gap: 6px; } .armies.compact .locate span { display: none; } .queue.by-place li { grid-template-columns: auto minmax(0, 1fr) 50px auto auto; } }
 .bld-t > b { display: flex; align-items: center; gap: 6px; } .bld-t .pips { margin-left: 0; }

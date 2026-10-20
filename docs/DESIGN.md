@@ -688,11 +688,26 @@ Checked against the round-4 baselines: 1914 (Liège day 17, Great Retreat day 32
 | Travel time unseen before the order | Every preview gives the days: "Estacionar em Santa Maria · chega em 10 dias"; attacks add "chega em N dias" and the fort ("forte nível 3"). The toast after an order says "a caminho de Santa Maria · 10 dias" |
 | Route hard to read, like the preview | A trip is a solid gold line with moving ticks and a day pill beside the marker; the preview stays a pale dashed line |
 | Buildings cost nothing | Priced in months of revenue: barracks a quarter, a fort level 0.3, a factory 10% of the province's output (at least 0.3 months) a level |
-| Place did not matter | A trip of more than 3 days costs 0.02 organisation a day beyond the third (to 0.5 at worst): troops raised near the front arrive fresher. Barracks have one level (the 20%-faster levels were a trivial choice) |
+| Place did not matter | A trip of more than 3 days costs 0.04 organisation a day beyond the third (0.02 until round 6) (to 0.5 at worst): troops raised near the front arrive fresher. Barracks have one level (the 20%-faster levels were a trivial choice) |
 | Three ways to recruit | Two: the province ("Recrutar aqui", first in its panel, infantry with price and days on the button, other types behind "Mais tipos") and the army card ("Divisão", which says where and how long). The Military desk lists the barracks, each with its own Infantry button, and the queue by place with days left; "−" is "Desmobilizar" |
 | Reasons on hover only | A blocked build is greyed out with the reason under it |
 
 Also: a historical moment the world did not allow is retried monthly until its last day (Barbarossa had been lost for good in one run), and an invasion history fixes ends any side war between its target and either camp.
+
+**Critic round 6 (this area): APPROVE, 8/10.** Minor items fixed:
+
+| Problem | Change |
+|---|---|
+| Travel fatigue too mild to matter | 0.04 organisation a day beyond the third; a journey can no longer raise a worn division to 0.5. Previews say "96% de organização ao chegar" when a trip wears the army |
+| Confirm offered on an impossible order | On touch the card shows only Cancel when the order has an error |
+| A risky attack on touch needed Confirm and then a second click | Confirm is the confirmation; the warning toast says to tap Confirm |
+| Phone card meters had no labels | Short labels (Força / Org / Sup) |
+| Tooltips stuck after a tap | A tap no longer opens the focus tooltip; keyboard focus still does |
+| Army names cut off on the phone Military desk | The locate button is icon-only on a phone |
+| "Construindo Quartel nível 1" note stayed after the build | No note on success: the row's progress bar says it |
+| Guide spoke of a dashed route | The route is a gold line; the provinces step points to both places to recruit |
+
+Left as is: the default posture "Avançar" can outrun supply; the preview already shows "suprimento lá".
 
 ### 24.1 Known issues
 - Buildings have no upkeep; a rich nation can build everything eventually.
