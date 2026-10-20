@@ -184,14 +184,14 @@ function Toasts({ g }: { g: Game }) {
     </button></li>)}</ol>;
 }
 
-/** Big moments get a banner across the map: war, peace, coups, annexations. */
+/** Our nation's big moments get a banner across the map: war, peace, coups, annexations. */
 function Banner({ g }: { g: Game }) {
   const [cur, setCur] = useState<LogEntry | null>(null);
   const last = useRef(g.w.log[g.w.log.length - 1]), queue = useRef<LogEntry[]>([]);
   const w = g.w;
   useEffect(() => {
     const id = setInterval(() => {
-      for (const e of w.log.slice(w.log.lastIndexOf(last.current!) + 1)) if (w.day - e.day < 30 && e.big && (e.who?.includes(g.player) || e.big === 'big.war' || e.big === 'big.peace')) queue.current.push(e);
+      for (const e of w.log.slice(w.log.lastIndexOf(last.current!) + 1)) if (w.day - e.day < 30 && e.big && e.who?.includes(g.player)) queue.current.push(e); // only our own big moments: the world's wars are news (toasts, the chronicle)
       last.current = w.log[w.log.length - 1];
       if (!cur && queue.current.length) { const e = queue.current.shift()!; setCur(e); g.sound(e.big === 'big.war' ? 'war' : e.big === 'big.peace' ? 'peace' : 'alert'); setTimeout(() => setCur(null), 3600); }
     }, 200);
