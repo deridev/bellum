@@ -50,7 +50,7 @@ export function launchLanding(w: World, S: MapStatic, army: number, lon: number,
   for (let k = 0; k < t.W * t.H; k++) { if (!t.land[k] || t.c[k] * side > 0) continue; const [x, y] = cellLonLat(t, k), d = km(x, y, lon, lat); if (d < bd) { bd = d; best = k; } }
   if (best < 0 || bd > 80) return 'land.inland';
   [lon, lat] = cellLonLat(t, best);
-  for (const d of plan.units) { d.op = 0; d.goal = [lon, lat, 1]; placeUnit(w, t, d, lon, lat, w.day + plan.days); } // at sea: its own order, out of the generals' line
+  for (const d of plan.units) { d.op = 0; d.goal = [lon, lat, 1]; placeUnit(w, t, d, lon, lat, w.day + plan.days, true); } // at sea: its own order, out of the generals' line
   w.landings ||= []; w.landings.push({ id: w.nextId++, country: c, army, war: war.id, theater: t.id, at: [lon, lat], prov: plan.prov!, day: w.day + plan.days, p: plan.p });
   if (w.countries[c].player) say(w, msg('log.atSea', { a: { u: ['army', w.armies.find(a => a.id === army)?.num ?? 0] }, p: { p: plan.prov! }, n: plan.days }), 'war', { who: [c] });
   return null;

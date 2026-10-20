@@ -5,7 +5,7 @@ import type { Division, MapStatic, War, World } from '../types';
 import { msg } from '../types';
 import { say } from '../world';
 import { acceptsPeace, activeWars, heldDemand, makePeace, placeUnit, planWeight, sendToTheater, sideOf, theatersOf, type PeaceTerms } from './war';
-import { baseDef, cellLonLat, cellOf, offensiveTip, T, TRENCH_ERA_DEF, unitPower, work, type Offensive, type Theater } from './theater';
+import { baseDef, cellLonLat, cellOf, fortAt, offensiveTip, T, TRENCH_ERA_DEF, unitPower, work, type Offensive, type Theater } from './theater';
 import { deployLine, sendArmy } from './armies';
 import { landingPlan, launchLanding, seaShare } from './landing';
 
@@ -229,7 +229,7 @@ export function strikeOdds(w: World, war: War, t: Theater, c: number, target: [n
   let ours = 0, theirs = 0, foes = 0;
   for (const d of f.units) ours += power.get(d) ?? unitPower(w, t, d, -1, wk);
   for (const e of sc.foes) if (fkm(e.x, e.y, at[0], at[1]) < 120) { theirs += e.p; foes++; }
-  const def = baseDef(t) + 0.8 * t.mtn[hit] + t.ent[hit] * (1 - T.shock);
+  const def = baseDef(t) + 0.8 * t.mtn[hit] + t.ent[hit] * (1 - T.shock) + fortAt(t, hit, -side);
   return { ...f, odds: ours * aggr * (1 + T.offBoost) / Math.max(1, theirs * def), ours, theirs, foes, def, at };
 }
 /** The best place to strike on a front: points spread along the enemy's line (aimed 150 km deep) and enemy cities within 450 km, by odds. */

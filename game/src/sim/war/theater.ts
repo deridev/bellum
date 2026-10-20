@@ -5,6 +5,7 @@
 //   dc/dt = D·∇²c + K·(c - c³) + F      (forced Allen–Cahn)
 // F is the local balance of military pressure (plus offensive pushes and pocket collapse).
 // All tunables are in km so behaviour does not depend on the grid's cell size.
+import { FORT_DEF } from '../buildings';
 import type { Division, General, MapStatic, World } from '../types';
 import { km } from '../../geo';
 
@@ -27,7 +28,7 @@ export interface Theater {
   beach?: [number, number][]; // beachheads supplied from the sea: [cell, side], while that side holds the cell
 }
 /** scratch buffers (not saved) */
-interface Work { c2: Float32Array; P0: Float32Array; P1: Float32Array; tmp: Float32Array; F: Float32Array; eff0: Float32Array; eff1: Float32Array; distF: Int16Array; q: Int32Array; dtmp: Int16Array; air: [number, number]; atk: [number, number]; aggr: [number, number]; act: Int32Array; nAct: number }
+interface Work { fort?: Float32Array; fortDay?: number; c2: Float32Array; P0: Float32Array; P1: Float32Array; tmp: Float32Array; F: Float32Array; eff0: Float32Array; eff1: Float32Array; distF: Int16Array; q: Int32Array; dtmp: Int16Array; air: [number, number]; atk: [number, number]; aggr: [number, number]; act: Int32Array; nAct: number }
 const WORK = new WeakMap<Theater, Work>();
 export function work(t: Theater): Work {
   let wk = WORK.get(t); const N = t.W * t.H;
@@ -227,6 +228,7 @@ export function stepTheater(w: World, S: MapStatic, t: Theater, units: Division[
     const aw = T.airWeight * ((t.trench ?? 1) > 1 ? 0.25 : 1); // before 1918 aircraft scouted more than they fought
     wk.air = [1 + aw * (2 * r - 1), 1 - aw * (2 * r - 1)];
   }
+  if (wk.fortDay === undefined || w.day - wk.fortDay >= 5) updateForts(w, t, wk);
   updateSupply(w, S, t, wk);
   combat(w, t, units, wk);
   // pressure
@@ -257,6 +259,14 @@ export function stepTheater(w: World, S: MapStatic, t: Theater, units: Division[
   moveUnits(w, t, units, wk);
 }
 export const flipAge = (t: Theater, k: number) => t.flip[k] & 127;
+/** Forts: in each cell, the defender's extra edge from its province's fort, signed by the side that built it (only while its builder holds the province). */
+function updateForts(w: World, t: Theater, wk: Work) {
+  const N = t.W * t.H; if (!wk.fort || wk.fort.length !== N) wk.fort = new Float32Array(N); else wk.fort.fill(0);
+  wk.fortDay = w.day;
+  for (let k = 0; k < N; k++) { if (!t.land[k]) continue; const p = w.provinces[t.prov[k]]; const L = p?.bld?.fort; if (!L || p.controller !== p.owner) continue; const s = t.sideOf[p.owner]; if (s) wk.fort[k] = FORT_DEF * L * s; }
+}
+/** the fort bonus a holder on `side` (+1/−1) gets in cell k */
+export const fortAt = (t: Theater, k: number, side: number) => { const f = work(t).fort?.[k] ?? 0; return f * side > 0 ? Math.abs(f) : 0; };
 
 function updateSupply(w: World, S: MapStatic, t: Theater, wk: Work) {
   const W = t.W, H = t.H, N = W * H, c = t.c, land = t.land;
@@ -310,7 +320,7 @@ export function supplyAt(t: Theater, k: number, side: number): number {
 export function balanceAt(t: Theater, wk: Work, k: number): [number, number] {
   const holder = c0(t, k), push = pushAt(t, k, holder === 0 ? -1 : 1);
   // a fresh offensive's barrage cancels most of the trench bonus in its corridor
-  const def = baseDef(t) + 0.8 * t.mtn[k] + t.ent[k] * (1 - T.shock * Math.max(0, push - 1) / T.offBoost);
+  const def = baseDef(t) + 0.8 * t.mtn[k] + t.ent[k] * (1 - T.shock * Math.max(0, push - 1) / T.offBoost) + fortAt(t, k, holder === 0 ? 1 : -1);
   // inside an offensive's corridor the attack goes all out, whatever the stance elsewhere on the front
   const ea = wk.P0[k] * (holder === 0 ? def : (push > 1 ? Math.max(wk.aggr[0], 1.15) : wk.aggr[0]) * push);
   const eb = wk.P1[k] * (holder === 1 ? def : (push > 1 ? Math.max(wk.aggr[1], 1.15) : wk.aggr[1]) * push);

@@ -7,7 +7,8 @@ import type { Aim } from './play';
 import type { MapStatic } from '../sim/types';
 import { armyWhere, type ArmyState } from '../sim/war/armies';
 import { activeWars, sideOf } from '../sim/war/war';
-import { armyName } from '../i18n';
+import { armyName, t } from '../i18n';
+import { iconPath } from '../ui/common';
 import type { LogEntry, World } from '../sim/types';
 import { cAt, cellLonLat, cellOf, offensiveTip, type Offensive, type Theater } from '../sim/war/theater';
 
@@ -282,6 +283,27 @@ export class WarFx {
   /** where the first of the player's army markers was drawn, for the guide to point at */
   firstArmy() { const h = this.armyHits[0]; return h ? new DOMRect(h.x - h.w / 2, h.y - h.h / 2, h.w, h.h) : null; }
   /** Army markers: one per army of the player's (flag, divisions, strength, what it is doing), and the enemy's divisions gathered where they mass. */
+  /** Buildings on the map, under each province's name when zoomed in: all of ours, and the forts of others (they matter to an attacker). */
+  drawBuildings(ctx: CanvasRenderingContext2D, cam: Camera, w: World, S: MapStatic, me: number) {
+    if (cam.upp > 0.03) return;
+    const sz = cam.upp < 0.012 ? 15 : 12, scr = (lon: number, lat: number) => cam.toScreen(...project(lon, lat));
+    ctx.save(); ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const p of w.provinces) {
+      if (!p.bld) continue;
+      const list = (['barracks', 'fort', 'factory'] as const).filter(b => (p.bld![b] ?? 0) > 0 && (p.owner === me || b === 'fort'));
+      if (!list.length) continue;
+      const [x, y] = scr(...S.provinces[p.id].label); if (x < -20 || y < 80 || x > cam.w + 20 || y > cam.h + 20) continue;
+      list.forEach((b, i) => {
+        const x0 = x - (list.length * (sz + 4)) / 2 + i * (sz + 4), y0 = y + 9, L = p.bld![b]!;
+        ctx.fillStyle = 'rgba(8,12,18,0.72)'; ctx.beginPath(); ctx.roundRect(x0 - 1, y0 - 1, sz + 2, sz + 5, 3); ctx.fill();
+        ctx.save(); ctx.translate(x0, y0); ctx.scale(sz / 24, sz / 24); ctx.strokeStyle = b === 'fort' && p.owner !== me ? '#e0645a' : '#e8c063'; ctx.stroke(this.glyph(b)); ctx.restore();
+        ctx.fillStyle = '#f2ede1'; for (let k = 0; k < L; k++) ctx.fillRect(x0 + 1 + k * (sz / 3), y0 + sz + 1.5, sz / 3 - 1.5, 1.6); // one bar per level
+      });
+    }
+    ctx.restore();
+  }
+  private glyphs = new Map<string, Path2D>();
+  private glyph(b: string) { let g = this.glyphs.get(b); if (!g) this.glyphs.set(b, g = new Path2D(iconPath('b_' + b))); return g; }
   drawArmies(ctx: CanvasRenderingContext2D, cam: Camera, w: World, S: MapStatic, me: number, sel: number | null, now: number) {
     this.armyHits = [];
     const A = this.A, scr = (lon: number, lat: number) => cam.toScreen(...project(lon, lat)), off = (x: number, y: number) => x < -40 || y < -40 || x > cam.w + 40 || y > cam.h + 40;
@@ -316,6 +338,15 @@ export class WarFx {
       while (placed.some(([px, py]) => Math.abs(px - x) < 40 && Math.abs(py - y) < 20)) y += 24;
       placed.push([x, y]);
       const on = a.id === sel, st: ArmyState = at.state;
+      // on its way: the road it takes, and how many days until it is there
+      if (st === 'moving' && at.to) {
+        let [tx, ty] = scr(at.to[0], at.to[1]); ty = Math.max(ty, 88);
+        ctx.save(); ctx.setLineDash([5, 5]); ctx.lineDashOffset = -now * 18; ctx.strokeStyle = on ? 'rgba(232,192,99,0.9)' : 'rgba(242,237,225,0.6)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = ctx.strokeStyle; ctx.beginPath(); ctx.arc(tx, ty, 4, 0, 7); ctx.fill();
+        if (at.eta !== undefined) { const lab = t('army.eta', { n: Math.max(1, at.eta - w.day) }), lw = ctx.measureText(lab).width; ctx.fillStyle = 'rgba(8,12,18,0.85)'; ctx.fillRect(tx + 7, ty - 9, lw + 8, 17); ctx.fillStyle = '#f2ede1'; ctx.fillText(lab, tx + 11, ty); }
+        ctx.restore();
+      }
       if (on) { ctx.fillStyle = `rgba(232,192,99,${0.18 + 0.1 * Math.sin(now * 5)})`; ctx.beginPath(); ctx.arc(x, y, 26, 0, 7); ctx.fill(); }
       const r = plate(x, y, me, String(at.n), on ? '#e8c063' : st === 'attack' ? 'rgba(232,192,99,0.9)' : 'rgba(242,237,225,0.55)', on ? 'rgba(30,24,10,0.94)' : 'rgba(8,12,18,0.88)', st === 'moving');
       // strength under the plate, the army's name above when picked up

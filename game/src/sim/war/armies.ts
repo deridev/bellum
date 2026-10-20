@@ -4,7 +4,7 @@
 import { km } from '../../geo';
 import type { Army, Division, MapStatic, World } from '../types';
 import { cellLonLat, cellOf, provAtLonLat, T, work, type Theater } from './theater';
-import { activeWars, placeUnit, planWeight, sideOf, theatersOf, withdraw } from './war';
+import { activeWars, placeUnit, planWeight, sideOf, theatersOf, travelDays, tripAt, whereNow, withdraw } from './war';
 import { startOffensive } from './ai';
 import { makeGeneral } from '../names';
 import { launchLanding } from './landing';
@@ -18,15 +18,21 @@ export function armyWhere(w: World, S: MapStatic, a: Army) {
   const home = ds.filter(d => d.theater < 0);
   let best: Division[] = [], tid = -1; for (const [t, l] of byT) if (l.length > best.length) { best = l; tid = t; }
   const str = ds.reduce((s, d) => s + d.str, 0) / ds.reduce((s, d) => s + d.max, 0);
+  // an army on its way: where its divisions are on the road, where they are going, and when the last of them gets there
+  const transit = (l: Division[]) => {
+    const go = l.filter(d => d.trip && d.arrive > w.day); if (!go.length) return null;
+    const at = go.map(d => tripAt(d, w.day));
+    return { x: at.reduce((s, p) => s + p[0], 0) / at.length, y: at.reduce((s, p) => s + p[1], 0) / at.length, to: [go.reduce((s, d) => s + d.trip![2], 0) / go.length, go.reduce((s, d) => s + d.trip![3], 0) / go.length] as [number, number], eta: Math.max(...go.map(d => d.arrive)) };
+  };
   if (best.length && best.length >= home.length) {
-    const here = best.filter(d => d.arrive <= w.day), pts = here.length ? here : best;
-    const x = pts.reduce((s, d) => s + d.x, 0) / pts.length, y = pts.reduce((s, d) => s + d.y, 0) / pts.length;
+    const here = best.filter(d => d.arrive <= w.day), mv = here.length ? null : transit(best), pts = here.length ? here : best;
+    const x = mv ? mv.x : pts.reduce((s, d) => s + d.x, 0) / pts.length, y = mv ? mv.y : pts.reduce((s, d) => s + d.y, 0) / pts.length;
     const state: ArmyState = !here.length ? 'moving' : here.some(d => d.op) ? 'attack' : here.some(d => d.goal && !d.goal[2]) ? 'wait' : here.some(d => d.goal?.[2] === 1) ? 'hold' : 'front';
-    return { theater: tid, x, y, n: best.length, total: ds.length, str, state, divs: best };
+    return { theater: tid, x, y, n: best.length, total: ds.length, str, state, divs: best, to: mv?.to, eta: mv?.eta };
   }
   const cnt = new Map<number, number>(); for (const d of home) cnt.set(d.prov, (cnt.get(d.prov) || 0) + 1);
-  const prov = [...cnt.entries()].sort((p, q) => q[1] - p[1])[0][0], [x, y] = S.provinces[prov].label;
-  return { theater: -1, x, y, n: home.length, total: ds.length, str, state: 'home' as ArmyState, divs: home, prov };
+  const prov = [...cnt.entries()].sort((p, q) => q[1] - p[1])[0][0], mv = transit(home), [x, y] = mv ? [mv.x, mv.y] : S.provinces[prov].label;
+  return { theater: -1, x, y, n: home.length, total: ds.length, str, state: (mv ? 'moving' : 'home') as ArmyState, divs: home, prov, to: mv?.to, eta: mv?.eta };
 }
 
 /** Spots for `n` divisions to hold, spread along our side of the front nearest a point (about 22 km apart), or null if the point is more than `frontKm` behind the front. */
@@ -140,7 +146,14 @@ export function orderArmy(w: World, S: MapStatic, id: number, lon: number, lat: 
     const e = launchLanding(w, S, id, lon, lat); return e ? { kind: null, err: e === 'land.inland' ? 'army.noFront' : e } : { kind: 'landing', err: null }; // enemy land with no front: land on its coast
   }
   cancelAttack(w, id);
-  for (const d of divs) { if (d.theater >= 0) withdraw(d); d.prov = p; }
+  // it goes there over the roads and railways: on the map until it arrives
+  const [tx, ty] = S.provinces[p].label;
+  for (const d of divs) {
+    const from = whereNow(w, d) ?? S.provinces[d.prov].label;
+    if (d.theater >= 0) withdraw(d);
+    const days = travelDays(w, d, km(from[0], from[1], tx, ty)); d.prov = p;
+    if (km(from[0], from[1], tx, ty) > 5) { d.arrive = w.day + days; d.trip = [from[0], from[1], tx, ty, w.day, d.arrive]; }
+  }
   return { kind: 'station', err: null };
 }
 

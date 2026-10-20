@@ -153,7 +153,7 @@ export function ArmyList({ g, title = true }: { g: Game; title?: boolean }) {
   const rows = w.armies.filter(a => a.country === g.player).map(a => ({ a, at: armyWhere(w, g.S, a) })).filter(r => r.at) as { a: typeof w.armies[number]; at: NonNullable<ReturnType<typeof armyWhere>> }[];
   if (!rows.length) return null;
   const list = <ul class="army-list">{rows.map(({ a, at }) => <li key={a.id}><button aria-pressed={sel === a.id} data-tip={t('army.hint')} onClick={() => { g.selectArmy(sel === a.id ? null : a.id); g.focusArmy(a.id); }}>
-    <span class="army-n">{armyName(a.num)}</span><small class={`army-st s-${at.state}`}>{t('army.st.' + at.state)}</small>
+    <span class="army-n">{armyName(a.num)}</span><small class={`army-st s-${at.state}`}>{t('army.st.' + at.state)}{at.state === 'moving' && at.eta !== undefined ? ' · ' + t('army.eta', { n: Math.max(1, at.eta - w.day) }) : ''}</small>
     <span class="num">{t('army.size', { n: at.total })}</span><span class="army-str"><i style={{ width: cssPct(Math.min(1, at.str)) }} /></span></button></li>)}</ul>;
   return title ? <Block title={t('war.armies')} icon="military" aside={<span class="num muted">{rows.length}</span>}>{list}</Block> : list;
 }
@@ -169,7 +169,7 @@ function ArmyCard({ g, id }: { g: Game; id: number }) {
   const meter = (label: string, x: number, tip: string) => <span class="ac-m" data-tip={tip}><small>{label}</small><span class="army-str"><i class={x < 0.4 ? 'bad' : x < 0.7 ? 'amber' : ''} style={{ width: cssPct(Math.min(1, x)) }} /></span><b class="num">{pct(x)}</b></span>;
   const act = (k: 'release' | 'reserve' | 'split' | 'raise', icon: string, key: string, ok: boolean, tip: string) => <button disabled={!ok} data-tip={tip} onClick={() => g.armyAction(k)}><Icon name={icon} size={14} />{t('army.do.' + k)}<kbd>{key}</kbd></button>;
   return <div class="ui army-card plate" role="dialog" aria-label={armyName(a.num)}>
-    <div class="ac-head"><Icon name="military" size={18} /><b class="army-n">{armyName(a.num)}</b><small class={`army-st s-${at.state}`}>{t('army.st.' + at.state)}</small>
+    <div class="ac-head"><Icon name="military" size={18} /><b class="army-n">{armyName(a.num)}</b><small class={`army-st s-${at.state}`}>{t('army.st.' + at.state)}{at.state === 'moving' && at.eta !== undefined ? ' · ' + t('army.eta', { n: Math.max(1, at.eta - w.day) }) : ''}</small>
       <span class="ac-gen" data-tip={t('army.skill', { n: gen.skill, p: pct(GENERAL.skill(gen.skill) - 1) })}>{t('army.general', { g: gen.name })} <span class="stars">{'★'.repeat(gen.skill)}{'☆'.repeat(4 - gen.skill)}</span></span>
       <span class="chip" data-tip={t('army.equipHint')}>{t('army.equip', { x: fmt1(w.countries[a.country].quality ?? 1) })}</span>
       {gen.traits.map(tr => <span key={tr} class={`chip ${tr in GENERAL ? '' : 'muted'}`} data-tip={t(tr in GENERAL ? 'gfx.' + tr : 'gfx.none')}>{t('gtrait.' + tr)}</span>)}

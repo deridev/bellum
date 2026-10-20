@@ -43,6 +43,7 @@ export function warCost(w: World, a: number, b: number) {
 }
 
 export function declareWar(w: World, S: MapStatic, a: number, b: number, opts: { goal?: WarGoal; silent?: boolean; name?: Msg; sides?: { attackers: number[]; defenders: number[] }; alone?: boolean } = {}): War {
+  if (!LABELS) knowMap(S);
   const A = w.countries[a], B = w.countries[b];
   const cost = warCost(w, a, b);
   const war: War = {
@@ -155,10 +156,32 @@ function deployInto(w: World, S: MapStatic, t: Theater) {
   }
   for (const c of Object.keys(t.sideOf).map(Number)) deployLine(w, t, c); // each side's generals split the front between their armies
 }
-export function placeUnit(w: World, t: Theater, d: Division, lon: number, lat: number, arrive = 0) {
-  d.theater = t.id; d.arrive = arrive;
+/** Put a division in a theater near a point. With an arrival day it travels there from where it is (it fights only once it arrives):
+ *  by rail and road at 110–330 km a day by its home's infrastructure, by sea beyond 2,500 km (`exact`: the arrival day is given, a sea passage). */
+export function placeUnit(w: World, t: Theater, d: Division, lon: number, lat: number, arrive = 0, exact = false) {
+  const from = whereNow(w, d);
+  d.theater = t.id;
   d.x = lon + (nextRand(w) - 0.5) * t.cw * 3; d.y = lat + (nextRand(w) - 0.5) * t.ch * 3;
   const k = cellOf(t, d.x, d.y); if (k < 0 || !t.land[k]) { d.x = lon; d.y = lat; }
+  if (arrive > w.day && from) { d.arrive = exact ? arrive : w.day + travelDays(w, d, km(from[0], from[1], d.x, d.y)); d.trip = [from[0], from[1], d.x, d.y, w.day, d.arrive]; }
+  else { d.arrive = arrive; d.trip = undefined; }
+}
+let LABELS: [number, number][] | null = null; // province label points, for where a division at home stands
+export const knowMap = (S: MapStatic) => { LABELS = S.provinces.map(p => p.label); };
+/** Days to travel `dk` km, by the infrastructure of the province it sets out from */
+export function travelDays(w: World, d: Division, dk: number) {
+  const infra = w.provinces[d.prov]?.infra ?? 0.5;
+  return Math.max(1, Math.round(1 + dk / (dk > 2500 ? 300 : 110 + 220 * infra)));
+}
+/** Where a division is on the map today: on its way, at the front, or at its station at home */
+export function whereNow(w: World, d: Division): [number, number] | null {
+  if (d.trip && d.arrive > w.day) return tripAt(d, w.day);
+  if (d.theater >= 0) return [d.x, d.y];
+  return LABELS?.[d.prov] ?? null;
+}
+export function tripAt(d: Division, day: number): [number, number] {
+  const tr = d.trip!, f = Math.max(0, Math.min(1, (day - tr[4]) / Math.max(1, tr[5] - tr[4])));
+  return [tr[0] + (tr[2] - tr[0]) * f, tr[1] + (tr[3] - tr[1]) * f];
 }
 /** Send a division to a theater, or move one already there (`from` = where it stands now).
  *  It goes where the front is most threatened, weighed against the trip, and arrives after travelling.
@@ -194,6 +217,7 @@ export function withdraw(d: Division) { d.theater = -1; d.arrive = 0; d.op = 0; 
 
 /** Daily war step: theaters, occupation, score, exhaustion. */
 export function stepWars(w: World, S: MapStatic) {
+  if (!LABELS) knowMap(S);
   for (const war of activeWars(w)) {
     for (const t of theatersOf(w, war)) {
       if (t.frozen) continue;

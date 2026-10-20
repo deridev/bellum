@@ -8,11 +8,12 @@ import type { Session } from './session';
 import { createStore } from './store';
 import { TheaterLayer } from '../render/theaters';
 import { aimVerdict, WarFx } from './warfx';
-import { armyName, countryName, say, t } from '../i18n';
+import { armyName, countryName, provName, say, t } from '../i18n';
 import { acceptsPeace, activeWars, allied, declareWar, makePeace, sideOf, theatersOf, type PeaceTerms } from '../sim/war/war';
 import { strikeOdds } from '../sim/war/ai';
 import { armyWhere, mergeArmies, orderArmy, releaseArmy, reserveArmy, splitArmy, deployIdleArmies } from '../sim/war/armies';
 import { queueUnit } from '../sim/economy';
+import { levelOf } from '../sim/buildings';
 import { landingPlan } from '../sim/war/landing';
 import { guideSeen } from '../ui/Guide';
 import { prefs } from './settings';
@@ -105,7 +106,10 @@ export class Game {
     if (kind === 'release') { err = releaseArmy(this.w, a.id); done = t('army.did.release', { a: armyName(a.num) }); }
     else if (kind === 'reserve') { err = reserveArmy(this.w, this.S, a.id); done = t('army.did.reserve', { a: armyName(a.num) }); }
     else if (kind === 'split') { const b = splitArmy(this.w, a.id); if (typeof b === 'string') err = b; else done = t('army.did.split', { a: armyName(a.num), b: armyName(b.num) }); }
-    else { const me = this.me; err = queueUnit(this.w, me, 'infantry', me.capital, a.id) ? 'mil.noManpower' : null; done = t('army.did.raise', { a: armyName(a.num) }); }
+    else { // raised at the barracks nearest the army, and sent to join it
+      const me = this.me, at = armyWhere(this.w, this.S, a), bs = this.w.provinces.filter(p => p.owner === me.id && p.controller === me.id && levelOf(p, 'barracks') > 0);
+      const near = at && bs.length ? bs.sort((p, q) => km(...this.S.provinces[p.id].label, at.x, at.y) - km(...this.S.provinces[q.id].label, at.x, at.y))[0].id : undefined;
+      err = queueUnit(this.w, me, 'infantry', near, a.id); done = t('army.did.raiseAt', { a: armyName(a.num), p: near !== undefined ? provName(near) : '' }); }
     if (err) { this.toast(t(err)); return; }
     this.toast(done); this.aimAt = ''; this.afterDay(); this.bump(); this.sound('order');
   }
@@ -279,6 +283,7 @@ export class Game {
     if (this.snapshot !== null) return;
     this.fx.draw(ctx, this.s.cam, this.w, this.layer.mix, this.now, this.dt, !g.paused, SPEEDS[g.speed]);
     if (g.army !== null && g.aim) this.fx.drawAim(ctx, this.s.cam, this.w, g.aim, this.now);
+    this.fx.drawBuildings(ctx, this.s.cam, this.w, this.S, this.player);
     this.fx.drawArmies(ctx, this.s.cam, this.w, this.S, this.player, g.army, this.now);
     const cam = this.s.cam, zoom = 0.12 / cam.upp; if (zoom < 1.6) return;
     const stacks = new Map<number, { c: number; n: number }>();

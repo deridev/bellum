@@ -324,6 +324,9 @@ export function setupHistory(w: World, S: MapStatic) {
     const P = [19, 52], W = [7, 49.5];
     deploy(war, { GER: [[P[0], P[1], 0.6], [W[0], W[1], 0.36]], POL: [[P[0], P[1], 0.95]], SVK: [[P[0], P[1], 0.8]], FRA: [[W[0], W[1], 0.7]], GBR: [[W[0], W[1], 0.35]] });
     for (const t of w.theaters.filter(x => x.war === war.id)) for (let k = 0; k < t.W * t.H; k++) if (cellLonLat(t, k)[0] < 9) t.ent[k] = 1; // the Maginot line and the West Wall
+    for (const p of w.provinces) { const [x, y] = S.provinces[p.id].label;
+      if (p.owner === ci.FRA && x > 5.8 && y > 47.4 && y < 49.6) (p.bld ??= {}).fort = 3; // the Maginot line: Alsace and Lorraine, not the Ardennes
+      if (p.owner === ci.GER && x < 8.6 && y > 47.5 && y < 51.3) (p.bld ??= {}).fort = 2; } // the West Wall
     if (has('JPN', 'CHN')) { const sino = declareWar(w, S, ci.JPN, ci.CHN, { silent: true, name: msg('war.name', { a: { c: ci.JPN }, b: { c: ci.CHN } }), sides: { attackers: ids(['MAN']), defenders: [] } }); (sino as any).lastChange = 0; deploy(sino, { JPN: [[115, 33, 0.85]], CHN: [[112, 30, 0.9]], MAN: [[123, 43, 0.5]] }); }
   }
 }

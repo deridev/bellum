@@ -39,7 +39,11 @@ export interface Province {
   id: number; owner: number; controller: number;
   pop: number; gdp: number; // gdp baseline (grows with the economy)
   infra: number; unrest: number; devastation: number; core: number[]; // countries that claim it as core
+  bld?: Partial<Record<Building, number>>; // buildings and their levels (1–3)
 }
+export type Building = 'fort' | 'barracks' | 'factory';
+/** A building going up: paid for when started, finished on `done` */
+export interface Project { id: number; c: number; prov: number; b: Building; start: number; done: number }
 
 export interface ProdItem { id: number; type: UnitType; progress: number; cost: number; days: number; prov: number; army?: number } // army: raised for that army (joins it when ready)
 
@@ -51,6 +55,7 @@ export interface Division {
   sup: number; retreat: number; // supply 0..1, retreating flag
   arrive: number; // day it reaches its theater (in transit until then)
   op?: number; // the offensive it is fighting in (0 or missing: holding the line)
+  trip?: [number, number, number, number, number, number]; // travelling: from lon, lat to lon, lat, leaving on day, arriving on day
   goal?: [number, number, number]; // where it stands (lon, lat, how): 1 = hold the front there (the player's order), 2 = its general's place in the line, 0 = wait there in reserve
 }
 export interface General { name: string; skill: number; traits: string[]; born: number }
@@ -99,6 +104,7 @@ export interface World {
   crisis?: { id: string; start: number; until: number; choice: Record<number, 0 | 1> }; // the world crisis under way, and how each nation met it
   landings?: { id: number; country: number; army: number; war: number; theater: number; at: [number, number]; prov: number; day: number; p: number }[]; // armies at sea, landing on `day` with chance `p`
   missions?: Mission[]; // the player's national missions under way
+  projects?: Project[]; // buildings under construction
   chains?: { c: number; id: string; day: number; other: number }[]; // follow-up events owed by earlier choices
   outcome?: { kind: 'victory' | 'defeat' | 'end'; reason: string; day: number; rank?: number; playOn?: boolean }; // how the game ended for the player
 }

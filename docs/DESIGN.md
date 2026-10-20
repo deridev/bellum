@@ -657,6 +657,36 @@ Round 4 (same critic): **APPROVE, 8/10** (was 7). Its 1914 runs: Brussels and th
 
 ---
 
+## 24. Provinces that matter, armies that travel (October 2026)
+
+Feedback: *"Military UX is bad; you can't recruit in a specific place like Age of History, where places matter and you can improve them; military teleports, so it's easy; gameplay is confusing."* Asked and agreed: a province layer on top of the fronts (not a rewrite), armies that travel visibly, and three buildings.
+
+| Building | Effect per level (1–3) | Price · time |
+|---|---|---|
+| Barracks | divisions can be raised here; training 20% faster per level above 1; level 3 sends them out with drill (experience 0.2) | 6 × a division's monthly upkeep × level · 45 + 15×level days |
+| Fort | +0.6 to the defender's edge in the province's cells (the base is 1.5, so +40%), only for the side that built it and while it holds the province | 8 × upkeep × level · 45 + 30×level days |
+| Factory | +12% of the province's output | 6% of its output (at least 4 × upkeep) × level · 120 + 30×level days |
+
+- A level is paid from the treasury when started; one work at a time per province; work stops if the province is lost. Buildings stay with the land: a conqueror gets them.
+- Every nation starts with barracks in its capital. A nation that has lost all its barracks may raise divisions anywhere it holds, 50% slower.
+- The Military desk raises at the best barracks unless the player picks another ("Raised at"); each province's panel has its buildings and a "Raise divisions here" row. An army's "Division" order is raised at the barracks nearest it.
+- The AI builds when it has 1.2 months of revenue spare: forts on a hostile border, otherwise mostly factories, some barracks. In ten years of the 2026 world: about 90 factory and 80 fort levels.
+- 1939 opens with the Maginot line (France, fort 3 in Alsace and Lorraine; not the Ardennes) and the West Wall (Germany, fort 2).
+- Map: zoomed in, each province shows its buildings under its name (all of ours, and forts of others); a bar per level.
+
+**Travel.** A division sent somewhere no longer vanishes and reappears: it carries a trip (from, to, leaving, arriving) and its army is drawn on the road with a dashed line to where it is going and the days left; its card reads "On the way · 8 days". Speed by rail and road is 110–330 km a day by the infrastructure of the province it sets out from (was a flat 450), by sea 300 beyond 2,500 km; landings keep their stated passage. Stationing an army at home travels too. Divisions fight only once they arrive.
+
+The first-game guide has a seventh step, on provinces; the armies step mentions travel.
+
+Checked against the round-4 baselines: 1914 (Liège day 17, Great Retreat day 32, armistice November 1918) and 1939 (France out in June 1940, Barbarossa, Minsk, Smolensk) are unchanged.
+
+### 24.1 Known issues
+- Buildings have no upkeep; a rich nation can build everything eventually.
+- Enemy divisions in transit are not drawn, only our armies.
+- Trips are straight lines, not along roads or rail lines.
+
+---
+
 ## Decision log
 | # | Date | Decision |
 |---|---|---|
@@ -705,3 +735,4 @@ Round 4 (same critic): **APPROVE, 8/10** (was 7). Its 1914 runs: Brussels and th
 | 43 | 2026-10-19 | **Provinces are regions around cities**: big states with several cities are cut into nearest-city regions (§22) |
 | 44 | 2026-10-19 | **History's great breakthroughs are moments, conditional on the battle that opens them** (Liège, Sedan, Minsk); the field engine handles the rest (§23) |
 | 45 | 2026-10-19 | **Two theaters of one war never cover the same ground**; armies go to fronts near home |
+| 46 | 2026-10-20 | **Places matter**: barracks decide where divisions are raised, forts and factories improve provinces; armies travel on the map instead of jumping (§24) |

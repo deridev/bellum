@@ -14,7 +14,7 @@ const GROUP_POWER: Record<Gov, [number, number, number, number]> = { // military
 
 /** Build the 2026 world from the static map and scenario tables. */
 /** Bumped when saves from before cannot be read: 3 = provinces are regions around cities (§22) */
-export const WORLD_VERSION = 3;
+export const WORLD_VERSION = 4;
 export function createWorld(S: MapStatic, opts: { seed?: number; player?: number; startDate?: number; scenario?: string; tables?: Tables } = {}): World {
   const TB = opts.tables ?? TABLES_2026, modern = (opts.scenario ?? '2026') === '2026';
   const nC = S.countries.length;

@@ -6,6 +6,7 @@ import type { Country, MapStatic, UnitType, World } from './types';
 import { msg } from './types';
 import { addRel, rel, unitReady } from './world';
 import { aiPolicies } from './policies';
+import { monthlyAIBuild } from './buildings';
 import { activeWars, allied, declareWar, defendersOf, enemies, inTruce, overlordOf, sideOf, warCost, warsOf } from './war/war';
 
 /** Land neighbours of every country (from province adjacency). */
@@ -26,6 +27,7 @@ export function aiMonthly(w: World, S: MapStatic) {
     aiDiplomacy(w, S, c, pw, nb, threats);
   }
   aiWars(w, S, pw, nb);
+  monthlyAIBuild(w, S, nb);
 }
 
 /** Relations sour by themselves where neighbours are far apart in ideology (democracies excepted with each other, bloc partners spared),

@@ -155,9 +155,15 @@ const P: Record<string, string> = {
   u_mechanized: 'M2.5 16l2-6h11l3.5 3h2.5v3zM4 18.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0M10 18.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0M16 18.5a2 2 0 1 0 4 0a2 2 0 1 0-4 0',
   u_marines: 'M10 5a2 2 0 1 0 4 0a2 2 0 1 0-4 0M12 7v14M8 10.5h8M4.5 13.5a7.5 7.5 0 0 0 15 0M4.5 13.5L3 15M19.5 13.5L21 15',
   u_airborne: 'M3 11a9 7 0 0 1 18 0zM3 11l9 9 9-9M8.5 11l3.5 9 3.5-9M12 20v1.5', down: 'M12 21l9-13H3z',
+  // buildings
+  b_fort: 'M3 21h18M5 21V9h2.5V6.5h2V9h5V6.5h2V9H19v12M10 21v-4a2 2 0 0 1 4 0v4',
+  b_barracks: 'M2.5 20.5h19M12 4L3.5 20.5M12 4l8.5 16.5M9 20.5l3-6 3 6M12 4V2',
+  b_factory: 'M3 21V10.5l5 3v-3l5 3v-3l5 3V4h3v17zM7 17.5h2M12 17.5h2M17 17.5h2',
 };
 const FILLED = new Set(['play', 'pause', 'up', 'down']);
 const DUO = new Set(['treasury', 'manpower', 'stability', 'warSupport', 'influence', 'economy', 'politics', 'military', 'ledger', 'chronicle', 'timelapse', 'political', 'terrain', 'population', 'city', 'peace', 'ballot', 'coup', 'alliance', 'nap', 'guarantee', 'hold', 'g_military', 'g_industry', 'g_labor', 'save', 'calendar', 'divisions', 'denounce', 'treaty', 'u_infantry', 'u_armor', 'u_mechanized', 'u_airborne']);
+/** an icon's path, for drawing it on the map too */
+export const iconPath = (name: string) => P[name];
 export function Icon({ name, size = 18 }: { name: string; size?: number }) {
   const d = P[name] || P.target, fill = FILLED.has(name);
   return <svg class="icon" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">

@@ -1,4 +1,4 @@
-// The first-game guide: six short steps, each pointing at the part of the screen it explains. Skippable; replayable from the menu.
+// The first-game guide: seven short steps, each pointing at the part of the screen it explains. Skippable; replayable from the menu.
 import { useEffect, useLayoutEffect, useState } from 'preact/hooks';
 import type { Game } from '../game/play';
 import { countryName, t } from '../i18n';
@@ -8,7 +8,7 @@ const KEY = 'bellum.guide';
 export const guideSeen = () => { try { return localStorage.getItem(KEY) === 'done'; } catch { return false; } };
 const STEPS: { id: string; at?: string | ((g: Game) => DOMRect | null) }[] = [
   { id: 'welcome', at: '.date-box' }, { id: 'nation', at: '.topbar .res' }, { id: 'dock', at: '.dock' },
-  { id: 'map' }, { id: 'armies', at: g => g.fx.firstArmy() }, { id: 'goals', at: '.dock-btn.d-ledger' },
+  { id: 'map' }, { id: 'armies', at: g => g.fx.firstArmy() }, { id: 'provinces' }, { id: 'goals', at: '.dock-btn.d-ledger' },
 ];
 export function Guide({ g }: { g: Game }) {
   const [i, setI] = useState(0), [box, setBox] = useState<DOMRect | null>(null), step = STEPS[i];

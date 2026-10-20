@@ -6,6 +6,7 @@ import { crisisGrowth } from './crises';
 import { msg } from './types';
 import { tradeBonus } from './diplomacy';
 import { researchNeed } from './policies';
+import { BARRACKS_FAST, bestBarracks, FACTORY_OUT, levelOf } from './buildings';
 
 /** Cost of a new division: a year of its upkeep (so richer militaries pay more per unit). Days to build. */
 export const UNIT_SPEC: Record<UnitType, { costMul: number; days: number; men: number; label: string }> = {
@@ -22,7 +23,7 @@ export function computeGdp(w: World, c: number): number {
   let g = 0;
   for (const p of w.provinces) {
     if (p.controller !== c) continue;
-    g += p.gdp * (1 - 0.7 * p.devastation) * (p.owner === c ? 1 - 0.5 * p.unrest : 0.35); // fresh conquests produce little until integrated
+    g += p.gdp * (1 + FACTORY_OUT * levelOf(p, 'factory')) * (1 - 0.7 * p.devastation) * (p.owner === c ? 1 - 0.5 * p.unrest : 0.35); // fresh conquests produce little until integrated
   }
   return g;
 }
@@ -95,7 +96,7 @@ export function dailyProduction(w: World, S: MapStatic) {
       const prov = w.provinces[item.prov]?.controller === c.id ? item.prov : c.capital;
       const own = item.army !== undefined && w.armies.some(a => a.id === item.army) ? item.army : undefined;
       const d = newDivision(w, c.id, item.type, n, prov, own ?? recruitArmy(w, c, prov).id);
-      d.exp = 0; w.divisions.push(d);
+      d.exp = levelOf(w.provinces[prov], 'barracks') >= 3 ? 0.2 : 0; w.divisions.push(d);
       if (own !== undefined) joinArmy(w, S, d); // raised for an army: it goes to join it
       if (c.player) say(w, msg('log.unitReady', { unit: { u: [d.type, d.num] } }), 'player', { who: [c.id], prov });
     }
@@ -108,12 +109,19 @@ function recruitArmy(w: World, c: Country, prov: number): Army {
   const a: Army = { id: w.nextId++, country: c.id, num: mine.reduce((m, x) => Math.max(m, x.num), 0) + 1, general: makeGeneral(w, c.code), theater: -1, posture: 'hold' };
   w.armies.push(a); return a;
 }
-export function queueUnit(w: World, c: Country, type: UnitType, prov = c.capital, army?: number): string | null {
+/** Divisions are raised in a province with barracks (a nation that has lost all its barracks raises them anywhere it holds, slowly).
+ *  Better barracks train faster; the best (level 3) send them out with some drill behind them. Returns why not (a message key). */
+export function queueUnit(w: World, c: Country, type: UnitType, prov = bestBarracks(w, c), army?: number): string | null {
   const spec = UNIT_SPEC[type];
-  if (!unitReady(w, type)) return 'Not yet invented';
-  if (c.manpower < spec.men) return 'Not enough manpower';
+  if (!unitReady(w, type)) return 'mil.notYet';
+  const anyBarracks = bestBarracks(w, c) >= 0;
+  if (prov < 0) prov = w.provinces[c.capital]?.controller === c.id ? c.capital : (w.provinces.find(p => p.owner === c.id && p.controller === c.id)?.id ?? -1);
+  const p = w.provinces[prov]; if (!p || p.owner !== c.id || p.controller !== c.id) return 'mil.noBarracks';
+  const L = levelOf(p, 'barracks'); if (!L && anyBarracks) return 'mil.noBarracks';
+  if (c.manpower < spec.men) return 'mil.noManpower';
   c.manpower -= spec.men;
-  const item: ProdItem = { id: w.nextId++, type, progress: 0, cost: c.unitCost * spec.costMul, days: spec.days, prov, army };
+  const days = Math.round(spec.days * (L ? 1 - BARRACKS_FAST * (L - 1) : 1.5));
+  const item: ProdItem = { id: w.nextId++, type, progress: 0, cost: c.unitCost * spec.costMul, days, prov, army };
   c.production.push(item); return null;
 }
 /** Stand down one reserve division of a type (never one at the front): its upkeep stops and most of its men return to the pool. */

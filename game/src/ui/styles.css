@@ -650,3 +650,21 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 .idle-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border: 1px solid var(--brass); border-radius: 4px; background: rgba(201, 162, 75, 0.1); font-size: 13.5px; margin: 6px 0; }
 @media (min-width: 761px) { .sheet ~ .army-card { left: calc((100vw - 440px) / 2); width: min(720px, calc(100vw - 470px)); } } /* beside an open desk, not over it */
 @media (max-width: 760px) { .goal { grid-template-columns: minmax(0, 1fr) auto; } .goal .goal-bar { grid-column: 1 / -1; width: 100%; order: 3; } }
+/* provinces: where troops are raised, and what is built */
+.raise-at, .raise-here { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+.raise-at > small:first-child { margin-right: 2px; }
+.raise-at button.chip, .raise-here button.chip { display: inline-flex; gap: 5px; align-items: center; padding: 5px 9px; border-radius: 12px; border: 1px solid var(--edge); background: var(--raise); color: var(--paper); font-size: 13px; }
+.raise-at button.chip[aria-pressed="true"] { border-color: var(--brass); background: rgba(232, 192, 99, 0.16); color: var(--brass-hi); }
+.raise-here button.chip:disabled { opacity: 0.45; }
+.raise-hint { flex-basis: 100%; }
+.pips { font-size: 9px; letter-spacing: 1px; color: var(--brass-hi); margin-left: 3px; vertical-align: 1px; }
+.bld-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.bld-row { display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; background: var(--raise); border: 1px solid var(--edge); border-radius: 3px; }
+.bld-row > .icon { color: var(--brass-hi); }
+.bld-t { display: grid; gap: 2px; min-width: 0; } .bld-t small { line-height: 1.3; }
+.bld-up { display: grid; gap: 4px; min-width: 110px; text-align: right; }
+.bld-go { display: grid; gap: 2px; justify-items: end; padding: 6px 10px; font: 700 14px/1.1 var(--display); letter-spacing: 0.03em; }
+.bld-go small { font: 500 12px/1 var(--body, inherit); color: var(--mute); } .bld-go small.bad { color: var(--red); }
+.bld-go[aria-disabled="true"] { opacity: 0.55; }
+@media (max-width: 560px) { .bld-row { grid-template-columns: 22px 1fr; } .bld-row > :last-child { grid-column: 1 / -1; justify-self: end; } }
+.raise-at button.chip, .raise-here button.chip { min-height: 0; height: auto; line-height: 1.1; white-space: nowrap; font-family: inherit; letter-spacing: 0; text-transform: none; }
