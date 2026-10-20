@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { SPEEDS, type Game, type Panel } from '../game/play';
 import { useStore, useTick } from '../game/store';
 import { atWar, cashFlow, popOf, UNIT_SPEC, queueUnit, cancelUnit, demobilize, reservesOf } from '../sim/economy';
-import { BARRACKS_FAST, bestBarracks, BUILDINGS, buildCost, building, canBuild, levelOf, MAX_LEVEL, startBuild } from '../sim/buildings';
+import { BUILDINGS, buildCost, building, canBuild, levelOf, maxLevel, startBuild } from '../sim/buildings';
 import { enactPolicy, POLICIES, policyOdds, type PolicyId } from '../sim/policies';
 import { groupMood, stabilityTarget } from '../sim/politics';
 import { DIPLO, diploCost, diploOdds, type DiploAction } from '../sim/diplomacy';
@@ -324,12 +324,11 @@ function Policies({ g, panel }: { g: Game; panel: 'economy' | 'politics' }) {
 const supOf = (d: { sup: number; theater: number }) => d.theater < 0 ? 1 : d.sup;
 function MilitaryPanel({ g }: { g: Game }) {
   const c = g.me; const [, force] = useState(0); const upd = () => force(x => x + 1);
-  const [note, setNote] = useState(''), [peek, setPeek] = useState<Conscription | null>(null), [pickAt, setAt] = useState(-1);
+  const [note, setNote] = useState(''), [peek, setPeek] = useState<Conscription | null>(null);
   const divs = g.w.divisions.filter(d => d.country === c.id);
   // where new divisions are raised: a province with barracks (the best one unless the player picks another)
-  const barracks = g.w.provinces.filter(p => p.owner === c.id && p.controller === c.id && levelOf(p, 'barracks') > 0).sort((a, b) => levelOf(b, 'barracks') - levelOf(a, 'barracks') || (b.id === c.capital ? 1 : 0) - (a.id === c.capital ? 1 : 0) || b.pop - a.pop);
-  const rec = barracks.some(p => p.id === pickAt) ? pickAt : bestBarracks(g.w, c), recL = rec >= 0 ? levelOf(g.w.provinces[rec], 'barracks') : 0;
-  const trainDays = (days: number) => Math.round(days * (recL ? 1 - BARRACKS_FAST * (recL - 1) : 1.5));
+  const barracks = g.w.provinces.filter(p => p.owner === c.id && p.controller === c.id && levelOf(p, 'barracks') > 0).sort((a, b) => (b.id === c.capital ? 1 : 0) - (a.id === c.capital ? 1 : 0) || b.pop - a.pop);
+  const raise = (k: UnitType, at: number) => { const e = queueUnit(g.w, c, k, at); setNote(e ? t(e) : t('mil.queuedAt', { u: t('unitShort.' + k), p: provName(at) })); upd(); if (!e) g.sound('click'); };
   const byType: Record<string, number> = {}; divs.forEach(d => (byType[d.type] = (byType[d.type] || 0) + 1));
   const men = divs.reduce((a, d) => a + d.str, 0), front = divs.filter(d => d.theater >= 0).length;
   const free = Math.max(0, c.spending * c.budget.military - c.upkeep), pop = popOf(g.w, c.id);
@@ -337,14 +336,18 @@ function MilitaryPanel({ g }: { g: Game }) {
   return <NationSheet g={g} kind="military" fig={(() => { const sup = g.w.armies.filter(a => a.country === c.id).map(a => { const ds = divs.filter(d => d.army === a.id); return ds.length ? ds.reduce((x, d) => x + supOf(d), 0) / ds.length : 1; }), lo = sup.length ? Math.min(...sup) : 1;
       return <RibbonFig label={t('mil.weakestSupply')} v={pct(lo)} tone={lo < 0.5 ? 'bad' : ''} />; })()} cols={[<>
     <Block title={t('mil.forces')} icon="military" aside={<span class="muted"><span data-tip={t('army.equipHint')}>{t('army.equip', { x: fmt1(c.quality ?? 1) })}</span> · {t('mil.atFront')} <b class="num">{fmtInt(front)}/{fmtInt(divs.length)}</b> · <span class={free <= 0 ? 'bad' : ''}>{t('mil.fundsShort')} {t('eco.perMonth', { v: fmtMoney(free) })}</span></span>}>
-      <div class="forces">{(Object.keys(UNIT_SPEC) as UnitType[]).filter(k => unitReady(g.w, k) || byType[k]).map(k => { const s = UNIT_SPEC[k], queued = c.production.filter(p => p.type === k).length;
-        return <div key={k} class={`force u-${k}`}><UnitSymbol type={k} size={36} /><span class="f-t"><b class="num">{byType[k] || 0}{queued > 0 && <small class="f-q">+{queued}</small>}</b><span>{t('unitShort.' + k)}</span><small class="num">{fmtMoney(c.unitCost * s.costMul)} · {trainDays(s.days)}d</small></span>
-          <button class="f-dis" aria-label={t('mil.demobilize')} data-tip={t('mil.demobilize')} disabled={!reservesOf(g.w, c, k).length} onClick={() => { if (demobilize(g.w, c, k)) { upd(); g.sound('click'); } }}>−</button>
-          <button class={`f-build ${free <= 0 ? 'warn' : ''}`} aria-label={t('mil.buildOne', { u: t('unitShort.' + k) })} data-tip={free <= 0 ? t('mil.noFundsWait') : t('mil.cost', { v: fmtMoney(c.unitCost * s.costMul), d: s.days, m: fmtBig(s.men) })} disabled={c.manpower < s.men} onClick={() => { const e = queueUnit(g.w, c, k, rec); setNote(e ? t(e) : t('mil.queuedAt', { u: t('unitShort.' + k), p: rec >= 0 ? provName(rec) : '' })); upd(); g.sound('click'); }}><Icon name="improve" size={14} />{t('mil.build')}</button></div>; })}</div>
-      <div class="raise-at"><small class="muted">{t('mil.raisedAt')}</small>{barracks.slice(0, 8).map(p => { const L = levelOf(p, 'barracks'); return <button key={p.id} class="chip" aria-pressed={p.id === rec} data-tip={t('mil.barracksTip', { n: L })} onClick={() => setAt(p.id)}><Icon name="b_barracks" size={13} />{provName(p.id)}<span class="pips" aria-label={t('bld.level', { n: L })}>{'●'.repeat(L)}{'○'.repeat(MAX_LEVEL - L)}</span></button>; })}
-        <small class="muted raise-hint">{t('mil.raiseHint')}</small></div>
+      <div class="forces">{(Object.keys(UNIT_SPEC) as UnitType[]).filter(k => byType[k]).map(k => { const queued = c.production.filter(p => p.type === k).length;
+        return <div key={k} class={`force u-${k}`}><UnitSymbol type={k} size={32} /><span class="f-t"><b class="num">{byType[k] || 0}{queued > 0 && <small class="f-q">+{queued}</small>}</b><span>{t('unitShort.' + k)}</span></span>
+          <button class="f-dis" data-tip={t('mil.demobilizeTip')} disabled={!reservesOf(g.w, c, k).length} onClick={() => { if (demobilize(g.w, c, k)) { upd(); g.sound('click'); } }}>{t('mil.demobilize')}</button></div>; })}</div>
+    </Block>
+    <Block title={t('mil.barracks')} icon="b_barracks" aside={<small class="muted">{t('mil.barracksAside', { v: fmtMoney(c.unitCost * UNIT_SPEC.infantry.costMul), d: UNIT_SPEC.infantry.days })}</small>}>
+      <ul class="barracks-list">{barracks.slice(0, 10).map(p => { const here = c.production.filter(x => x.prov === p.id);
+        return <li key={p.id}><Icon name="b_barracks" size={18} /><button class="link" onClick={() => g.openPanel({ kind: 'province', id: p.id })}>{provName(p.id)}</button>
+          {here.length > 0 && <small class="muted">{t('prov.training', { n: here.length })}</small>}
+          <button class="raise-one" disabled={c.manpower < UNIT_SPEC.infantry.men} onClick={() => raise('infantry', p.id)}><Icon name="improve" size={14} />{t('unitShort.infantry')}</button></li>; })}</ul>
+      <small class="muted">{t('mil.raiseHint')}</small>
       {note && <small class="muted" role="status">{note}</small>}
-      {c.production.length > 0 && <ol class="queue">{c.production.map(p => <li key={p.id} data-tip={provName(p.prov)}><UnitSymbol type={p.type} size={22} /><Bar v={p.progress / p.cost} tone="amber" /><button class="x" aria-label={t('ui.cancel')} onClick={() => { cancelUnit(g.w, c, p.id); upd(); }}><Icon name="x" size={12} /></button></li>)}</ol>}
+      {c.production.length > 0 && <ol class="queue by-place">{c.production.map(p => <li key={p.id}><UnitSymbol type={p.type} size={20} /><span class="q-t">{t('unitShort.' + p.type)} · {provName(p.prov)}</span><Bar v={p.progress / p.cost} tone="amber" /><small class="num">{t('army.eta', { n: Math.max(1, p.days) })}</small><button class="x" aria-label={t('ui.cancel')} onClick={() => { cancelUnit(g.w, c, p.id); upd(); }}><Icon name="x" size={12} /></button></li>)}</ol>}
       {c.production.length > 0 && free <= 0 && <small class="bad">{t('mil.noFunds')}</small>}
       {(c.readiness ?? 1) < 0.99 && <small class="bad" data-tip={t('mil.readinessHint')}>{t('mil.underfunded', { p: pct(c.readiness ?? 1) })}</small>}
     </Block>
@@ -400,7 +403,7 @@ function DiplomacyPanel({ g }: { g: Game }) {
 function ProvincePanel({ g, id }: { g: Game; id: number }) {
   const P = g.s.assets.provinces[id], p = g.w.provinces[id];
   const here = g.w.divisions.filter(d => d.prov === id && d.theater < 0);
-  const [, force] = useState(0), [note, setNote] = useState('');
+  const [, force] = useState(0), [note, setNote] = useState(''), [raised, setRaised] = useState(''), [more, setMore] = useState(false);
   const me = g.me, ours = p.owner === me.id && p.controller === me.id, work = building(g.w, id), bL = levelOf(p, 'barracks');
   const shown = ours ? BUILDINGS : BUILDINGS.filter(b => levelOf(p, b) > 0);
   return <Sheet onClose={() => g.openPanel(null)} icon="political" eyebrow={t('panel.province')} title={<div><div class="h2">{provName(id)}</div><div class="sub"><Flag s={g.s} code={g.w.countries[p.owner].code} h={11} /> {countryName(g.w, p.owner)}{provState(id) && <> · {provState(id)}</>}{p.controller !== p.owner ? <span class="bad"> · {t('tip.heldBy', { c: countryName(g.w, p.controller) })}</span> : null}</div></div>}>
@@ -412,20 +415,25 @@ function ProvincePanel({ g, id }: { g: Game; id: number }) {
     </div>
     <div class="sl-top"><span>{t('prov.infra')}</span><b class="num">{pct(p.infra)}</b></div><Bar v={p.infra} />
     {p.devastation > 0.01 && <><div class="sl-top"><span>{t('prov.damage')}</span><b class="num bad">{pct(p.devastation)}</b></div><Bar v={p.devastation} tone="bad" /></>}
+    {ours && <Block title={t('prov.recruit')} icon="b_barracks">{bL > 0
+      ? <><div class="raise-here">{(Object.keys(UNIT_SPEC) as UnitType[]).filter(k => unitReady(g.w, k) && (more || k === 'infantry')).map(k => <button key={k} class="chip" disabled={me.manpower < UNIT_SPEC[k].men}
+          onClick={() => { const e = queueUnit(g.w, me, k, id); setRaised(e ? t(e) : t('mil.queuedAt', { u: t('unitShort.' + k), p: provName(id) })); g.sound('click'); force(x => x + 1); }}>
+          <UnitSymbol type={k} size={18} /><span>{t('unitShort.' + k)}</span><small class="num">{fmtMoney(me.unitCost * UNIT_SPEC[k].costMul)} · {UNIT_SPEC[k].days}d</small></button>)}
+          <button class="link more-types" onClick={() => setMore(!more)}>{t(more ? 'prov.fewerTypes' : 'prov.moreTypes')}</button></div>
+        {me.manpower < UNIT_SPEC.infantry.men && <small class="bad">{t('mil.noManpower')}</small>}
+        {me.production.some(x => x.prov === id) && <small class="muted">{t('prov.training', { n: me.production.filter(x => x.prov === id).length })}</small>}
+        {raised && <small class="muted" role="status">{raised}</small>}</>
+      : <small class="muted">{t('prov.noBarracks')}</small>}</Block>}
     {shown.length > 0 && <Block title={t('prov.buildings')} icon="b_fort">
-      <ul class="bld-list">{shown.map(b => { const L = levelOf(p, b), up = work?.b === b, { cost, days } = buildCost(me, p, b), err = canBuild(g.w, me, p, b);
-        return <li key={b} class="bld-row"><Icon name={'b_' + b} size={22} /><span class="bld-t"><b>{t('bld.' + b)} <span class="pips">{'●'.repeat(L)}{'○'.repeat(MAX_LEVEL - L)}</span></b><small class="muted">{t('bld.' + b + '.fx')}</small></span>
+      <ul class="bld-list">{shown.map(b => { const L = levelOf(p, b), M = maxLevel(b), up = work?.b === b, { cost, days } = buildCost(me, p, b), err = canBuild(g.w, me, p, b);
+        return <li key={b} class="bld-row"><Icon name={'b_' + b} size={22} /><span class="bld-t"><b>{t('bld.' + b)}{M > 1 && <span class="pips" aria-label={t('bld.level', { n: L })}>{'●'.repeat(L)}{'○'.repeat(M - L)}</span>}{M === 1 && L === 1 && <span class="pips">✓</span>}</b><small class="muted">{t('bld.' + b + '.fx')}</small></span>
           {ours && (up ? <span class="bld-up"><small>{t('bld.inProgress', { n: Math.max(0, work!.done - g.w.day) })}</small><Bar v={(g.w.day - work!.start) / Math.max(1, work!.done - work!.start)} tone="amber" /></span>
-            : L >= MAX_LEVEL ? <small class="muted">{t('bld.max')}</small>
-            : <button class="bld-go" aria-disabled={!!err} data-tip={err ? t(err) : t('bld.costTip', { v: fmtMoney(cost), d: days })} onClick={() => { const e = startBuild(g.w, me, p, b); setNote(e ? t(e) : t('bld.started', { b: t('bld.' + b), n: L + 1 })); if (!e) g.sound('click'); force(x => x + 1); }}>
-              <span>{t('bld.build', { n: L + 1 })}</span><small class={`num ${err === 'bld.money' ? 'bad' : ''}`}>{fmtMoney(cost)} · {days}d</small></button>)}</li>; })}</ul>
+            : L >= M ? <small class="muted">{t(M === 1 ? 'bld.built' : 'bld.max')}</small>
+            : <span class="bld-act"><button class="bld-go" disabled={!!err} onClick={() => { const e = startBuild(g.w, me, p, b); setNote(e ? t(e) : t('bld.started', { b: t('bld.' + b), n: L + 1 })); if (!e) g.sound('click'); force(x => x + 1); }}>
+              <span>{t(M === 1 ? 'bld.buildOne' : 'bld.build', { n: L + 1 })}</span><small class="num">{fmtMoney(cost)} · {days}d</small></button>{err && err !== 'bld.busy' && <small class="bad">{t(err)}</small>}</span>)}</li>; })}</ul>
+      {work && ours && <small class="muted">{t('bld.busy')}</small>}
       {note && <small class="muted" role="status">{note}</small>}
     </Block>}
-    {ours && <Block title={t('prov.recruit')} icon="b_barracks">{bL > 0
-      ? <div class="raise-here">{(Object.keys(UNIT_SPEC) as UnitType[]).filter(k => unitReady(g.w, k)).map(k => <button key={k} class="chip" data-tip={t('mil.cost', { v: fmtMoney(me.unitCost * UNIT_SPEC[k].costMul), d: Math.round(UNIT_SPEC[k].days * (1 - BARRACKS_FAST * (bL - 1))), m: fmtBig(UNIT_SPEC[k].men) })} disabled={me.manpower < UNIT_SPEC[k].men}
-          onClick={() => { const e = queueUnit(g.w, me, k, id); setNote(e ? t(e) : t('mil.queuedAt', { u: t('unitShort.' + k), p: provName(id) })); g.sound('click'); force(x => x + 1); }}><UnitSymbol type={k} size={18} />{t('unitShort.' + k)}</button>)}
-          {me.production.some(x => x.prov === id) && <small class="muted">{t('prov.training', { n: me.production.filter(x => x.prov === id).length })}</small>}</div>
-      : <small class="muted">{t('prov.noBarracks')}</small>}</Block>}
     {here.length > 0 && <Block title={t('prov.stationed')} icon="military" aside={<b class="num">{here.length}</b>}><ul class="units">{here.slice(0, 10).map(d => <li key={d.id}><UnitSymbol type={d.type} size={22} /><Flag s={g.s} code={g.w.countries[d.country].code} h={11} /><span>{unitName(d.type, d.num)}</span></li>)}{here.length > 10 && <li><small>{t('prov.more', { n: here.length - 10 })}</small></li>}</ul></Block>}
   </Sheet>;
 }

@@ -286,7 +286,7 @@ export class WarFx {
   /** Buildings on the map, under each province's name when zoomed in: all of ours, and the forts of others (they matter to an attacker). */
   drawBuildings(ctx: CanvasRenderingContext2D, cam: Camera, w: World, S: MapStatic, me: number) {
     if (cam.upp > 0.03) return;
-    const sz = cam.upp < 0.012 ? 15 : 12, scr = (lon: number, lat: number) => cam.toScreen(...project(lon, lat));
+    const sz = cam.upp < 0.012 ? 18 : 14, scr = (lon: number, lat: number) => cam.toScreen(...project(lon, lat));
     ctx.save(); ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const p of w.provinces) {
       if (!p.bld) continue;
@@ -338,17 +338,18 @@ export class WarFx {
       while (placed.some(([px, py]) => Math.abs(px - x) < 40 && Math.abs(py - y) < 20)) y += 24;
       placed.push([x, y]);
       const on = a.id === sel, st: ArmyState = at.state;
-      // on its way: the road it takes, and how many days until it is there
+      // on its way: the road it takes (solid gold, unlike the pale dashed preview of an order), and a pill with the days left beside the marker
       if (st === 'moving' && at.to) {
         let [tx, ty] = scr(at.to[0], at.to[1]); ty = Math.max(ty, 88);
-        ctx.save(); ctx.setLineDash([5, 5]); ctx.lineDashOffset = -now * 18; ctx.strokeStyle = on ? 'rgba(232,192,99,0.9)' : 'rgba(242,237,225,0.6)'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty); ctx.stroke(); ctx.setLineDash([]);
-        ctx.fillStyle = ctx.strokeStyle; ctx.beginPath(); ctx.arc(tx, ty, 4, 0, 7); ctx.fill();
-        if (at.eta !== undefined) { const lab = t('army.eta', { n: Math.max(1, at.eta - w.day) }), lw = ctx.measureText(lab).width; ctx.fillStyle = 'rgba(8,12,18,0.85)'; ctx.fillRect(tx + 7, ty - 9, lw + 8, 17); ctx.fillStyle = '#f2ede1'; ctx.fillText(lab, tx + 11, ty); }
+        ctx.save(); ctx.strokeStyle = 'rgba(8,12,18,0.55)'; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tx, ty); ctx.stroke();
+        ctx.strokeStyle = on ? '#e8c063' : 'rgba(232,192,99,0.85)'; ctx.lineWidth = 3; ctx.stroke();
+        ctx.setLineDash([2, 10]); ctx.lineDashOffset = -now * 24; ctx.strokeStyle = 'rgba(255,248,230,0.9)'; ctx.lineWidth = 3; ctx.stroke(); ctx.setLineDash([]); // movement along the road
+        ctx.fillStyle = '#e8c063'; ctx.beginPath(); ctx.arc(tx, ty, 5, 0, 7); ctx.fill(); ctx.strokeStyle = 'rgba(8,12,18,0.8)'; ctx.lineWidth = 1.5; ctx.stroke();
         ctx.restore();
       }
       if (on) { ctx.fillStyle = `rgba(232,192,99,${0.18 + 0.1 * Math.sin(now * 5)})`; ctx.beginPath(); ctx.arc(x, y, 26, 0, 7); ctx.fill(); }
       const r = plate(x, y, me, String(at.n), on ? '#e8c063' : st === 'attack' ? 'rgba(232,192,99,0.9)' : 'rgba(242,237,225,0.55)', on ? 'rgba(30,24,10,0.94)' : 'rgba(8,12,18,0.88)', st === 'moving');
+      if (st === 'moving' && at.eta !== undefined) { const lab = t('army.eta', { n: Math.max(1, at.eta - w.day) }), lw = ctx.measureText(lab).width, px = r.x0 + r.W + 4; ctx.fillStyle = '#e8c063'; ctx.beginPath(); ctx.roundRect(px, y - 9, lw + 10, 18, 9); ctx.fill(); ctx.fillStyle = '#1a1408'; ctx.fillText(lab, px + 5, y + 0.5); }
       // strength under the plate, the army's name above when picked up
       const q = Math.max(0, Math.min(1, at.str)); ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(r.x0 + 3, r.y0 + r.H - 3, r.W - 6, 2);
       ctx.fillStyle = q > 0.66 ? '#82c474' : q > 0.33 ? '#e8c063' : '#e0645a'; ctx.fillRect(r.x0 + 3, r.y0 + r.H - 3, (r.W - 6) * q, 2);

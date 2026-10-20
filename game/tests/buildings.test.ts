@@ -7,7 +7,7 @@ import { computeGdp, queueUnit } from '../src/sim/economy';
 import { buildCost, dailyBuildings, levelOf, startBuild } from '../src/sim/buildings';
 import { armyWhere, orderArmy } from '../src/sim/war/armies';
 import { fortAt, cellOf } from '../src/sim/war/theater';
-import { theatersOf } from '../src/sim/war/war';
+import { placeUnit, theatersOf } from '../src/sim/war/war';
 import { loadStatic } from './helpers';
 
 // Provinces matter: barracks raise and train divisions, forts hold the line, factories add output; armies travel instead of jumping.
@@ -22,10 +22,9 @@ describe('provinces and travel', () => {
     expect(w.countries.filter(c => c.alive).every(c => levelOf(w.provinces[c.capital], 'barracks') >= 1)).toBe(true);
     const poa = named('Porto Alegre'); expect(w.provinces[poa].owner).toBe(bra.id);
     expect(queueUnit(w, bra, 'infantry', poa)).toBe('mil.noBarracks');
-    w.provinces[poa].bld = { barracks: 2 };
+    w.provinces[poa].bld = { barracks: 1 };
     expect(queueUnit(w, bra, 'infantry', poa)).toBeNull();
-    const item = bra.production[bra.production.length - 1];
-    expect(item.prov).toBe(poa); expect(item.days).toBeLessThan(75); // level 2 trains faster than the 75 days of level 1
+    expect(bra.production[bra.production.length - 1].prov).toBe(poa); // raised where we chose
   }, 60000);
 
   it('a factory is paid for, built over months, and raises the province\'s output', () => {
@@ -62,5 +61,25 @@ describe('provinces and travel', () => {
     expect(Math.hypot(mid.x - lon, mid.y - lat)).toBeGreaterThan(0.5);
     while (w.day < on.eta!) stepDay(w, S);
     expect(armyWhere(w, S, a)!.state).toBe('home');
+  }, 60000);
+
+  it('a long trip to the front wears a division out: where it was raised matters', () => {
+    const { w, ci } = world(); const rus = ci('RUS');
+    const war = w.wars.find(x => !x.ended && x.attackers.includes(rus.id))!, t = theatersOf(w, war)[0];
+    const far = w.divisions.find(d => d.country === rus.id && d.theater < 0)!, near = w.divisions.filter(d => d.country === rus.id && d.theater < 0)[1];
+    for (const d of [far, near]) { d.trip = undefined; d.arrive = 0; d.org = 1; } // at home, not on the road
+    far.prov = named('Primorsky Krai'); near.prov = named('Belgorod');
+    const [x, y] = S.provinces[named('Belgorod')].label;
+    placeUnit(w, t, far, x, y, w.day + 1); placeUnit(w, t, near, x, y, w.day + 1);
+    expect(far.arrive - w.day).toBeGreaterThan(10); expect(far.org).toBeLessThan(0.85);
+    expect(near.org).toBe(1); // a short trip costs nothing
+  }, 60000);
+
+  it('buildings cost months of revenue, so they compete for the treasury', () => {
+    const { w, ci } = world(); const bra = ci('BRA'), p = w.provinces[named('Porto Alegre')];
+    expect(buildCost(bra, p, 'barracks').cost).toBeGreaterThan(bra.income * 0.2);
+    expect(buildCost(bra, p, 'fort').cost).toBeGreaterThan(bra.income * 0.25);
+    expect(startBuild(w, bra, p, 'barracks')).toBeNull(); w.day += 60; dailyBuildings(w);
+    expect(startBuild(w, bra, p, 'barracks')).toBe('bld.max'); // barracks have one level
   }, 60000);
 });

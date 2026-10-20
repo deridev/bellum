@@ -209,20 +209,20 @@ export function historyDaily(w: World, S: MapStatic) {
     if (w.day < d0 || w.day > d1 || (w.day - d0) % 30 !== 0 || w.cooldowns[`hist:${m.id}`]) continue;
     const war = w.wars.find(x => x.id === w.goalWar);
     if (war && !war.ended && m.when && !m.when(w, war)) continue;
-    w.cooldowns[`hist:${m.id}`] = w.day; moment(w, S, m);
+    if (moment(w, S, m) !== false) w.cooldowns[`hist:${m.id}`] = w.day; // a moment the world did not allow is tried again next month, until its last day
   }
 }
 const code = (w: World, k: string) => w.countries.findIndex(c => c.code === k && c.alive);
-function moment(w: World, S: MapStatic, m: Moment) {
-  const war = w.wars.find(x => x.id === w.goalWar); if (!war || war.ended) return;
-  const c = code(w, m.c); if (c < 0) return;
+function moment(w: World, S: MapStatic, m: Moment): boolean | void {
+  const war = w.wars.find(x => x.id === w.goalWar); if (!war || war.ended) return false;
+  const c = code(w, m.c); if (c < 0) return false;
   if (m.kind === 'revolution') {
-    if (!sideOf(war, c)) return;
+    if (!sideOf(war, c)) return false;
     if (w.countries[c].player) return ask(w, war, m, c, -1);
     return revolution(w, S, war, c);
   }
   if (m.kind === 'armistice') {
-    const side = sideOf(war, c); if (!side) return;
+    const side = sideOf(war, c); if (!side) return false;
     const win = -side as 1 | -1, winners = win > 0 ? war.attackers : war.defenders, losers = side > 0 ? war.attackers : war.defenders;
     const terms = { type: 'treaty' as const, provinces: w.provinces.filter(p => losers.includes(p.owner) && winners.includes(p.controller)).map(p => p.id), reparations: true };
     say(w, msg('hist.armistice1918', { c: { c } }), 'peace', { who: [...war.attackers, ...war.defenders], big: 'big.war', prov: w.countries[c].capital });
@@ -235,13 +235,16 @@ function moment(w: World, S: MapStatic, m: Moment) {
   const side = m.side!, foes = side > 0 ? war.defenders : war.attackers, friends = side > 0 ? war.attackers : war.defenders;
   const ok = (k: number) => k >= 0 && !sideOf(war, k) && !w.wars.some(x => !x.ended && x !== war && (sideOf(x, k) !== 0) && [...friends, ...foes].some(f => sideOf(x, f) === -sideOf(x, k)));
   if (m.kind === 'join') {
-    if (!ok(c)) return;
+    if (!ok(c)) return false;
     if (w.countries[c].player) return ask(w, war, m, c, side);
     return enter(w, S, war, m, c, side);
   }
   // an invasion: the aggressors (or the one already in the war) attack the target, which joins the other side
   const lead = code(w, m.by!);
-  if (lead < 0 || !ok(c) || (sideOf(war, lead) !== -side && !ok(lead))) return; // the aggressor must be in the war on the other side, or free to join it
+  // a side war between the target and the aggressor's camp is swallowed by the great one (the invasion supersedes it)
+  if (lead >= 0) { const camp = [...war.attackers, ...war.defenders, lead]; // and so is any war between the target and either camp: history makes it an ally of one and the enemy of the other
+    for (const x of w.wars.filter(x => !x.ended && x !== war && sideOf(x, c) && camp.some(f => sideOf(x, f) === -sideOf(x, c)))) makePeace(w, S, x, 1, { type: 'white', provinces: [] }); }
+  if (lead < 0 || !ok(c) || (sideOf(war, lead) !== -side && !ok(lead))) return false; // the aggressor must be in the war on the other side, or free to join it
   if (w.countries[lead].player) return ask(w, war, m, c, side);
   invade(w, S, war, m, c, side);
 }

@@ -6,7 +6,7 @@ import { crisisGrowth } from './crises';
 import { msg } from './types';
 import { tradeBonus } from './diplomacy';
 import { researchNeed } from './policies';
-import { BARRACKS_FAST, bestBarracks, FACTORY_OUT, levelOf } from './buildings';
+import { bestBarracks, FACTORY_OUT, levelOf } from './buildings';
 
 /** Cost of a new division: a year of its upkeep (so richer militaries pay more per unit). Days to build. */
 export const UNIT_SPEC: Record<UnitType, { costMul: number; days: number; men: number; label: string }> = {
@@ -96,7 +96,7 @@ export function dailyProduction(w: World, S: MapStatic) {
       const prov = w.provinces[item.prov]?.controller === c.id ? item.prov : c.capital;
       const own = item.army !== undefined && w.armies.some(a => a.id === item.army) ? item.army : undefined;
       const d = newDivision(w, c.id, item.type, n, prov, own ?? recruitArmy(w, c, prov).id);
-      d.exp = levelOf(w.provinces[prov], 'barracks') >= 3 ? 0.2 : 0; w.divisions.push(d);
+      d.exp = 0; w.divisions.push(d);
       if (own !== undefined) joinArmy(w, S, d); // raised for an army: it goes to join it
       if (c.player) say(w, msg('log.unitReady', { unit: { u: [d.type, d.num] } }), 'player', { who: [c.id], prov });
     }
@@ -110,7 +110,7 @@ function recruitArmy(w: World, c: Country, prov: number): Army {
   w.armies.push(a); return a;
 }
 /** Divisions are raised in a province with barracks (a nation that has lost all its barracks raises them anywhere it holds, slowly).
- *  Better barracks train faster; the best (level 3) send them out with some drill behind them. Returns why not (a message key). */
+ *  Where matters: they set out from there, and a long trip to the front wears them out. Returns why not (a message key). */
 export function queueUnit(w: World, c: Country, type: UnitType, prov = bestBarracks(w, c), army?: number): string | null {
   const spec = UNIT_SPEC[type];
   if (!unitReady(w, type)) return 'mil.notYet';
@@ -120,7 +120,7 @@ export function queueUnit(w: World, c: Country, type: UnitType, prov = bestBarra
   const L = levelOf(p, 'barracks'); if (!L && anyBarracks) return 'mil.noBarracks';
   if (c.manpower < spec.men) return 'mil.noManpower';
   c.manpower -= spec.men;
-  const days = Math.round(spec.days * (L ? 1 - BARRACKS_FAST * (L - 1) : 1.5));
+  const days = Math.round(spec.days * (L ? 1 : 1.5));
   const item: ProdItem = { id: w.nextId++, type, progress: 0, cost: c.unitCost * spec.costMul, days, prov, army };
   c.production.push(item); return null;
 }

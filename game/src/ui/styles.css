@@ -668,3 +668,32 @@ input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 
 .bld-go[aria-disabled="true"] { opacity: 0.55; }
 @media (max-width: 560px) { .bld-row { grid-template-columns: 22px 1fr; } .bld-row > :last-child { grid-column: 1 / -1; justify-self: end; } }
 .raise-at button.chip, .raise-here button.chip { min-height: 0; height: auto; line-height: 1.1; white-space: nowrap; font-family: inherit; letter-spacing: 0; text-transform: none; }
+/* army card: the touch order waits for Confirm; on a phone the card is a slim bar that leaves the army and the front in view */
+.ac-confirm { display: flex; gap: 8px; margin-left: auto; } .ac-confirm button { padding: 7px 14px; }
+.ac-order { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ac-sub { font: 500 11px/1 var(--body, inherit); color: var(--mute); margin-left: 4px; text-transform: none; letter-spacing: 0; }
+@media (hover: none) { .army-card kbd, .army-card .ac-keys { display: none; } }
+@media (max-width: 560px) {
+  .army-card { padding: 7px 9px; gap: 5px; }
+  .army-card .ac-gen, .army-card .chip, .army-card .ac-units, .army-card .ac-keys, .army-card .ac-m small { display: none; }
+  .army-card .ac-body { gap: 6px; } .army-card .ac-acts { gap: 5px; } .army-card .ac-acts button { padding: 6px 8px; font-size: 12px; }
+  .army-card .ac-sub { display: none; }
+}
+/* military desk: forces (counts), barracks (raise there), the queue by place */
+.forces .f-dis { width: auto; height: auto; padding: 6px 10px; font: 600 12px/1 var(--display); letter-spacing: 0.03em; text-transform: uppercase; }
+.barracks-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.barracks-list li { display: flex; align-items: center; gap: 9px; padding: 6px 8px 6px 10px; background: var(--raise); border: 1px solid var(--edge); border-radius: 3px; }
+.barracks-list li > .icon { color: var(--brass-hi); flex: none; } .barracks-list li > small { margin-left: auto; }
+.barracks-list .link, .raise-here .link { background: none; border: 0; padding: 0; color: var(--paper); font-weight: 600; text-decoration: underline; text-decoration-color: rgba(242, 237, 225, 0.3); text-underline-offset: 3px; min-height: 0; }
+.barracks-list .raise-one { margin-left: auto; display: inline-flex; gap: 5px; align-items: center; padding: 6px 10px; font-size: 13px; }
+.barracks-list li > small + .raise-one { margin-left: 8px; }
+.queue.by-place li { grid-template-columns: auto minmax(0, 1fr) 70px auto auto; }
+.queue .q-t { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.raise-here button.chip small { color: var(--mute); font-size: 11px; margin-left: 2px; }
+.raise-here .more-types { font-size: 12px; color: var(--mute); font-weight: 500; }
+.bld-act { display: grid; gap: 3px; justify-items: end; } .bld-act small.bad { font-size: 11.5px; max-width: 170px; text-align: right; }
+.bld-go:disabled { opacity: 0.4; cursor: not-allowed; filter: grayscale(0.6); }
+/* news can take two lines rather than be cut off */
+.toast-t { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
+@media (max-width: 560px) { .army-list .army-n { min-width: 74px; white-space: nowrap; } .queue.by-place li { grid-template-columns: auto minmax(0, 1fr) 50px auto auto; } }
+.bld-t > b { display: flex; align-items: center; gap: 6px; } .bld-t .pips { margin-left: 0; }

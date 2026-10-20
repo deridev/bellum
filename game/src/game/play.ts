@@ -1,5 +1,5 @@
 import { stepDay } from '../sim/step';
-import type { LogEntry, MapStatic, War, World } from '../sim/types';
+import type { Division, LogEntry, MapStatic, War, World } from '../sim/types';
 import { createWorld, rel } from '../sim/world';
 import { initSim } from '../sim';
 import { setupScenario, tablesFor } from '../sim/scenario';
@@ -9,7 +9,7 @@ import { createStore } from './store';
 import { TheaterLayer } from '../render/theaters';
 import { aimVerdict, WarFx } from './warfx';
 import { armyName, countryName, provName, say, t } from '../i18n';
-import { acceptsPeace, activeWars, allied, declareWar, makePeace, sideOf, theatersOf, type PeaceTerms } from '../sim/war/war';
+import { acceptsPeace, activeWars, allied, declareWar, makePeace, sideOf, theatersOf, travelDays, whereNow, type PeaceTerms } from '../sim/war/war';
 import { strikeOdds } from '../sim/war/ai';
 import { armyWhere, mergeArmies, orderArmy, releaseArmy, reserveArmy, splitArmy, deployIdleArmies } from '../sim/war/armies';
 import { queueUnit } from '../sim/economy';
@@ -26,8 +26,8 @@ import { audio, type Cue } from './audio';
 export type Panel = { kind: 'economy' | 'politics' | 'military' | 'diplomacy' | 'ledger' | 'chronicle' | 'timelapse' } | { kind: 'province'; id: number } | { kind: 'country'; id: number } | { kind: 'war'; id: number } | null;
 /** What an order at the pointer would do, while an army is picked up (for an attack, see strikeOdds). */
 /** org: the army's organisation now; supTo: its supply once it reaches the objective (estimated) */
-export interface Aim { kind?: 'attack' | 'hold' | 'wait' | 'station' | 'landing' | 'merge'; into?: number; days?: number; org?: number; supTo?: number; err: string | null; odds: number; n: number; reserves: number; foes: number; def: number; from: [number, number] | null; to: [number, number] | null; ids: number[] }
-export interface GameState { day: number; speed: number; paused: boolean; tick: number; panel: Panel; turnMode: World['settings']['turnMode']; menu: boolean; toast: string; declare: number; aim: Aim | null; army: number | null; guide: boolean }
+export interface Aim { kind?: 'attack' | 'hold' | 'wait' | 'station' | 'landing' | 'merge'; into?: number; days?: number; place?: number; fort?: number; org?: number; supTo?: number; err: string | null; odds: number; n: number; reserves: number; foes: number; def: number; from: [number, number] | null; to: [number, number] | null; ids: number[] }
+export interface GameState { day: number; speed: number; paused: boolean; tick: number; panel: Panel; turnMode: World['settings']['turnMode']; menu: boolean; toast: string; declare: number; aim: Aim | null; army: number | null; guide: boolean; pend?: boolean }
 /** a cell of ours within 80 km of the front: an army sent there holds it (further back, it waits in reserve) */
 const nearFront = (th: Theater, k: number) => { const d = work(th).distF[k]; return d >= 0 && d * th.cellKm <= 80; };
 export const SPEEDS = [0.5, 1.5, 4, 10, 25]; // days per second
@@ -90,7 +90,16 @@ export class Game {
   private toastT: any = 0;
   sound(c: Cue) { audio.cue(c); }
   /** pick up one of the player's armies (null puts it down); while it is picked up, clicks on the map are its orders */
-  selectArmy(id: number | null) { this.st.set({ army: id, aim: null }); this.aimAt = ''; this.s.stage.style.cursor = id !== null ? 'crosshair' : ''; if (id !== null) this.sound('click'); }
+  selectArmy(id: number | null) {
+    this.pending = null; this.st.set({ army: id, aim: null, pend: false }); this.aimAt = ''; this.s.stage.style.cursor = id !== null ? 'crosshair' : ''; if (id !== null) this.sound('click');
+    // on a phone the army card covers the bottom of the screen: bring the army up into view above it
+    if (id !== null && this.s.touch) { const a = this.w.armies.find(x => x.id === id), at = a && armyWhere(this.w, this.S, a); if (at) { const [x, y] = project(at.x, at.y), cam = this.s.cam; cam.x = x; cam.y = y - 0.18 * cam.h * cam.upp; cam.clamp(); } }
+  }
+  /** a touch order waiting to be confirmed: the screen point it was tapped at */
+  private pending: [number, number] | null = null; private pendingWorld: [number, number] | null = null;
+  /** give the order previewed by a tap */
+  confirmOrder() { if (!this.pending || !this.pendingWorld) return; const [sx, sy] = this.s.cam.toScreen(...this.pendingWorld); this.pending = null; this.st.set({ pend: false }); this.orderAt(sx, sy); }
+  cancelOrder() { this.pending = null; this.st.set({ pend: false, aim: null }); this.aimAt = ''; }
   /** the next (or previous) of the player's armies, picked up and in view */
   cycleArmy(dir: 1 | -1) {
     const list = this.w.armies.filter(a => a.country === this.player && armyWhere(this.w, this.S, a)).sort((a, b) => a.num - b.num); if (!list.length) return;
@@ -106,20 +115,24 @@ export class Game {
     if (kind === 'release') { err = releaseArmy(this.w, a.id); done = t('army.did.release', { a: armyName(a.num) }); }
     else if (kind === 'reserve') { err = reserveArmy(this.w, this.S, a.id); done = t('army.did.reserve', { a: armyName(a.num) }); }
     else if (kind === 'split') { const b = splitArmy(this.w, a.id); if (typeof b === 'string') err = b; else done = t('army.did.split', { a: armyName(a.num), b: armyName(b.num) }); }
-    else { // raised at the barracks nearest the army, and sent to join it
-      const me = this.me, at = armyWhere(this.w, this.S, a), bs = this.w.provinces.filter(p => p.owner === me.id && p.controller === me.id && levelOf(p, 'barracks') > 0);
-      const near = at && bs.length ? bs.sort((p, q) => km(...this.S.provinces[p.id].label, at.x, at.y) - km(...this.S.provinces[q.id].label, at.x, at.y))[0].id : undefined;
-      err = queueUnit(this.w, me, 'infantry', near, a.id); done = t('army.did.raiseAt', { a: armyName(a.num), p: near !== undefined ? provName(near) : '' }); }
+    else { const near = this.raiseAt(a.id); err = queueUnit(this.w, this.me, 'infantry', near, a.id); done = t('army.did.raiseAt', { a: armyName(a.num), p: near !== undefined ? provName(near) : '' }); }
     if (err) { this.toast(t(err)); return; }
     this.toast(done); this.aimAt = ''; this.afterDay(); this.bump(); this.sound('order');
+  }
+  /** where a division for an army would be raised: the barracks nearest it */
+  raiseAt(id: number): number | undefined {
+    const a = this.w.armies.find(x => x.id === id), me = this.me, at = a && armyWhere(this.w, this.S, a);
+    const bs = this.w.provinces.filter(p => p.owner === me.id && p.controller === me.id && levelOf(p, 'barracks') > 0);
+    return at && bs.length ? bs.sort((p, q) => km(...this.S.provinces[p.id].label, at.x, at.y) - km(...this.S.provinces[q.id].label, at.x, at.y))[0].id : undefined;
   }
   /** pan the map to an army */
   focusArmy(id: number) { const a = this.w.armies.find(x => x.id === id), at = a && armyWhere(this.w, this.S, a); if (at) this.focusLog({ day: 0, msg: { k: '' }, kind: 'war', at: [at.x, at.y] }); }
   private orderSelected(lon: number, lat: number) {
     const id = this.st.get().army!, a = this.w.armies.find(x => x.id === id)!, r = orderArmy(this.w, this.S, id, lon, lat);
     if (r.err) { this.toast(t(r.err)); return; }
-    const p = provAtLonLat(this.S, lon, lat);
-    this.toast(t('army.done.' + (r.kind === 'station' ? 'station' : r.kind === 'attack' ? 'attack' : r.kind === 'landing' ? 'landing' : 'move'), { a: armyName(a.num), p: p >= 0 ? this.S.provinces[p].name : '' }));
+    const p = provAtLonLat(this.S, lon, lat), at = armyWhere(this.w, this.S, a), on = at?.state === 'moving' && at.eta !== undefined ? at.eta - this.w.day : 0;
+    if (on > 0 && (r.kind === 'station' || r.kind === 'move')) this.toast(t('army.done.travel', { a: armyName(a.num), p: p >= 0 ? provName(p) : '', n: on })); // still on the road: say so, and for how long
+    else this.toast(t('army.done.' + (r.kind === 'station' ? 'station' : r.kind === 'attack' ? 'attack' : r.kind === 'landing' ? 'landing' : 'move'), { a: armyName(a.num), p: p >= 0 ? provName(p) : '' }));
     this.aimAt = ''; this.afterDay(); this.bump(); this.sound('order'); // the army stays picked up, for the next order
   }
   /** an order given at a screen point (a click, a right-click or a drop): onto another of our armies = merge into it, else an order there */
@@ -149,23 +162,30 @@ export class Game {
   private updateArmyAim() {
     if (this.s.overUi) return;
     const id = this.st.get().army!, a = this.w.armies.find(x => x.id === id), at = a && armyWhere(this.w, this.S, a); if (!a || !at) { this.selectArmy(null); return; }
-    const m = this.s.ui.get().mouse, key = `${Math.round(m[0] / 4)},${Math.round(m[1] / 4)},${this.w.day},${this.s.cam.upp}`; if (key === this.aimAt) return; this.aimAt = key;
+    if (this.s.touch && !this.pending) { if (this.st.get().aim) this.st.set({ aim: null }); return; } // on a phone: nothing to preview until the map is tapped
+    const m = this.pending ? this.s.cam.toScreen(...this.pendingWorld!) : this.s.ui.get().mouse, key = `${Math.round(m[0] / 4)},${Math.round(m[1] / 4)},${this.w.day},${this.s.cam.upp}`; if (key === this.aimAt) return; this.aimAt = key;
     const [lon, lat] = unproject(...this.s.cam.toWorld(m[0], m[1]));
     const base = { odds: 0, n: at.total, reserves: 0, foes: 0, def: 1, from: [at.x, at.y] as [number, number], to: [lon, lat] as [number, number], ids: at.divs.map(d => d.id) };
     const over = this.fx.armyAt(m[0], m[1]); if (over !== null && over !== id) { this.st.set({ aim: { ...base, kind: 'merge', err: null, into: over } }); return; } // a click on another army joins it
     for (const war of activeWars(this.w)) for (const th of theatersOf(this.w, war)) {
       const k = cellOf(th, lon, lat); if (k < 0 || !th.land[k] || !th.sideOf[this.player] || th.frozen) continue;
-      if (th.c[k] * th.sideOf[this.player] > 0) { this.st.set({ aim: { ...base, kind: nearFront(th, k) ? 'hold' : 'wait', err: null } }); return; }
+      if (th.c[k] * th.sideOf[this.player] > 0) { this.st.set({ aim: { ...base, kind: nearFront(th, k) ? 'hold' : 'wait', err: null, days: this.tripDays(at.divs, lon, lat, true) } }); return; }
       const r = strikeOdds(this.w, war, th, this.player, [lon, lat], id);
       if (r.err === 'off.blocked' || r.err === 'off.tooFar') { const l = landingPlan(this.w, this.S, id, lon, lat); if (!l.err) { this.st.set({ aim: { ...base, kind: 'landing', err: null, odds: l.p, foes: l.foes, days: l.days } }); return; } }
       // the army's state and how far it would push past the front decide whether a good-looking attack is a trap
       const divs = at!.divs, mean = (f: (d: typeof divs[number]) => number) => divs.reduce((s, d) => s + f(d), 0) / Math.max(1, divs.length);
       const org = mean(d => d.org), sup = mean(d => d.theater >= 0 ? d.sup : 1), depth = r.at ? km(r.at[0], r.at[1], lon, lat) : 0;
-      this.st.set({ aim: { kind: 'attack', err: r.err, odds: r.odds, n: r.units.length, reserves: 0, foes: r.foes, def: r.def, from: r.from, to: r.to ?? null, ids: r.units.filter(d => d.theater === th.id).map(d => d.id), org, supTo: Math.max(0, sup - 0.65 * depth / 900) } }); return;
+      this.st.set({ aim: { kind: 'attack', err: r.err, odds: r.odds, n: r.units.length, reserves: 0, foes: r.foes, def: r.def, fort: r.fort, from: r.from, to: r.to ?? null, ids: r.units.filter(d => d.theater === th.id).map(d => d.id), org, supTo: Math.max(0, sup - 0.65 * depth / 900), days: r.from ? this.tripDays(r.units, r.from[0], r.from[1], true) : undefined } }); return;
     }
     const p = provAtLonLat(this.S, lon, lat), pr = p >= 0 ? this.w.provinces[p] : null;
     if (pr && pr.controller !== this.player) { const l = landingPlan(this.w, this.S, id, lon, lat); if (!l.err) { this.st.set({ aim: { ...base, kind: 'landing', err: null, odds: l.p, foes: l.foes, days: l.days } }); return; } } // enemy coast with no front: a landing
-    this.st.set({ aim: pr && pr.owner === this.player && pr.controller === this.player ? { ...base, kind: 'station', err: null, to: this.S.provinces[p].label } : { ...base, err: 'army.notOurs', from: null, to: null } });
+    this.st.set({ aim: pr && pr.owner === this.player && pr.controller === this.player ? { ...base, kind: 'station', err: null, to: this.S.provinces[p].label, place: p, days: this.tripDays(at.divs, ...this.S.provinces[p].label, false) } : { ...base, err: 'army.notOurs', from: null, to: null } });
+  }
+  /** how long divisions would take to get to a point: by rail and road from where they are (at the front, a short way is marched) */
+  private tripDays(divs: Division[], lon: number, lat: number, march: boolean) {
+    let most = 0;
+    for (const d of divs) { const at = whereNow(this.w, d); if (!at) continue; const dk = km(at[0], at[1], lon, lat); most = Math.max(most, march && d.theater >= 0 && dk <= 200 ? Math.ceil(dk / 15) : travelDays(this.w, d, dk)); }
+    return most;
   }
   /** while an army is picked up: what an order at the pointer would be (recomputed when the pointer moves or a day passes) */
   private updateAim() {
@@ -198,7 +218,16 @@ export class Game {
     // an army marker under the pointer: pick it up (or put it down); with an army picked up, a click elsewhere is its order (the sea puts it down)
     const [sx, sy] = this.s.cam.toScreen(...this.s.clickWorld), hit = this.fx.armyAt(sx, sy), sel = this.st.get().army;
     if (hit !== null && (sel === null || hit === sel)) { this.selectArmy(hit === sel ? null : hit); return; }
-    if (sel !== null) { if (p < 0 && hit === null) { this.selectArmy(null); return; } this.orderAt(sx, sy); return; }
+    if (sel !== null) {
+      if (p < 0 && hit === null) { this.selectArmy(null); return; }
+      // on a phone a tap shows the order first; a second tap on the same spot (or Confirm on the card) gives it
+      if (this.s.touch && hit === null) {
+        const q = this.pending ? this.s.cam.toScreen(...this.pendingWorld!) : null;
+        if (q && Math.hypot(q[0] - sx, q[1] - sy) < 28) { this.confirmOrder(); return; }
+        this.pending = [sx, sy]; this.pendingWorld = this.s.cam.toWorld(sx, sy); this.aimAt = ''; this.st.set({ pend: true }); this.updateArmyAim(); return;
+      }
+      this.orderAt(sx, sy); return;
+    }
     if (p < 0) { this.openPanel(null); this.s.ui.set({ selected: -1 }); return; }
     const owner = this.w.provinces[p].owner;
     this.s.ui.set({ selected: owner });

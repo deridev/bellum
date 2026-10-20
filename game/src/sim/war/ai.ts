@@ -220,17 +220,18 @@ export function strikeForce(w: World, t: Theater, c: number, target: [number, nu
 /** How a strike toward `target` would go: our strike force against the enemy divisions within 120 km of where it hits,
  *  multiplied by their defence there (terrain, cities, trenches, less what the barrage cancels). odds > 1 favours us. */
 export function strikeOdds(w: World, war: War, t: Theater, c: number, target: [number, number], army?: number) {
-  const f = strikeForce(w, t, c, target, army); if (f.err || !f.from) return { ...f, odds: 0, ours: 0, theirs: 0, foes: 0, def: 1, at: null as [number, number] | null };
+  const f = strikeForce(w, t, c, target, army); if (f.err || !f.from) return { ...f, odds: 0, ours: 0, theirs: 0, foes: 0, def: 1, at: null as [number, number] | null, fort: 0 };
   const side = t.sideOf[c], wk = work(t), sc = scan(w, t, c), [fx, fy] = f.from;
   let hit = -1, hd = Infinity, at: [number, number] = [0, 0]; // the enemy's front cell nearest the jump-off point, leaning toward the target
   for (const [k, x, y] of sc.front) { const d = fkm(x, y, fx, fy) + 0.3 * fkm(x, y, target[0], target[1]); if (d < hd) { hd = d; hit = k; at = [x, y]; } }
-  if (hit < 0) return { ...f, odds: 0, ours: 0, theirs: 0, foes: 0, def: 1, at: null };
+  if (hit < 0) return { ...f, odds: 0, ours: 0, theirs: 0, foes: 0, def: 1, at: null, fort: 0 };
   const aggr = frontAggr(w, war, t)[side > 0 ? 0 : 1], power = new Map(sc.free.map(x => [x.d, x.p]));
   let ours = 0, theirs = 0, foes = 0;
   for (const d of f.units) ours += power.get(d) ?? unitPower(w, t, d, -1, wk);
   for (const e of sc.foes) if (fkm(e.x, e.y, at[0], at[1]) < 120) { theirs += e.p; foes++; }
-  const def = baseDef(t) + 0.8 * t.mtn[hit] + t.ent[hit] * (1 - T.shock) + fortAt(t, hit, -side);
-  return { ...f, odds: ours * aggr * (1 + T.offBoost) / Math.max(1, theirs * def), ours, theirs, foes, def, at };
+  const fortDef = fortAt(t, hit, -side), def = baseDef(t) + 0.8 * t.mtn[hit] + t.ent[hit] * (1 - T.shock) + fortDef;
+  const fort = fortDef > 0 ? (w.provinces[t.prov[hit]]?.bld?.fort ?? 0) : 0; // the fort the blow lands on (its level)
+  return { ...f, odds: ours * aggr * (1 + T.offBoost) / Math.max(1, theirs * def), ours, theirs, foes, def, at, fort };
 }
 /** The best place to strike on a front: points spread along the enemy's line (aimed 150 km deep) and enemy cities within 450 km, by odds. */
 export function bestStrike(w: World, war: War, t: Theater, c: number) {

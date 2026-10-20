@@ -163,9 +163,14 @@ export function placeUnit(w: World, t: Theater, d: Division, lon: number, lat: n
   d.theater = t.id;
   d.x = lon + (nextRand(w) - 0.5) * t.cw * 3; d.y = lat + (nextRand(w) - 0.5) * t.ch * 3;
   const k = cellOf(t, d.x, d.y); if (k < 0 || !t.land[k]) { d.x = lon; d.y = lat; }
-  if (arrive > w.day && from) { d.arrive = exact ? arrive : w.day + travelDays(w, d, km(from[0], from[1], d.x, d.y)); d.trip = [from[0], from[1], d.x, d.y, w.day, d.arrive]; }
+  if (arrive > w.day && from) {
+    d.arrive = exact ? arrive : w.day + travelDays(w, d, km(from[0], from[1], d.x, d.y)); d.trip = [from[0], from[1], d.x, d.y, w.day, d.arrive];
+    const days = d.arrive - w.day; if (days > 3) d.org = Math.max(0.5, d.org - TRIP_WEAR * (days - 3)); // a long journey wears a division out: where it was raised and stationed matters
+  }
   else { d.arrive = arrive; d.trip = undefined; }
 }
+/** organisation a division loses for each day of a journey beyond the third */
+export const TRIP_WEAR = 0.02;
 let LABELS: [number, number][] | null = null; // province label points, for where a division at home stands
 export const knowMap = (S: MapStatic) => { LABELS = S.provinces.map(p => p.label); };
 /** Days to travel `dk` km, by the infrastructure of the province it sets out from */

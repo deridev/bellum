@@ -8,7 +8,7 @@ import { GENERAL } from '../sim/war/theater';
 import { UNIT_SPEC } from '../sim/economy';
 import { acceptsPeace, heldDemand, sideOf, theatersOf, truceKey, warCost, warScoreParts, warsOf, type PeaceTerms } from '../sim/war/war';
 import type { War } from '../sim/types';
-import { armyName, countryName, fmtDate, say, t } from '../i18n';
+import { armyName, countryName, fmtDate, provName, say, t } from '../i18n';
 import { Block, Flag, Icon, Sheet, Tug, UnitSymbol } from './common';
 import { fmt1, fmtBig, fmtInt, fmtMoney, pct, cssPct } from './format';
 
@@ -167,7 +167,7 @@ function ArmyCard({ g, id }: { g: Game; id: number }) {
   const org = avg(d => d.org), sup = avg(d => d.theater < 0 ? 1 : d.sup), atWar = at.theater >= 0, gen = a.general;
   const v = m && !m.err && m.kind === 'attack' ? aimVerdict(m) : null;
   const meter = (label: string, x: number, tip: string) => <span class="ac-m" data-tip={tip}><small>{label}</small><span class="army-str"><i class={x < 0.4 ? 'bad' : x < 0.7 ? 'amber' : ''} style={{ width: cssPct(Math.min(1, x)) }} /></span><b class="num">{pct(x)}</b></span>;
-  const act = (k: 'release' | 'reserve' | 'split' | 'raise', icon: string, key: string, ok: boolean, tip: string) => <button disabled={!ok} data-tip={tip} onClick={() => g.armyAction(k)}><Icon name={icon} size={14} />{t('army.do.' + k)}<kbd>{key}</kbd></button>;
+  const act = (k: 'release' | 'reserve' | 'split' | 'raise', icon: string, key: string, ok: boolean, tip: string, sub?: string) => <button disabled={!ok} data-tip={tip} onClick={() => g.armyAction(k)}><Icon name={icon} size={14} />{t('army.do.' + k)}{sub && <small class="ac-sub">{sub}</small>}<kbd>{key}</kbd></button>;
   return <div class="ui army-card plate" role="dialog" aria-label={armyName(a.num)}>
     <div class="ac-head"><Icon name="military" size={18} /><b class="army-n">{armyName(a.num)}</b><small class={`army-st s-${at.state}`}>{t('army.st.' + at.state)}{at.state === 'moving' && at.eta !== undefined ? ' · ' + t('army.eta', { n: Math.max(1, at.eta - w.day) }) : ''}</small>
       <span class="ac-gen" data-tip={t('army.skill', { n: gen.skill, p: pct(GENERAL.skill(gen.skill) - 1) })}>{t('army.general', { g: gen.name })} <span class="stars">{'★'.repeat(gen.skill)}{'☆'.repeat(4 - gen.skill)}</span></span>
@@ -176,16 +176,17 @@ function ArmyCard({ g, id }: { g: Game; id: number }) {
       <button class="x" aria-label={t('ui.close')} onClick={() => g.selectArmy(null)}><Icon name="x" size={14} /></button></div>
     <div class="ac-body"><span class="ac-units">{Object.entries(by).map(([k, n]) => <span key={k} data-tip={t('unitShort.' + k)}><UnitSymbol type={k} size={18} /><b class="num">{n}</b></span>)}</span>
       {meter(t('army.strength'), at.str, t('army.strengthHint'))}{meter(t('army.org'), org, t('army.orgHint'))}{meter(t('army.supply'), sup, t('army.supplyHint'))}</div>
-    <div class="ac-order">{!m ? <span class="muted">{t('army.hint')}</span> : m.err ? <span class="muted">{t(m.err)}</span>
-      : m.kind === 'attack' ? <span class="aim"><b class={`verdict v-${v}`}>{t('aim.' + v)}</b><span>{t('aim.force', { n: m.n, m: m.foes })}<small> · {t('aim.def', { x: fmt1(m.def) })}</small></span>{m.foes > 0 && <b class="num">{m.odds >= 10 ? '10+' : fmt1(m.odds)} : 1</b>}<small class="aim-sup" data-tip={t('aim.supHint')}>{t('aim.supThere', { p: pct(m.supTo ?? 1) })}</small></span>
+    <div class="ac-order">{!m ? <span class="muted">{t(g.s.touch ? 'army.hintTouch' : 'army.hint')}</span> : m.err ? <span class="muted">{t(m.err)}</span>
+      : m.kind === 'attack' ? <span class="aim"><b class={`verdict v-${v}`}>{t('aim.' + v)}</b><span>{t('aim.force', { n: m.n, m: m.foes })}<small> · {t('aim.def', { x: fmt1(m.def) })}{m.fort ? ' · ' + t('aim.fort', { n: m.fort }) : ''}{m.days && m.days > 1 ? ' · ' + t('aim.arrive', { n: m.days }) : ''}</small></span>{m.foes > 0 && <b class="num">{m.odds >= 10 ? '10+' : fmt1(m.odds)} : 1</b>}<small class="aim-sup" data-tip={t('aim.supHint')}>{t('aim.supThere', { p: pct(m.supTo ?? 1) })}</small></span>
       : m.kind === 'landing' ? <span class="aim"><b class={`verdict v-${m.odds >= 0.6 ? 'likely' : m.odds >= 0.35 ? 'hard' : 'stall'}`}>{t('aim.landing')}</b><span>{t('aim.landingOdds', { p: pct(m.odds), n: m.days ?? 0, m: m.foes })}</span></span>
       : m.kind === 'merge' ? <span class="aim"><b class="verdict v-move">{t('army.go.merge', { a: armyName(w.armies.find(x => x.id === m.into)?.num ?? 0) })}</b></span>
-      : <span class="aim"><b class="verdict v-move">{t('army.go.' + m.kind)}</b></span>}</div>
+      : <span class="aim"><b class="verdict v-move">{m.kind === 'station' && m.place !== undefined ? t('army.go.stationAt', { p: provName(m.place) }) : t('army.go.' + m.kind)}</b>{m.days ? <span>{t('aim.arrive', { n: m.days })}</span> : null}</span>}
+      {g.st.get().pend && <span class="ac-confirm"><button class="primary" onClick={() => g.confirmOrder()}>{t('army.confirm')}</button><button onClick={() => g.cancelOrder()}>{t('ui.cancel')}</button></span>}</div>
     <div class="ac-acts">
       {act('release', 'advance', 'L', atWar && at.state !== 'front', t('army.tip.release'))}
       {act('reserve', 'hold', 'R', atWar && at.state !== 'wait', t('army.tip.reserve'))}
       {act('split', 'diplomacy', 'S', ds.length >= 2, t('army.tip.split'))}
-      {act('raise', 'improve', 'N', g.me.manpower >= UNIT_SPEC.infantry.men, t('army.tip.raise', { v: fmtMoney(g.me.unitCost * UNIT_SPEC.infantry.costMul), d: UNIT_SPEC.infantry.days }))}
+      {(() => { const at = g.raiseAt(a.id); return act('raise', 'improve', 'N', g.me.manpower >= UNIT_SPEC.infantry.men && at !== undefined, at !== undefined ? t('army.tip.raiseAt', { v: fmtMoney(g.me.unitCost * UNIT_SPEC.infantry.costMul), d: UNIT_SPEC.infantry.days, p: provName(at) }) : t('mil.noBarracks'), at !== undefined ? t('army.raiseWhere', { p: provName(at), d: UNIT_SPEC.infantry.days }) : undefined); })()}
       <small class="muted ac-keys">{t('army.keys')}</small></div>
   </div>;
 }

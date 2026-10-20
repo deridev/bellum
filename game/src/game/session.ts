@@ -67,7 +67,7 @@ export class Session {
     const pos = (e: PointerEvent | WheelEvent): [number, number] => { const r = st.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
     st.addEventListener('pointerdown', e => {
       if ((e.target as HTMLElement).closest('.ui')) return;
-      st.setPointerCapture(e.pointerId); const p = pos(e); ptrs.set(e.pointerId, p);
+      st.setPointerCapture(e.pointerId); const p = pos(e); ptrs.set(e.pointerId, p); this.touch = e.pointerType === 'touch'; this.overUi = false; this.ui.set({ mouse: p }); // a tap has no hover before it: the map is under it now
       // pressed on an army marker: a drag carries the army to its order instead of panning the map
       if (ptrs.size === 1) drag = { p, x: this.cam.x, y: this.cam.y, moved: 0, army: e.button === 0 && !!this.onPress?.(p), right: e.button === 2 };
       if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), upp: this.cam.upp }; drag = null; }
@@ -100,6 +100,8 @@ export class Session {
     st.addEventListener('pointerleave', () => { this.pickPending = null; this.ui.set({ hover: -1 }); });
   }
   clickWorld: [number, number] = [0, 0];
+  /** the last press was a finger (a phone or tablet): orders are previewed before they are given */
+  touch = false;
   /** the pointer is over the HUD (not the map) */
   overUi = false;
   click(p: [number, number]) {

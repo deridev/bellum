@@ -1,5 +1,5 @@
-// Province buildings: a fort holds the line, barracks raise and train the army, a factory adds to the province's output.
-// Each has three levels; a level is paid for when it is started and stands when finished.
+// Province buildings: barracks raise the army, a fort holds the line, a factory adds to the province's output.
+// Forts and factories have three levels; a level is paid for when it is started and stands when finished.
 import type { Building, Country, MapStatic, Province, World } from './types';
 import { msg } from './types';
 import { say } from './world';
@@ -8,23 +8,25 @@ import { nextRand } from './rng';
 
 export const BUILDINGS: Building[] = ['barracks', 'fort', 'factory'];
 export const MAX_LEVEL = 3;
+/** Barracks either stand or don't; forts and factories have three levels */
+export const maxLevel = (b: Building) => b === 'barracks' ? 1 : MAX_LEVEL;
 export const levelOf = (p: Province, b: Building) => p.bld?.[b] ?? 0;
 /** What each level does */
 export const FORT_DEF = 0.6; // added to the defender's edge in the province, per level
 export const FACTORY_OUT = 0.12; // the province's output, per level
-export const BARRACKS_FAST = 0.2; // training time saved per level above the first
-/** The next level's price (US$ millions) and building time (days). */
+/** The next level's price (US$ millions) and building time (days), in months of the nation's revenue: building competes for the treasury.
+ *  A factory's price follows the province's output, so it pays where the output is. */
 export function buildCost(c: Country, p: Province, b: Building) {
-  const L = levelOf(p, b) + 1;
-  if (b === 'factory') return { cost: Math.max(c.unitCost * 4, p.gdp * 0.06) * L, days: 120 + 30 * L };
-  if (b === 'fort') return { cost: c.unitCost * 8 * L, days: 45 + 30 * L };
-  return { cost: c.unitCost * 6 * L, days: 45 + 15 * L };
+  const L = levelOf(p, b) + 1, month = Math.max(c.income, c.unitCost * 10);
+  if (b === 'factory') return { cost: Math.max(month * 0.3, p.gdp * 0.1) * L, days: 120 + 30 * L };
+  if (b === 'fort') return { cost: month * 0.3 * L, days: 45 + 30 * L };
+  return { cost: month * 0.25, days: 60 };
 }
 export const building = (w: World, prov: number, b?: Building) => (w.projects ?? []).find(x => x.prov === prov && (!b || x.b === b));
 /** Why a level can't be built now (a message key), or null. */
 export function canBuild(w: World, c: Country, p: Province, b: Building): string | null {
   if (p.owner !== c.id || p.controller !== c.id) return 'bld.notOurs';
-  if (levelOf(p, b) >= MAX_LEVEL) return 'bld.max';
+  if (levelOf(p, b) >= maxLevel(b)) return 'bld.max';
   if (building(w, p.id)) return 'bld.busy'; // one work at a time in a province
   if (c.treasury < buildCost(c, p, b).cost) return 'bld.money';
   return null;
@@ -68,9 +70,9 @@ export function monthlyAIBuild(w: World, S: MapStatic, nb: Set<number>[]) {
     const border = mine.filter(p => S.provinces[p.id].nbr.some(n => { const o = w.provinces[n].owner; return o !== c.id && hostile(o); }));
     const r = nextRand(w);
     let pick: Province | undefined, b: Building = 'factory';
-    if (border.length && r < 0.5) { b = 'fort'; pick = border.filter(p => levelOf(p, 'fort') < MAX_LEVEL).sort((x, y) => y.gdp - x.gdp)[0]; }
-    else if (r < 0.6) { b = 'barracks'; const cands = (border.length ? border : mine).filter(p => levelOf(p, 'barracks') < 2); pick = cands.sort((x, y) => y.pop - x.pop)[0]; }
-    else { pick = mine.filter(p => levelOf(p, 'factory') < MAX_LEVEL).sort((x, y) => y.gdp - x.gdp)[0]; }
+    if (border.length && r < 0.5) { b = 'fort'; pick = border.filter(p => levelOf(p, 'fort') < maxLevel('fort')).sort((x, y) => y.gdp - x.gdp)[0]; }
+    else if (r < 0.6) { b = 'barracks'; const cands = (border.length ? border : mine).filter(p => !levelOf(p, 'barracks')); pick = cands.sort((x, y) => y.pop - x.pop)[0]; }
+    else { pick = mine.filter(p => levelOf(p, 'factory') < maxLevel('factory')).sort((x, y) => y.gdp - x.gdp)[0]; }
     if (pick && c.treasury - buildCost(c, pick, b).cost > c.income * 0.3) startBuild(w, c, pick, b);
   }
 }
