@@ -312,4 +312,7 @@ export const en: Record<string, Entry> = {
   'army.hintTouch': 'Tap the map: you see where it goes, how long it takes and the odds; then Confirm.',
   'army.strengthS': 'Str', 'army.orgS': 'Org', 'army.supplyS': 'Sup', 'aim.orgTo': '{p} organisation on arrival',
   'army.confirmAttackTouch': 'This army is in no state to attack. Tap Confirm to attack anyway.',
+  'agenda.cap.title': '{c} offers to capitulate', 'agenda.cap.text': 'We hold {n} of its {m} provinces. Accept and the war ends: we keep what we hold and the rest becomes a puppet. Or fight on until we have it all.', 'agenda.cap.textTerms': 'We hold {n} of its {m} provinces. Accept and the war ends on what we hold. Or fight on until we have it all.',
+  'opt.acceptCap': 'Accept the capitulation', 'log.capOffer': '{c} offers to capitulate', 'log.capRefused': 'We fight on until all of {c} is taken',
+  'fx.gain': { one: '+{n} province', other: '+{n} provinces' }, 'fx.freeLeft': '{n} not taken', 'fx.takeAll': 'Take all of it',
 };

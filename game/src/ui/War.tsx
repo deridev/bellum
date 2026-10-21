@@ -107,6 +107,7 @@ export function DeclareDialog({ g, target }: { g: Game; target: number }) {
 /** Decisions waiting for the player: peace offers, proposals, events. The newest is open, the rest wait as one-line slips. */
 /** what accepting or refusing a peace offer does, as short chips */
 function peaceFx(a: { data?: any }, i: number): [string, string][] {
+  if (a.data?.cap !== undefined) return i === 0 ? [[t('fx.endsWar'), ''], [t('fx.gain', { n: a.data.held }), 'good'], [t('fx.freeLeft', { n: a.data.free }), 'bad']] : [[t('fx.warGoesOn'), ''], [t('fx.takeAll'), 'good']];
   const n = a.data?.terms?.provinces?.length ?? 0;
   return i === 0 ? [[t('fx.endsWar'), 'good'], n ? [t('fx.provinces', { n }), 'bad'] : [t('fx.noLand'), '']] : [[t('fx.warGoesOn'), 'bad']];
 }

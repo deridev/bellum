@@ -3,7 +3,7 @@ import type { ProvinceData } from '../data/types';
 import { CULTURE_OF, type Tables } from './data';
 import type { AgendaItem, MapStatic, War, World } from './types';
 import { msg } from './types';
-import { declareWar, joinWar, leaveWar, makePeace, occupy, sendToTheater, sideOf, yieldNation } from './war/war';
+import { declareWar, joinWar, leaveWar, makePeace, occupy, playerAllows, sendToTheater, sideOf, yieldNation } from './war/war';
 import { newLeader } from './politics';
 import { addRel, clamp01, say } from './world';
 import { cAt, cellLonLat, cellOf, claimDisk, computeDist, deployAlongFront, T } from './war/theater';
@@ -225,8 +225,9 @@ function moment(w: World, S: MapStatic, m: Moment): boolean | void {
     const side = sideOf(war, c); if (!side) return false;
     const win = -side as 1 | -1, winners = win > 0 ? war.attackers : war.defenders, losers = side > 0 ? war.attackers : war.defenders;
     const terms = { type: 'treaty' as const, provinces: w.provinces.filter(p => losers.includes(p.owner) && winners.includes(p.controller)).map(p => p.id), reparations: true };
-    say(w, msg('hist.armistice1918', { c: { c } }), 'peace', { who: [...war.attackers, ...war.defenders], big: 'big.war', prov: w.countries[c].capital });
     const pl = losers.find(x => w.countries[x].player);
+    if (pl === undefined && !playerAllows(w, war, c, side, terms)) return; // a player among the winners decides whether to take it
+    say(w, msg('hist.armistice1918', { c: { c } }), 'peace', { who: [...war.attackers, ...war.defenders], big: 'big.war', prov: w.countries[c].capital });
     if (pl === undefined) return makePeace(w, S, war, win, terms);
     w.agenda.push({ id: w.nextId++, country: pl, day: w.day, kind: 'peace', title: msg('agenda.peace.title', { c: { c: win > 0 ? war.leadA : war.leadD } }), text: msg('agenda.peace.treaty', { n: terms.provinces.length }), data: { war: war.id, side: win, terms }, expires: w.day + 30,
       options: [{ label: msg('opt.accept'), effect: 'peace.accept' }, { label: msg('opt.fightOn'), effect: 'peace.reject' }] });

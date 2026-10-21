@@ -321,11 +321,11 @@ function weeklyWar(w: World, S: MapStatic, war: War) {
     war.exhaustion[i] = clamp01(war.casualties[i] / Math.max(1, pop) * 40 * (war.total ? 0.6 : 1) + Math.max(0, w.day - war.start) / 3650); // nations in a world war, fully mobilised, bear far more
     for (const c of side) { const C = w.countries[c]; C.warSupport = clamp01(C.warSupport - war.exhaustion[i] * 0.01 - (C.gov === 'democracy' ? 0.002 : 0)); }
   }
-  for (const side of [1, -1] as const) if (!war.ended && surrenders(w, S, war, side)) { capitulate(w, S, war, side); return; }
+  for (const side of [1, -1] as const) if (!war.ended && surrenders(w, S, war, side) && playerAllows(w, war, side > 0 ? war.leadA : war.leadD, side)) { capitulate(w, S, war, side); return; }
   // in a world war, smaller members whose homeland is overrun make a separate peace too (Belgium, the Netherlands, 1940)
   if (war.total) for (const side of [1, -1] as const) for (const c of [...(side > 0 ? war.attackers : war.defenders)]) {
     const members = side > 0 ? war.attackers : war.defenders, lead = side > 0 ? war.leadA : war.leadD;
-    if (c === lead || !members.includes(c) || !overrun(w, S, war, c, side, true)) continue;
+    if (c === lead || !members.includes(c) || !overrun(w, S, war, c, side, true) || !playerAllows(w, war, c, side)) continue;
     say(w, msg('log.capitulates', { c: { c } }), 'war', { who: [...war.attackers, ...war.defenders], big: 'big.capitulation' });
     separatePeace(w, S, war, c, side, members.filter(x => x !== c && w.countries[x].alive));
   }
@@ -366,11 +366,32 @@ function overrun(w: World, S: MapStatic, war: War, c: number, side: 1 | -1, memb
 }
 /** A nation gives up (an armistice history fixes, France 1940): the leader of its side capitulates; a member makes a separate peace. */
 export function yieldNation(w: World, S: MapStatic, war: War, c: number) {
-  const side = sideOf(war, c); if (!side || war.ended) return;
+  const side = sideOf(war, c); if (!side || war.ended || !playerAllows(w, war, c, side)) return;
   const lead = side > 0 ? war.leadA : war.leadD, members = side > 0 ? war.attackers : war.defenders;
   if (c === lead) { capitulate(w, S, war, side); return; }
   say(w, msg('log.capitulates', { c: { c } }), 'war', { who: [...war.attackers, ...war.defenders], big: 'big.capitulation' });
   separatePeace(w, S, war, c, side, members.filter(x => x !== c && w.countries[x].alive));
+}
+/** An enemy of the player gives up while some of its land is still free: the player decides, on a card, whether to accept (the war ends on what is held)
+ *  or fight on until all of it is taken (asked again after 120 days). True when the capitulation may go ahead now. */
+export function playerAllows(w: World, war: War, c: number, side: 1 | -1, terms?: PeaceTerms) {
+  const winners = side > 0 ? war.defenders : war.attackers, me = winners.find(x => w.countries[x].player); if (me === undefined) return true;
+  const own = w.provinces.filter(p => p.owner === c), held = own.filter(p => winners.includes(p.controller)).length; if (held === own.length) return true; // all of it is taken
+  const ys = war.yields ??= {}; if (ys[c] === -1) return true; // the player accepted
+  if ((ys[c] ?? 0) > w.day || w.agenda.some(a => a.data?.cap === c && a.data.war === war.id)) return false; // fighting on, or the card is waiting
+  w.agenda.push({ id: w.nextId++, country: me, day: w.day, kind: 'peace', title: msg('agenda.cap.title', { c: { c } }), text: msg(terms ? 'agenda.cap.textTerms' : 'agenda.cap.text', { n: held, m: own.length }), data: { war: war.id, cap: c, held, free: own.length - held, terms }, expires: w.day + 30, dflt: 1,
+    options: [{ label: msg('opt.acceptCap'), effect: 'cap.accept' }, { label: msg('opt.fightOn'), effect: 'cap.fightOn' }] });
+  say(w, msg('log.capOffer', { c: { c } }), 'diplo', { who: [me, c] });
+  return false;
+}
+/** The player's answer to a capitulation offer */
+export function answerCapitulation(w: World, S: MapStatic, warId: number, c: number, accept: boolean, terms?: PeaceTerms) {
+  const war = w.wars.find(x => x.id === warId); if (!war || war.ended) return;
+  const side = sideOf(war, c); if (!side) return;
+  const ys = war.yields ??= {};
+  if (!accept) { ys[c] = w.day + 120; say(w, msg('log.capRefused', { c: { c } }), 'war', { who: [...war.attackers, ...war.defenders] }); return; }
+  ys[c] = -1;
+  if (terms) makePeace(w, S, war, -side as 1 | -1, terms); else yieldNation(w, S, war, c);
 }
 /** The winners dictate the peace: everything they hold of the leader's land, and a puppet if nothing is left to take. */
 function capitulate(w: World, S: MapStatic, war: War, side: 1 | -1) {
@@ -405,7 +426,8 @@ function separatePeace(w: World, S: MapStatic, war: War, c: number, side: 1 | -1
   say(w, msg('log.separatePeace', { c: { c }, war: { m: war.name }, b: { c: strongest } }), 'peace', { who: [c, ...winners], big: 'big.capitulation' });
   // what is left of a side that has lost its great powers gives in with them
   const divs = (cs: number[]) => w.divisions.filter(d => cs.includes(d.country)).length, losers = side > 0 ? war.attackers : war.defenders;
-  if (war.total && divs(losers) < 0.35 * divs(winners) && war.exhaustion[side > 0 ? 0 : 1] >= 0.5) makePeace(w, S, war, win, { type: 'treaty', provinces: w.provinces.filter(p => losers.includes(p.owner) && winners.includes(p.controller)).map(p => p.id) });
+  const asks = winners.some(x => w.countries[x].player) && w.provinces.some(p => losers.includes(p.owner) && !winners.includes(p.controller)); // a player's enemies give in one by one, each when the player allows
+  if (war.total && !asks && divs(losers) < 0.35 * divs(winners) && war.exhaustion[side > 0 ? 0 : 1] >= 0.5) makePeace(w, S, war, win, { type: 'treaty', provinces: w.provinces.filter(p => losers.includes(p.owner) && winners.includes(p.controller)).map(p => p.id) });
 }
 /** A member leaves a world war of its own accord (a revolution, say): the enemy keeps what it holds, but there is no overlord. */
 export function leaveWar(w: World, S: MapStatic, war: War, c: number) {

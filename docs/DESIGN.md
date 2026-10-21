@@ -709,6 +709,13 @@ Also: a historical moment the world did not allow is retried monthly until its l
 
 Left as is: the default posture "Avançar" can outrun supply; the preview already shows "suprimento lá".
 
+### 24.2 Capitulation waits for the player
+An enemy of the player that is beaten (capital and three quarters of its homeland lost, or exhausted) no longer ends the war by itself while any of its land is still free. The player gets a card, "O Iraque oferece capitulação · Temos 13 das suas 16 províncias", and decides:
+- **Accept:** the war ends as before. We keep what we hold, and the rest becomes a puppet (a separate peace for a member of a world war; the 1918 armistice keeps its own terms).
+- **Fight on:** the war goes on until all of it is taken; the offer comes back after 120 days. An unanswered card counts as fighting on.
+
+This covers every way a nation gives up: the leader's surrender, a world-war member's separate peace, the history armistices (France 1940, Germany 1918), and the knock-on peace of a side whose great powers have fallen. Once our side holds every province of the enemy, it falls with no card. Wars between AI nations are unchanged.
+
 ### 24.1 Known issues
 - Buildings have no upkeep; a rich nation can build everything eventually.
 - Enemy divisions in transit are not drawn, only our armies.

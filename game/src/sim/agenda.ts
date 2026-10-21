@@ -1,7 +1,7 @@
 import type { AgendaItem, MapStatic, World } from './types';
 import { chooseCrisis } from './crises';
 import { msg } from './types';
-import { makePeace } from './war/war';
+import { answerCapitulation, makePeace } from './war/war';
 import { addRel, say } from './world';
 import { DIPLO, doDiplo, resolveDemand, type DiploAction } from './diplomacy';
 import { applyEvent } from './events';
@@ -14,6 +14,7 @@ export function resolveAgenda(w: World, S: MapStatic, id: number, option: number
   w.agenda = w.agenda.filter(a => a.id !== id);
   const eff = item.options[option]?.effect;
   if (eff === 'peace.accept') { const war = w.wars.find(x => x.id === item.data.war); if (war && !war.ended) makePeace(w, S, war, item.data.side, item.data.terms); }
+  else if (eff === 'cap.accept' || eff === 'cap.fightOn') answerCapitulation(w, S, item.data.war, item.data.cap, eff === 'cap.accept', item.data.terms);
   else if (eff === 'peace.reject') say(w, msg('log.peaceRejected', { c: { c: item.country } }), 'diplo', { who: [item.country] });
   else if (item.data?.act === 'demand' && (eff === 'diplo.accept' || eff === 'diplo.decline')) resolveDemand(w, item.data.from, item.country, item.data.prov, eff === 'diplo.accept');
   else if (eff === 'diplo.accept') { const { from, act } = item.data; doDiplo(w, from, item.country, act, S); w.countries[from].polCap += DIPLO[act as DiploAction].cost; }
